@@ -1,0 +1,36 @@
+{
+  "cli": {
+    "version": ">= 16.28.0",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "env": {
+        "SUPABASE_URL": "https://wdcgvzeolhpfkuozickj.supabase.co",
+        "SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndkY2d2emVvbGhwZmt1b3ppY2tqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM5NDU1MjUsImV4cCI6MjA2OTUyMTUyNX0.ajRMS_q7hoFQgnjXeKMEZoTFYm_jHsKW-xUxXUNBdWk",
+        "REVENUECAT_ANDROID_API_KEY": "goog_UcCHBgWttuOOhQwaTAIaUWJeiGR"
+      }
+    },
+    "preview": {
+      "distribution": "internal",
+      "env": {
+        "SUPABASE_URL": "https://wdcgvzeolhpfkuozickj.supabase.co",
+        "SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndkY2d2emVvbGhwZmt1b3ppY2tqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM5NDU1MjUsImV4cCI6MjA2OTUyMTUyNX0.ajRMS_q7hoFQgnjXeKMEZoTFYm_jHsKW-xUxXUNBdWk",
+        "REVENUECAT_ANDROID_API_KEY": "goog_UcCHBgWttuOOhQwaTAIaUWJeiGR"
+      }
+    },
+    "production": {
+      "autoIncrement": true,
+      "env": {
+        "SUPABASE_URL": "https://wdcgvzeolhpfkuozickj.supabase.co",
+        "SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndkY2d2emVvbGhwZmt1b3ppY2tqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM5NDU1MjUsImV4cCI6MjA2OTUyMTUyNX0.ajRMS_q7hoFQgnjXeKMEZoTFYm_jHsKW-xUxXUNBdWk",
+        "REVENUECAT_ANDROID_API_KEY": "goog_UcCHBgWttuOOhQwaTAIaUWJeiGR"
+      }
+    }
+  },
+  "submit": {
+    "production": {}
+  }
+}

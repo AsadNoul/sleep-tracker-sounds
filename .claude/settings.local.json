@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install:*)",
+      "Bash(copy:*)",
+      "Bash(npx tsc:*)",
+      "Bash(find:*)",
+      "Bash(done)",
+      "Bash(grep:*)",
+      "Bash(supabase secrets:*)",
+      "Bash(npx supabase:*)",
+      "Bash(npx expo install:*)",
+      "Bash(npx expo start --clear)",
+      "Bash(taskkill:*)",
+      "Bash(timeout 20 npx expo start:*)",
+      "Bash(supabase functions:*)",
+      "Bash(eas build:*)",
+      "Bash(findstr:*)",
+      "Bash(netstat:*)",
+      "Bash(cmd //c taskkill //PID 20700 //F)",
+      "Bash(cmd //c taskkill //PID 28196 //F)",
+      "Bash(.gradlew clean:*)",
+      "Bash(gradlew.bat clean:*)",
+      "Bash(cmd //c gradlew.bat clean --stacktrace)",
+      "Bash(./gradlew clean:*)",
+      "Bash(npx eas:*)"
+    ]
+  }
+}

@@ -1,0 +1,19 @@
+declare module '@env' {
+  export const SUPABASE_URL: string;
+  export const SUPABASE_ANON_KEY: string;
+  export const STRIPE_TEST_MODE: string;
+  export const STRIPE_PUBLISHABLE_KEY: string;
+  export const STRIPE_MONTHLY_PRICE_ID: string;
+  export const STRIPE_YEARLY_PRICE_ID: string;
+  export const STRIPE_TEST_PUBLISHABLE_KEY: string;
+  export const STRIPE_TEST_MONTHLY_PRICE_ID: string;
+  export const STRIPE_TEST_YEARLY_PRICE_ID: string;
+  export const GOOGLE_WEB_CLIENT_ID: string;
+  export const GOOGLE_IOS_CLIENT_ID: string;
+  export const GOOGLE_ANDROID_CLIENT_ID: string;
+  export const GOOGLE_ANDROID_DEBUG_CLIENT_ID: string;
+  export const APPLE_SERVICE_ID: string;
+  export const REVENUECAT_ANDROID_API_KEY: string;
+  export const REVENUECAT_IOS_API_KEY: string;
+  export const SENTRY_DSN: string;
+}

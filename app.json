@@ -1,0 +1,98 @@
+{
+  "expo": {
+    "name": "Sleep Architect",
+    "slug": "sleep-tracker-app",
+    "version": "2.1.0",
+    "scheme": "com.sleeptracker.app",
+    "orientation": "portrait",
+    "icon": "./assets/app_logo.png",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/app_logo.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0B0B15"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.sleeptracker.app",
+      "buildNumber": "2.1.0",
+      "infoPlist": {
+        "UIBackgroundModes": [
+          "audio"
+        ]
+      }
+    },
+    "android": {
+      "package": "com.sleeptracker.app",
+      "versionCode": 1,
+      "permissions": [
+        "VIBRATE",
+        "WAKE_LOCK",
+        "RECEIVE_BOOT_COMPLETED",
+        "SCHEDULE_EXACT_ALARM",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.INTERNET",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
+      ],
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/app_logo.png",
+        "backgroundColor": "#0B0B15"
+      },
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": false,
+          "data": [
+            {
+              "scheme": "com.sleeptracker.app",
+              "host": "auth",
+              "pathPrefix": "/callback"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        },
+        {
+          "action": "VIEW",
+          "autoVerify": false,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "wdcgvzeolhpfkuozickj.supabase.co",
+              "pathPrefix": "/auth/v1/callback"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        }
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "description": "Track your sleep quality, listen to relaxing sounds, and get personalized sleep recommendations for better rest and wellness.",
+    "privacy": "public",
+    "githubUrl": "https://github.com/AsadNoul/sleep-tracker-sounds",
+    "extra": {
+      "privacyPolicyUrl": "https://raw.githubusercontent.com/AsadNoul/sleep-tracker-sounds/main/privacy.md",
+      "termsOfServiceUrl": "https://raw.githubusercontent.com/AsadNoul/sleep-tracker-sounds/main/terms.md",
+      "eas": {
+        "projectId": "8e333ff4-ed31-4913-bbd3-9d94d783e98c"
+      }
+    },
+    "plugins": [
+      "expo-web-browser",
+      "expo-notifications",
+      "expo-file-system",
+      "expo-av"
+    ],
+    "owner": "assdalinaul"
+  }
+}
