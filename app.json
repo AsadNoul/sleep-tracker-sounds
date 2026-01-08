@@ -7,7 +7,7 @@
     "orientation": "portrait",
     "icon": "./assets/app_logo.png",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "splash": {
       "image": "./assets/app_logo.png",
       "resizeMode": "contain",
@@ -20,12 +20,17 @@
       "infoPlist": {
         "UIBackgroundModes": [
           "audio"
-        ]
+        ],
+        "NSUserTrackingUsageDescription": "This helps us understand your app usage to improve your experience.",
+        "NSLocationWhenInUseUsageDescription": "We use your location to provide better sleep recommendations based on your timezone."
+      },
+      "config": {
+        "usesNonExemptEncryption": false
       }
     },
     "android": {
       "package": "com.sleeptracker.app",
-      "versionCode": 1,
+      "versionCode": 2,
       "permissions": [
         "VIBRATE",
         "WAKE_LOCK",
@@ -35,7 +40,8 @@
         "android.permission.WRITE_EXTERNAL_STORAGE",
         "android.permission.INTERNET",
         "android.permission.RECORD_AUDIO",
-        "android.permission.MODIFY_AUDIO_SETTINGS"
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.POST_NOTIFICATIONS"
       ],
       "adaptiveIcon": {
         "foregroundImage": "./assets/app_logo.png",
@@ -78,7 +84,6 @@
       "favicon": "./assets/favicon.png"
     },
     "description": "Track your sleep quality, listen to relaxing sounds, and get personalized sleep recommendations for better rest and wellness.",
-    "privacy": "public",
     "githubUrl": "https://github.com/AsadNoul/sleep-tracker-sounds",
     "extra": {
       "privacyPolicyUrl": "https://raw.githubusercontent.com/AsadNoul/sleep-tracker-sounds/main/privacy.md",
