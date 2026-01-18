@@ -1,4 +1,4 @@
-import React, { createContext, useState, useContext, useEffect, ReactNode, useRef } from 'react';
+import React, { createContext, useState, useContext, useEffect, ReactNode, useRef, useMemo, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import NetInfo from '@react-native-community/netinfo';
 import { supabase } from '../lib/supabase';
@@ -9,7 +9,10 @@ import sleepRecorderService from '../services/sleepRecorderService';
 import sleepTrackingService, { SleepStageSegment } from '../services/sleepTrackingService';
 import notificationService from '../services/notificationService';
 import aiInsightService from '../services/aiInsightService';
+import analyticsService from '../services/analyticsService';
+import alarmService from '../services/alarmService';
 import { calculateSleepScore } from '../utils/sleepScoreCalculator';
+import { scheduleMorningNotification, sendImmediateSleepSummary } from '../services/morningNotificationService';
 import { Alert } from 'react-native';
 
 export interface SleepSession {
@@ -19,12 +22,16 @@ export interface SleepSession {
   duration: number; // in minutes
   quality: number; // 0-10
   sleepScore?: number; // 0-100
+  userRating?: number; // 1-5 stars
   sleepStages?: SleepStageSegment[];
   wakeUps: number;
   sleepSoundsEnabled: boolean;
   smartAlarmEnabled: boolean;
   notes?: string;
   tags?: string[];
+  snoringDetected?: boolean;
+  snoringDuration?: number;
+  apneaRisk?: 'low' | 'moderate' | 'high';
 }
 
 interface SleepContextType {
@@ -35,7 +42,7 @@ interface SleepContextType {
   syncStatus: 'idle' | 'syncing' | 'success' | 'error';
   syncError: string | null;
   startSleepSession: (sleepSoundsEnabled: boolean, smartAlarmEnabled: boolean, sleepRecorderEnabled: boolean, targetAlarmTime?: Date) => Promise<void>;
-  endSleepSession: (wakeUps: number, notes?: string) => Promise<void>;
+  endSleepSession: (wakeUps: number, notes?: string, userRating?: number) => Promise<void>;
   getSleepStats: () => {
     averageQuality: number;
     averageDuration: number;
@@ -43,9 +50,16 @@ interface SleepContextType {
     lastNightQuality: number;
     lastNightDuration: number;
     lastNightWakeUps: number;
+    previousDuration: number;
+    previousQuality: number;
   };
   loadSleepHistory: () => Promise<void>;
   getLatestInsight: () => Promise<{ insight: string; recommendation: string } | null>;
+  getCurrentStreak: () => number;
+  getGoodNightStreak: () => number;
+  getSleepDebt: () => number;
+  getReadinessScore: () => number;
+  getSmartBedtime: (wakeTime: Date) => Date;
 }
 
 const SleepContext = createContext<SleepContextType | undefined>(undefined);
@@ -55,6 +69,7 @@ export function SleepProvider({ children }: { children: ReactNode }) {
   const { queueOperation } = useOfflineSync();
   const [currentSession, setCurrentSession] = useState<SleepSession | null>(null);
   const [sleepHistory, setSleepHistory] = useState<SleepSession[]>([]);
+  const [historyLimit, setHistoryLimit] = useState(90); // Increased to 90 days for better historical data
   const [isTracking, setIsTracking] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isOnline, setIsOnline] = useState(true);
@@ -62,6 +77,7 @@ export function SleepProvider({ children }: { children: ReactNode }) {
   const [syncError, setSyncError] = useState<string | null>(null);
   const [alarmTime, setAlarmTime] = useState<Date | null>(null);
   const smartAlarmInterval = useRef<NodeJS.Timeout | null>(null);
+  const autoStopTimeout = useRef<NodeJS.Timeout | null>(null);
 
   // Monitor network connectivity
   useEffect(() => {
@@ -102,13 +118,13 @@ export function SleepProvider({ children }: { children: ReactNode }) {
     // If we are within 30 minutes of the alarm time
     if (timeToAlarm > 0 && timeToAlarm <= thirtyMinutes) {
       const activityLevel = sleepTrackingService.getActivityLevel();
-      
+
       // If activity level is high (indicating light sleep phase)
       if (activityLevel > 0.08) { // Lowered threshold for accelerometer
         console.log('⏰ [Smart Alarm] Light sleep detected via accelerometer! Triggering early wake-up.');
         triggerAlarm('Smart Wake-up: You are in a light sleep phase.');
       }
-    } 
+    }
     // If it's exactly alarm time or past it
     else if (timeToAlarm <= 0) {
       triggerAlarm('Wake up! It is time to start your day.');
@@ -120,7 +136,7 @@ export function SleepProvider({ children }: { children: ReactNode }) {
       'Sleep App Alarm',
       message
     );
-    
+
     if (smartAlarmInterval.current) {
       clearInterval(smartAlarmInterval.current);
       smartAlarmInterval.current = null;
@@ -138,7 +154,7 @@ export function SleepProvider({ children }: { children: ReactNode }) {
 
     try {
       console.log('🤖 Generating AI Sleep Architect insights...');
-      
+
       let insight = '';
       let recommendation = '';
       const status = sleepRecorderService.getStatus();
@@ -172,7 +188,7 @@ export function SleepProvider({ children }: { children: ReactNode }) {
         const lastSession = sleepHistory[0];
         const timeDiff = Math.abs(session.startTime.getTime() - lastSession.startTime.getTime());
         const oneHour = 60 * 60 * 1000;
-        
+
         if (timeDiff > oneHour) {
           insight += ' Circadian rhythm shift detected.';
           recommendation += ' Try to go to bed within 30 minutes of the same time every night.';
@@ -251,7 +267,7 @@ export function SleepProvider({ children }: { children: ReactNode }) {
           .select('*')
           .eq('user_id', user.id)
           .order('created_at', { ascending: false })
-          .limit(50);
+          .limit(historyLimit);
 
         if (error) {
           console.error('Error loading sleep history from Supabase:', error);
@@ -270,11 +286,17 @@ export function SleepProvider({ children }: { children: ReactNode }) {
             smartAlarmEnabled: record.smart_alarm_enabled || false,
             notes: record.notes || '',
             sleepScore: record.sleep_score,
+            userRating: record.user_rating,
             sleepStages: record.sleep_stages,
             tags: record.tags || [],
           }));
 
           setSleepHistory(history);
+
+          console.log(`✅ Loaded ${history.length} sleep records from Supabase`);
+          if (history.length > 0) {
+            console.log(`📅 Date range: ${new Date(history[history.length - 1].startTime).toLocaleDateString()} to ${new Date(history[0].startTime).toLocaleDateString()}`);
+          }
 
           // Cache locally for offline access
           await AsyncStorage.setItem('@sleep_history', JSON.stringify(history));
@@ -324,6 +346,10 @@ export function SleepProvider({ children }: { children: ReactNode }) {
 
       if (smartAlarmEnabled && targetAlarmTime) {
         setAlarmTime(targetAlarmTime);
+        // Set actual alarm that will ring
+        const alarmDate = new Date(targetAlarmTime);
+        const alarmTimeString = `${alarmDate.getHours().toString().padStart(2, '0')}:${alarmDate.getMinutes().toString().padStart(2, '0')}`;
+        await alarmService.setAlarm(alarmTimeString, 'Smart Wake-Up Alarm');
       }
 
       // Start acoustic recording if enabled
@@ -337,21 +363,39 @@ export function SleepProvider({ children }: { children: ReactNode }) {
       setCurrentSession(newSession);
       setIsTracking(true);
       await AsyncStorage.setItem('@current_sleep_session', JSON.stringify(newSession));
+
+      // Track sleep session start
+      await analyticsService.trackSleepSessionStart();
+
+      // Auto-stop sleep session after 12 hours (43200000 ms)
+      autoStopTimeout.current = setTimeout(async () => {
+        const session = await AsyncStorage.getItem('@current_sleep_session');
+        if (session) {
+          console.log('⏰ Auto-stopping sleep session after 12 hours');
+          await endSleepSession(0, 'Auto-stopped after 12 hours');
+        }
+      }, 12 * 60 * 60 * 1000);
     } catch (error) {
       console.error('Error starting sleep session:', error);
       throw error;
     }
   };
 
-  const endSleepSession = async (wakeUps: number, notes?: string) => {
+  const endSleepSession = async (wakeUps: number, notes?: string, userRating?: number) => {
     if (!currentSession) return;
 
     try {
+      // Clear auto-stop timeout
+      if (autoStopTimeout.current) {
+        clearTimeout(autoStopTimeout.current);
+        autoStopTimeout.current = null;
+      }
+
       const endTime = new Date();
 
       // Stop acoustic recording
       const recordingSession = await sleepRecorderService.stopRecording();
-      
+
       // Stop accelerometer tracking and get data
       const movementData = sleepTrackingService.stopTracking();
       const stages = sleepTrackingService.calculateSleepStages(movementData);
@@ -385,6 +429,7 @@ export function SleepProvider({ children }: { children: ReactNode }) {
         duration: durationMinutes,
         quality,
         sleepScore: scoreResult.score,
+        userRating: userRating || undefined,
         sleepStages: stages,
         wakeUps,
         notes,
@@ -395,7 +440,11 @@ export function SleepProvider({ children }: { children: ReactNode }) {
 
       // Save acoustic events to database if authenticated
       if (user && user.id !== 'guest' && recordingSession) {
-        await sleepRecorderService.saveEventsToDatabase(user.id, completedSession.id);
+        await sleepRecorderService.saveEventsToDatabase(
+          user.id,
+          completedSession.id,
+          new Date(completedSession.startTime) // Pass session start time for offset calculation
+        );
         // Generate AI Insights using the new service
         const insights = await aiInsightService.generateInsights(user.id);
         console.log('🤖 AI Insights generated:', insights.length);
@@ -416,6 +465,24 @@ export function SleepProvider({ children }: { children: ReactNode }) {
       if (user && user.id !== 'guest') {
         await loadSleepHistory();
       }
+
+      // Track sleep session completion
+      await analyticsService.trackSleepSessionComplete(durationMinutes, quality, scoreResult.score);
+
+      // Send immediate sleep summary notification
+      await sendImmediateSleepSummary(completedSession);
+
+      // Schedule morning notification for 5 min after wake
+      await scheduleMorningNotification(completedSession);
+
+      // Send sleep session complete notification with app icon
+      const hours = Math.floor(durationMinutes / 60);
+      const mins = durationMinutes % 60;
+      await notificationService.sendImmediateNotification(
+        '😴 Sleep Session Complete!',
+        `You slept for ${hours}h ${mins}m with a sleep score of ${scoreResult.score}/100. Great job!`,
+        { type: 'session_complete', score: scoreResult.score }
+      );
     } catch (error) {
       console.error('Error ending sleep session:', error);
       throw error;
@@ -445,6 +512,7 @@ export function SleepProvider({ children }: { children: ReactNode }) {
           duration: session.duration,
           sleep_quality: session.quality,
           sleep_score: session.sleepScore || Math.round(session.quality * 10),
+          user_rating: session.userRating || null,
           sleep_stages: session.sleepStages || [],
           wake_ups: session.wakeUps,
           sleep_sounds_enabled: session.sleepSoundsEnabled,
@@ -457,7 +525,7 @@ export function SleepProvider({ children }: { children: ReactNode }) {
           // Save directly to Supabase
           setSyncStatus('syncing');
           setSyncError(null);
-          
+
           const { data, error } = await supabase.from('sleep_records').insert(sleepData).select();
 
           if (error) {
@@ -504,12 +572,15 @@ export function SleepProvider({ children }: { children: ReactNode }) {
         lastNightQuality: 0,
         lastNightDuration: 0,
         lastNightWakeUps: 0,
+        previousDuration: 0,
+        previousQuality: 0,
       };
     }
 
     const totalQuality = sleepHistory.reduce((sum, session) => sum + session.quality, 0);
     const totalDuration = sleepHistory.reduce((sum, session) => sum + session.duration, 0);
     const lastSession = sleepHistory[0];
+    const previousSession = sleepHistory[1];
 
     return {
       averageQuality: Math.round((totalQuality / sleepHistory.length) * 10) / 10,
@@ -518,6 +589,8 @@ export function SleepProvider({ children }: { children: ReactNode }) {
       lastNightQuality: lastSession.quality,
       lastNightDuration: lastSession.duration,
       lastNightWakeUps: lastSession.wakeUps,
+      previousDuration: previousSession ? previousSession.duration : lastSession.duration,
+      previousQuality: previousSession ? previousSession.quality : lastSession.quality,
     };
   };
 
@@ -550,22 +623,172 @@ export function SleepProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const getCurrentStreak = (): number => {
+    if (sleepHistory.length === 0) return 0;
+
+    let streak = 0;
+    const sortedHistory = [...sleepHistory].sort((a, b) =>
+      new Date(b.startTime).getTime() - new Date(a.startTime).getTime()
+    );
+
+    let lastDate = new Date();
+    lastDate.setHours(0, 0, 0, 0); // Reset to midnight
+
+    for (const session of sortedHistory) {
+      const sessionDate = new Date(session.startTime);
+      sessionDate.setHours(0, 0, 0, 0); // Reset to midnight
+
+      const daysDiff = Math.floor((lastDate.getTime() - sessionDate.getTime()) / (1000 * 60 * 60 * 24));
+
+      // Consecutive days (0 or 1 day difference)
+      if (daysDiff <= 1) {
+        if (streak === 0 || daysDiff === 1) {
+          streak++;
+          lastDate = sessionDate;
+        }
+      } else {
+        // Streak broken
+        break;
+      }
+    }
+
+    return streak;
+  };
+
+  // Calculate streak of consecutive "good nights" (rating >= 3 or quality >= 7)
+  const getGoodNightStreak = (): number => {
+    if (sleepHistory.length === 0) return 0;
+
+    let streak = 0;
+    const sortedHistory = [...sleepHistory].sort((a, b) =>
+      new Date(b.startTime).getTime() - new Date(a.startTime).getTime()
+    );
+
+    let lastDate = new Date();
+    lastDate.setHours(0, 0, 0, 0);
+
+    for (const session of sortedHistory) {
+      const sessionDate = new Date(session.startTime);
+      sessionDate.setHours(0, 0, 0, 0);
+
+      const daysDiff = Math.floor((lastDate.getTime() - sessionDate.getTime()) / (1000 * 60 * 60 * 24));
+
+      // Check if consecutive day
+      if (daysDiff <= 1) {
+        // Check if it was a "good night" (user rating >= 3 OR computed quality >= 7)
+        const isGoodNight = (session.userRating && session.userRating >= 3) || session.quality >= 7;
+
+        if (isGoodNight) {
+          if (streak === 0 || daysDiff === 1) {
+            streak++;
+            lastDate = sessionDate;
+          }
+        } else {
+          // Good night streak broken
+          break;
+        }
+      } else {
+        // Streak broken due to gap
+        break;
+      }
+    }
+
+    return streak;
+  };
+
+  // Calculate sleep debt (difference from recommended 8 hours over last 7 days)
+  const getSleepDebt = (): number => {
+    if (sleepHistory.length === 0) return 0;
+
+    const optimalSleep = 8 * 60; // 8 hours in minutes
+    const last7Days = sleepHistory.slice(0, 7);
+
+    const totalDebt = last7Days.reduce((debt, session) => {
+      const difference = optimalSleep - session.duration;
+      return debt + difference;
+    }, 0);
+
+    // Return in hours (negative means surplus, positive means debt)
+    return Math.round((totalDebt / 60) * 10) / 10;
+  };
+
+  // Calculate readiness score (0-100) based on sleep quality, debt, and consistency
+  const getReadinessScore = (): number => {
+    if (sleepHistory.length === 0) return 0;
+
+    const lastSession = sleepHistory[0];
+    const sleepDebt = getSleepDebt();
+    const streak = getCurrentStreak();
+
+    // Components: Last night quality (50%), Sleep debt (30%), Consistency (20%)
+    const qualityScore = lastSession.sleepScore || Math.round(lastSession.quality * 10);
+    const debtScore = Math.max(0, 100 - Math.abs(sleepDebt) * 10); // Penalty for debt
+    const consistencyScore = Math.min(100, streak * 10); // Bonus for streaks
+
+    const readiness = Math.round(
+      qualityScore * 0.5 +
+      debtScore * 0.3 +
+      consistencyScore * 0.2
+    );
+
+    return Math.max(0, Math.min(100, readiness));
+  };
+
+  // Calculate optimal bedtime based on wake time and sleep needs
+  const getSmartBedtime = (wakeTime: Date): Date => {
+    const sleepDebt = getSleepDebt();
+    const stats = getSleepStats();
+
+    // Base sleep need: 8 hours (480 minutes)
+    let recommendedSleep = 480;
+
+    // Adjust for sleep debt (add extra time if in debt)
+    if (sleepDebt > 0) {
+      recommendedSleep += Math.min(sleepDebt * 60 * 0.3, 90); // Max 90 min extra
+    }
+
+    // Adjust based on personal average (if significantly different from 8h)
+    if (stats.averageDuration > 0 && Math.abs(stats.averageDuration - 480) > 30) {
+      recommendedSleep = (recommendedSleep + stats.averageDuration) / 2;
+    }
+
+    // Add buffer for sleep latency (15 minutes average)
+    recommendedSleep += 15;
+
+    // Calculate bedtime
+    const bedtime = new Date(wakeTime.getTime() - recommendedSleep * 60 * 1000);
+
+    return bedtime;
+  };
+
+  const value = useMemo(() => ({
+    currentSession,
+    sleepHistory,
+    isTracking,
+    isLoading,
+    syncStatus,
+    syncError,
+    startSleepSession,
+    endSleepSession,
+    getSleepStats,
+    loadSleepHistory,
+    getLatestInsight,
+    getCurrentStreak,
+    getGoodNightStreak,
+    getSleepDebt,
+    getReadinessScore,
+    getSmartBedtime,
+  }), [
+    currentSession,
+    sleepHistory,
+    isTracking,
+    isLoading,
+    syncStatus,
+    syncError
+  ]);
+
   return (
-    <SleepContext.Provider
-      value={{
-        currentSession,
-        sleepHistory,
-        isTracking,
-        isLoading,
-        syncStatus,
-        syncError,
-        startSleepSession,
-        endSleepSession,
-        getSleepStats,
-        loadSleepHistory,
-        getLatestInsight,
-      }}
-    >
+    <SleepContext.Provider value={value}>
       {children}
     </SleepContext.Provider>
   );
