@@ -26,6 +26,7 @@ import revenueCatService from './services/revenueCatService';
 import { crashLogger, setupGlobalErrorHandlers } from './services/crashLogger';
 import alarmService from './services/alarmService';
 import { useFonts } from 'expo-font';
+import UpdateChecker from './components/UpdateChecker';
 
 // Import screens
 import HomeScreen from './screens/HomeScreen';
@@ -357,15 +358,16 @@ export default function App() {
           <ToastProvider>
             <OfflineModeProvider>
               <AuthProvider>
-                <AudioProvider>
-                  <SleepProvider>
+                <SleepProvider>
+                  <AudioProvider>
+                    <UpdateChecker />
                     <NavigationContainer>
                       <OfflineBanner />
                       <NetworkStatus />
                       <AppNavigator />
                     </NavigationContainer>
-                  </SleepProvider>
-                </AudioProvider>
+                  </AudioProvider>
+                </SleepProvider>
               </AuthProvider>
             </OfflineModeProvider>
           </ToastProvider>
