@@ -1,4 +1,6 @@
+import { useAppTheme } from '../hooks/useAppTheme';
 import React from 'react';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   View,
   Text,
@@ -7,20 +9,25 @@ import {
   TouchableOpacity,
   Linking,
   Image,
+  Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
-import { Ionicons } from '@expo/vector-icons';
+import { ChevronLeft, Moon, Info, Mail, Globe, Shield, FileText, Star, Github, Twitter, Share2, X } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
+import { Modal } from 'react-native';
 import * as Application from 'expo-application';
+import * as Device from 'expo-device';
 import Constants from 'expo-constants';
 
 export default function AboutScreen() {
+  const { theme, isDark } = useAppTheme();
+  const insets = useSafeAreaInsets();
   const navigation = useNavigation();
 
   const appVersion = Application.nativeApplicationVersion || '1.0.0';
   const buildNumber = Application.nativeBuildVersion || '1';
-  const appName = Application.applicationName || 'Sleep Tracker';
+  const appName = Application.applicationName || 'Sleep Architect';
 
   const handleOpenLink = async (url: string) => {
     const supported = await Linking.canOpenURL(url);
@@ -29,232 +36,511 @@ export default function AboutScreen() {
     }
   };
 
+  const [legalModalVisible, setLegalModalVisible] = React.useState(false);
+  const [legalTitle, setLegalTitle] = React.useState('');
+  const [legalContent, setLegalContent] = React.useState('');
+
+  const privacyPolicy = `
+# Privacy Policy
+
+Welcome to Sleep Architect. Your privacy is important to us.
+
+## 1. Data Collection
+We collect sleep data locally on your device. If you use cloud sync, this data is encrypted and stored securely in our database.
+
+## 2. Audio Data
+Sleep Architect does NOT record or store any audio data from your room. All analysis is performed on-device if applicable.
+
+## 3. Usage Data
+We may collect anonymous usage statistics to improve the application.
+
+## 4. Third Parties
+We do not sell your personal data to third parties.
+  `;
+
+  const termsOfService = `
+# Terms of Service
+
+By using Sleep Architect, you agree to these terms.
+
+## 1. Health Disclaimer
+Sleep Architect is NOT a medical device. Always consult with a doctor for serious sleep disorders.
+
+## 2. Subscriptions
+Premium features require an active subscription. Payments are managed through your app store account.
+
+## 3. Intellectual Property
+All content and designs within Sleep Architect are owned by NaulX Agency.
+
+## 4. Modifications
+We reserve the right to modify these terms at any time.
+  `;
+
+  const showLegal = (title: string) => {
+    setLegalTitle(title);
+    setLegalContent(title === 'Privacy Policy' ? privacyPolicy : termsOfService);
+    setLegalModalVisible(true);
+  };
+
+  const handleContactSupport = async () => {
+    const deviceInfo = `
+---------- Device Information ----------
+App Version: ${appVersion}
+Build Number: ${buildNumber}
+Platform: ${Platform.OS} ${Platform.Version}
+Device: ${Device.modelName || 'Unknown'}
+Brand: ${Device.brand || 'Unknown'}
+OS Version: ${Device.osVersion || 'Unknown'}
+Expo SDK: ${Constants.expoConfig?.sdkVersion || 'Unknown'}
+----------------------------------------
+
+Please describe your issue below:
+
+
+`;
+
+    const emailUrl = `mailto:asadalibscs20@gmail.com?subject=Sleep Architect Support Request&body=${encodeURIComponent(deviceInfo)}`;
+    const supported = await Linking.canOpenURL(emailUrl);
+    if (supported) {
+      await Linking.openURL(emailUrl);
+    }
+  };
+
   return (
-    <View style={styles.container}>
-      <LinearGradient colors={['#0F111A', '#1B1D2A']} style={styles.gradient}>
+    <View style={styles(theme).container}>
+      <LinearGradient colors={[theme.colors.background, theme.colors.backgroundSecondary]} style={styles(theme).gradient}>
         {/* Header */}
-        <View style={styles.header}>
+        <View style={[styles(theme).header, { paddingTop: insets.top + 10 }]}>
           <TouchableOpacity
             onPress={() => navigation.goBack()}
-            style={styles.backButton}
+            style={styles(theme).backButton}
           >
-            <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+            <ChevronLeft size={24} color={theme.colors.textPrimary} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>About</Text>
-          <View style={styles.backButton} />
+          <Text style={styles(theme).headerTitle}>About</Text>
+          <View style={styles(theme).backButton} />
         </View>
 
         <ScrollView
-          style={styles.content}
+          style={styles(theme).content}
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[
+            styles(theme).scrollContent,
+            {
+              paddingBottom: insets.bottom + 100
+            }
+          ]}
         >
           {/* App Icon & Name */}
-          <View style={styles.appInfoContainer}>
-            <View style={styles.iconContainer}>
+          <View style={styles(theme).appInfoContainer}>
+            <View style={styles(theme).iconContainer}>
               <LinearGradient
-                colors={['#00FFD1', '#33C6FF', '#9D4EDD']}
-                style={styles.iconGradient}
+                colors={[theme.colors.accent, theme.colors.highlight, '#9D4EDD']}
+                style={styles(theme).iconGradient}
               >
-                <Ionicons name="moon" size={60} color="#FFFFFF" />
+                <Image
+                  source={require('../assets/app_logo.png')}
+                  style={{ width: 90, height: 90, borderRadius: 22 }}
+                  resizeMode="contain"
+                />
               </LinearGradient>
             </View>
-            <Text style={styles.appName}>{appName}</Text>
-            <Text style={styles.tagline}>Track, Improve, Rest Better</Text>
+            <Text style={styles(theme).appName}>Sleep Architect</Text>
+            <Text style={styles(theme).tagline}>VIP Personalized Sleep Intelligence</Text>
           </View>
 
           {/* Version Info */}
-          <BlurView intensity={20} tint="dark" style={styles.card}>
-            <Text style={styles.cardTitle}>Version Information</Text>
+          {Platform.OS === 'ios' ? (
+            <BlurView intensity={20} tint="dark" style={styles(theme).card}>
+              <Text style={styles(theme).cardTitle}>Version Information</Text>
 
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Version</Text>
-              <Text style={styles.infoValue}>{appVersion}</Text>
+              <View style={styles(theme).infoRow}>
+                <Text style={styles(theme).infoLabel}>Version</Text>
+                <Text style={styles(theme).infoValue}>{appVersion}</Text>
+              </View>
+
+              <View style={styles(theme).infoRow}>
+                <Text style={styles(theme).infoLabel}>Build Number</Text>
+                <Text style={styles(theme).infoValue}>{buildNumber}</Text>
+              </View>
+
+              <View style={styles(theme).infoRow}>
+                <Text style={styles(theme).infoLabel}>Release Date</Text>
+                <Text style={styles(theme).infoValue}>December 2025</Text>
+              </View>
+
+              <View style={styles(theme).infoRow}>
+                <Text style={styles(theme).infoLabel}>Platform</Text>
+                <Text style={styles(theme).infoValue}>
+                  {Constants.platform?.ios
+                    ? 'iOS'
+                    : Constants.platform?.android
+                      ? 'Android'
+                      : 'Mobile'}
+                </Text>
+              </View>
+
+              <View style={styles(theme).infoRow}>
+                <Text style={styles(theme).infoLabel}>SDK Version</Text>
+                <Text style={styles(theme).infoValue}>Expo SDK 54</Text>
+              </View>
+            </BlurView>
+          ) : (
+            <View style={styles(theme).card}>
+              <Text style={styles(theme).cardTitle}>Version Information</Text>
+
+              <View style={styles(theme).infoRow}>
+                <Text style={styles(theme).infoLabel}>Version</Text>
+                <Text style={styles(theme).infoValue}>{appVersion}</Text>
+              </View>
+
+              <View style={styles(theme).infoRow}>
+                <Text style={styles(theme).infoLabel}>Build Number</Text>
+                <Text style={styles(theme).infoValue}>{buildNumber}</Text>
+              </View>
+
+              <View style={styles(theme).infoRow}>
+                <Text style={styles(theme).infoLabel}>Release Date</Text>
+                <Text style={styles(theme).infoValue}>December 2025</Text>
+              </View>
+
+              <View style={styles(theme).infoRow}>
+                <Text style={styles(theme).infoLabel}>Platform</Text>
+                <Text style={styles(theme).infoValue}>
+                  {Constants.platform?.ios
+                    ? 'iOS'
+                    : Constants.platform?.android
+                      ? 'Android'
+                      : 'Mobile'}
+                </Text>
+              </View>
+
+              <View style={styles(theme).infoRow}>
+                <Text style={styles(theme).infoLabel}>SDK Version</Text>
+                <Text style={styles(theme).infoValue}>Expo SDK 54</Text>
+              </View>
             </View>
-
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Build Number</Text>
-              <Text style={styles.infoValue}>{buildNumber}</Text>
-            </View>
-
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Release Date</Text>
-              <Text style={styles.infoValue}>December 2025</Text>
-            </View>
-
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Platform</Text>
-              <Text style={styles.infoValue}>
-                {Constants.platform?.ios
-                  ? 'iOS'
-                  : Constants.platform?.android
-                  ? 'Android'
-                  : 'Mobile'}
+          )}
+          <TouchableOpacity onPress={() => {
+            throw new Error('Test crash - delete this button after testing');
+          }}>
+            <Text>Test Crash</Text>
+          </TouchableOpacity>
+          {/* About App */}
+          {Platform.OS === 'ios' ? (
+            <BlurView intensity={20} tint="dark" style={styles(theme).card}>
+              <Text style={styles(theme).cardTitle}>About This App</Text>
+              <Text style={styles(theme).description}>
+                Sleep Architect is your comprehensive sleep companion, designed to help you
+                achieve better sleep through tracking, ambient sounds, and mindfulness
+                exercises.
+              </Text>
+              <Text style={styles(theme).description}>
+                Our mission is to improve your sleep quality and overall well-being by
+                providing you with the tools and insights you need to understand and
+                optimize your sleep patterns.
+              </Text>
+            </BlurView>
+          ) : (
+            <View style={styles(theme).card}>
+              <Text style={styles(theme).cardTitle}>About This App</Text>
+              <Text style={styles(theme).description}>
+                Sleep Architect is your comprehensive sleep companion, designed to help you
+                achieve better sleep through tracking, ambient sounds, and mindfulness
+                exercises.
+              </Text>
+              <Text style={styles(theme).description}>
+                Our mission is to improve your sleep quality and overall well-being by
+                providing you with the tools and insights you need to understand and
+                optimize your sleep patterns.
               </Text>
             </View>
-
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>SDK Version</Text>
-              <Text style={styles.infoValue}>Expo SDK 54</Text>
-            </View>
-          </BlurView>
-
-          {/* About App */}
-          <BlurView intensity={20} tint="dark" style={styles.card}>
-            <Text style={styles.cardTitle}>About This App</Text>
-            <Text style={styles.description}>
-              Sleep Tracker is your comprehensive sleep companion, designed to help you
-              achieve better sleep through tracking, ambient sounds, and mindfulness
-              exercises.
-            </Text>
-            <Text style={styles.description}>
-              Our mission is to improve your sleep quality and overall well-being by
-              providing you with the tools and insights you need to understand and
-              optimize your sleep patterns.
-            </Text>
-          </BlurView>
+          )}
 
           {/* Features */}
-          <BlurView intensity={20} tint="dark" style={styles.card}>
-            <Text style={styles.cardTitle}>Key Features</Text>
+          {Platform.OS === 'ios' ? (
+            <BlurView intensity={20} tint="dark" style={styles(theme).card}>
+              <Text style={styles(theme).cardTitle}>Key Features</Text>
 
-            <View style={styles.featureItem}>
-              <View style={styles.featureIcon}>
-                <Ionicons name="bed" size={24} color="#00FFD1" />
+              <View style={styles(theme).featureItem}>
+                <View style={styles(theme).featureIcon}>
+                  <Moon size={24} color={theme.colors.accent} />
+                </View>
+                <View style={styles(theme).featureText}>
+                  <Text style={styles(theme).featureTitle}>Sleep Tracking</Text>
+                  <Text style={styles(theme).featureDescription}>
+                    Monitor your sleep duration and quality
+                  </Text>
+                </View>
               </View>
-              <View style={styles.featureText}>
-                <Text style={styles.featureTitle}>Sleep Tracking</Text>
-                <Text style={styles.featureDescription}>
-                  Monitor your sleep duration and quality
-                </Text>
+
+              <View style={styles(theme).featureItem}>
+                <View style={styles(theme).featureIcon}>
+                  <Globe size={24} color={theme.colors.highlight} />
+                </View>
+                <View style={styles(theme).featureText}>
+                  <Text style={styles(theme).featureTitle}>Ambient Sounds</Text>
+                  <Text style={styles(theme).featureDescription}>
+                    Relax with nature sounds and white noise
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles(theme).featureItem}>
+                <View style={styles(theme).featureIcon}>
+                  <Info size={24} color="#9D4EDD" />
+                </View>
+                <View style={styles(theme).featureText}>
+                  <Text style={styles(theme).featureTitle}>Mindfulness</Text>
+                  <Text style={styles(theme).featureDescription}>
+                    Guided meditation and breathing exercises
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles(theme).featureItem}>
+                <View style={styles(theme).featureIcon}>
+                  <Star size={24} color={theme.colors.premium} />
+                </View>
+                <View style={styles(theme).featureText}>
+                  <Text style={styles(theme).featureTitle}>Analytics</Text>
+                  <Text style={styles(theme).featureDescription}>
+                    Visualize your sleep patterns and trends
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles(theme).featureItem}>
+                <View style={styles(theme).featureIcon}>
+                  <Shield size={24} color="#32CD32" />
+                </View>
+                <View style={styles(theme).featureText}>
+                  <Text style={styles(theme).featureTitle}>Privacy First</Text>
+                  <Text style={styles(theme).featureDescription}>
+                    Your data is encrypted and secure
+                  </Text>
+                </View>
+              </View>
+            </BlurView>
+          ) : (
+            <View style={styles(theme).card}>
+              <Text style={styles(theme).cardTitle}>Key Features</Text>
+
+              <View style={styles(theme).featureItem}>
+                <View style={styles(theme).featureIcon}>
+                  <Moon size={24} color={theme.colors.accent} />
+                </View>
+                <View style={styles(theme).featureText}>
+                  <Text style={styles(theme).featureTitle}>Sleep Tracking</Text>
+                  <Text style={styles(theme).featureDescription}>
+                    Monitor your sleep duration and quality
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles(theme).featureItem}>
+                <View style={styles(theme).featureIcon}>
+                  <Globe size={24} color={theme.colors.highlight} />
+                </View>
+                <View style={styles(theme).featureText}>
+                  <Text style={styles(theme).featureTitle}>Ambient Sounds</Text>
+                  <Text style={styles(theme).featureDescription}>
+                    Relax with nature sounds and white noise
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles(theme).featureItem}>
+                <View style={styles(theme).featureIcon}>
+                  <Info size={24} color="#9D4EDD" />
+                </View>
+                <View style={styles(theme).featureText}>
+                  <Text style={styles(theme).featureTitle}>Mindfulness</Text>
+                  <Text style={styles(theme).featureDescription}>
+                    Guided meditation and breathing exercises
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles(theme).featureItem}>
+                <View style={styles(theme).featureIcon}>
+                  <Star size={24} color={theme.colors.premium} />
+                </View>
+                <View style={styles(theme).featureText}>
+                  <Text style={styles(theme).featureTitle}>Analytics</Text>
+                  <Text style={styles(theme).featureDescription}>
+                    Visualize your sleep patterns and trends
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles(theme).featureItem}>
+                <View style={styles(theme).featureIcon}>
+                  <Shield size={24} color="#32CD32" />
+                </View>
+                <View style={styles(theme).featureText}>
+                  <Text style={styles(theme).featureTitle}>Privacy First</Text>
+                  <Text style={styles(theme).featureDescription}>
+                    Your data is encrypted and secure
+                  </Text>
+                </View>
               </View>
             </View>
-
-            <View style={styles.featureItem}>
-              <View style={styles.featureIcon}>
-                <Ionicons name="musical-notes" size={24} color="#33C6FF" />
-              </View>
-              <View style={styles.featureText}>
-                <Text style={styles.featureTitle}>Ambient Sounds</Text>
-                <Text style={styles.featureDescription}>
-                  Relax with nature sounds and white noise
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.featureItem}>
-              <View style={styles.featureIcon}>
-                <Ionicons name="leaf" size={24} color="#9D4EDD" />
-              </View>
-              <View style={styles.featureText}>
-                <Text style={styles.featureTitle}>Mindfulness</Text>
-                <Text style={styles.featureDescription}>
-                  Guided meditation and breathing exercises
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.featureItem}>
-              <View style={styles.featureIcon}>
-                <Ionicons name="stats-chart" size={24} color="#FFD700" />
-              </View>
-              <View style={styles.featureText}>
-                <Text style={styles.featureTitle}>Analytics</Text>
-                <Text style={styles.featureDescription}>
-                  Visualize your sleep patterns and trends
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.featureItem}>
-              <View style={styles.featureIcon}>
-                <Ionicons name="shield-checkmark" size={24} color="#32CD32" />
-              </View>
-              <View style={styles.featureText}>
-                <Text style={styles.featureTitle}>Privacy First</Text>
-                <Text style={styles.featureDescription}>
-                  Your data is encrypted and secure
-                </Text>
-              </View>
-            </View>
-          </BlurView>
+          )}
 
           {/* Links */}
-          <BlurView intensity={20} tint="dark" style={styles.card}>
-            <Text style={styles.cardTitle}>Links & Resources</Text>
+          {Platform.OS === 'ios' ? (
+            <BlurView intensity={20} tint="dark" style={styles(theme).card}>
+              <Text style={styles(theme).cardTitle}>Links & Resources</Text>
 
-            <TouchableOpacity
-              style={styles.linkItem}
-              onPress={() => handleOpenLink('https://github.com')}
-            >
-              <Ionicons name="logo-github" size={24} color="#FFFFFF" />
-              <Text style={styles.linkText}>GitHub Repository</Text>
-              <Ionicons name="open-outline" size={20} color="#A0AEC0" />
-            </TouchableOpacity>
+              <TouchableOpacity
+                style={styles(theme).linkItem}
+                onPress={() => handleOpenLink('https://github.com/AsadNoul/sleep-tracker-sounds')}
+              >
+                <Github size={24} color={theme.colors.textPrimary} />
+                <Text style={styles(theme).linkText}>GitHub Repository</Text>
+                <Share2 size={20} color={theme.colors.textSecondary} />
+              </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.linkItem}
-              onPress={() => handleOpenLink('https://example.com/privacy')}
-            >
-              <Ionicons name="document-text" size={24} color="#00FFD1" />
-              <Text style={styles.linkText}>Privacy Policy</Text>
-              <Ionicons name="open-outline" size={20} color="#A0AEC0" />
-            </TouchableOpacity>
+              <TouchableOpacity
+                style={styles(theme).linkItem}
+                onPress={() => handleOpenLink('https://raw.githubusercontent.com/AsadNoul/sleep-tracker-sounds/main/privacy.md')}
+              >
+                <FileText size={24} color={theme.colors.accent} />
+                <Text style={styles(theme).linkText}>Privacy Policy</Text>
+                <Share2 size={20} color={theme.colors.textSecondary} />
+              </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.linkItem}
-              onPress={() => handleOpenLink('https://example.com/terms')}
-            >
-              <Ionicons name="document-text" size={24} color="#33C6FF" />
-              <Text style={styles.linkText}>Terms of Service</Text>
-              <Ionicons name="open-outline" size={20} color="#A0AEC0" />
-            </TouchableOpacity>
+              <TouchableOpacity
+                style={styles(theme).linkItem}
+                onPress={() => handleOpenLink('https://raw.githubusercontent.com/AsadNoul/sleep-tracker-sounds/main/terms.md')}
+              >
+                <FileText size={24} color={theme.colors.highlight} />
+                <Text style={styles(theme).linkText}>Terms of Service</Text>
+                <Share2 size={20} color={theme.colors.textSecondary} />
+              </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.linkItem}
-              onPress={() => handleOpenLink('mailto:support@sleeptracker.com')}
-            >
-              <Ionicons name="mail" size={24} color="#FFD700" />
-              <Text style={styles.linkText}>Contact Support</Text>
-              <Ionicons name="open-outline" size={20} color="#A0AEC0" />
-            </TouchableOpacity>
-          </BlurView>
+              <TouchableOpacity
+                style={styles(theme).linkItem}
+                onPress={handleContactSupport}
+              >
+                <Mail size={24} color={theme.colors.premium} />
+                <Text style={styles(theme).linkText}>Contact Support</Text>
+                <Share2 size={20} color={theme.colors.textSecondary} />
+              </TouchableOpacity>
+            </BlurView>
+          ) : (
+            <View style={styles(theme).card}>
+              <Text style={styles(theme).cardTitle}>Links & Resources</Text>
+
+              <TouchableOpacity
+                style={styles(theme).linkItem}
+                onPress={() => handleOpenLink('https://github.com/AsadNoul/sleep-tracker-sounds')}
+              >
+                <Github size={24} color={theme.colors.textPrimary} />
+                <Text style={styles(theme).linkText}>GitHub Repository</Text>
+                <Share2 size={20} color={theme.colors.textSecondary} />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles(theme).linkItem}
+                onPress={() => handleOpenLink('https://raw.githubusercontent.com/AsadNoul/sleep-tracker-sounds/main/privacy.md')}
+              >
+                <FileText size={24} color={theme.colors.accent} />
+                <Text style={styles(theme).linkText}>Privacy Policy</Text>
+                <Share2 size={20} color={theme.colors.textSecondary} />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles(theme).linkItem}
+                onPress={() => handleOpenLink('https://raw.githubusercontent.com/AsadNoul/sleep-tracker-sounds/main/terms.md')}
+              >
+                <FileText size={24} color={theme.colors.highlight} />
+                <Text style={styles(theme).linkText}>Terms of Service</Text>
+                <Share2 size={20} color={theme.colors.textSecondary} />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles(theme).linkItem}
+                onPress={handleContactSupport}
+              >
+                <Mail size={24} color={theme.colors.premium} />
+                <Text style={styles(theme).linkText}>Contact Support</Text>
+                <Share2 size={20} color={theme.colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+          )}
 
           {/* Credits */}
-          <BlurView intensity={20} tint="dark" style={styles.card}>
-            <Text style={styles.cardTitle}>Credits</Text>
-            <Text style={styles.creditText}>
-              Developed with React Native & Expo
-            </Text>
-            <Text style={styles.creditText}>Icons by Ionicons</Text>
-            <Text style={styles.creditText}>Sound library by various artists</Text>
-            <Text style={styles.creditText}>
-              Built with Love By NaulX Agency
-            </Text>
-          </BlurView>
+          {Platform.OS === 'ios' ? (
+            <BlurView intensity={20} tint="dark" style={styles(theme).card}>
+              <Text style={styles(theme).cardTitle}>Credits</Text>
+              <Text style={styles(theme).creditText}>
+                Developed with React Native & Expo
+              </Text>
+              <Text style={styles(theme).creditText}>Icons by Lucide</Text>
+              <Text style={styles(theme).creditText}>Sound library by various artists</Text>
+              <Text style={styles(theme).creditText}>
+                Built with Love By NaulX Agency
+              </Text>
+            </BlurView>
+          ) : (
+            <View style={styles(theme).card}>
+              <Text style={styles(theme).cardTitle}>Credits</Text>
+              <Text style={styles(theme).creditText}>
+                Developed with React Native & Expo
+              </Text>
+              <Text style={styles(theme).creditText}>Icons by Lucide</Text>
+              <Text style={styles(theme).creditText}>Sound library by various artists</Text>
+              <Text style={styles(theme).creditText}>
+                Built with Love By NaulX Agency
+              </Text>
+            </View>
+          )}
 
           {/* Copyright */}
-          <View style={styles.copyright}>
-            <Text style={styles.copyrightText}>
-              © {new Date().getFullYear()} Sleep Tracker
+          <View style={styles(theme).copyright}>
+            <Text style={styles(theme).copyrightText}>
+              © {new Date().getFullYear()} Sleep Architect
             </Text>
-            <Text style={styles.copyrightText}>All rights reserved</Text>
-            <Text style={styles.copyrightSubtext}>
-              Made with ❤️ for better sleep
+            <Text style={styles(theme).copyrightText}>All rights reserved</Text>
+            <Text style={styles(theme).copyrightSubtext}>
+              Made with ❤️© for better sleep
             </Text>
           </View>
 
-          <View style={styles.bottomSpacing} />
+          <View style={styles(theme).bottomSpacing} />
         </ScrollView>
+
+        <Modal
+          visible={legalModalVisible}
+          animationType="slide"
+          transparent={true}
+          onRequestClose={() => setLegalModalVisible(false)}
+        >
+          <View style={styles(theme).modalOverlay}>
+            <BlurView intensity={90} tint="dark" style={styles(theme).modalContent}>
+              <View style={styles(theme).modalHeader}>
+                <Text style={styles(theme).modalTitle}>{legalTitle}</Text>
+                <TouchableOpacity onPress={() => setLegalModalVisible(false)} style={styles(theme).closeButtonModal}>
+                  <ChevronLeft size={24} color="#FFF" />
+                </TouchableOpacity>
+              </View>
+              <ScrollView style={styles(theme).modalBody}>
+                <Text style={styles(theme).legalText}>{legalContent}</Text>
+              </ScrollView>
+            </BlurView>
+          </View>
+        </Modal>
       </LinearGradient>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+const styles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0F111A',
+    backgroundColor: theme.colors.background,
   },
   gradient: {
     flex: 1,
@@ -263,9 +549,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingTop: 60,
     paddingHorizontal: 20,
     paddingBottom: 20,
+    paddingTop: Platform.OS === 'ios' ? 0 : 10, // insets.top is handled by the container if needed, but here we add some breathing room
   },
   backButton: {
     width: 40,
@@ -276,7 +562,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: theme.colors.textPrimary,
   },
   content: {
     flex: 1,
@@ -297,7 +583,7 @@ const styles = StyleSheet.create({
     borderRadius: 30,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#00FFD1',
+    shadowColor: theme.colors.accent,
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.4,
     shadowRadius: 20,
@@ -306,12 +592,12 @@ const styles = StyleSheet.create({
   appName: {
     fontSize: 32,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: theme.colors.textPrimary,
     marginBottom: 8,
   },
   tagline: {
     fontSize: 16,
-    color: '#A0AEC0',
+    color: theme.colors.textSecondary,
     fontStyle: 'italic',
   },
   card: {
@@ -326,7 +612,7 @@ const styles = StyleSheet.create({
   cardTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#FFFFFF',
+    color: theme.colors.textPrimary,
     marginBottom: 16,
   },
   infoRow: {
@@ -339,16 +625,16 @@ const styles = StyleSheet.create({
   },
   infoLabel: {
     fontSize: 15,
-    color: '#A0AEC0',
+    color: theme.colors.textSecondary,
   },
   infoValue: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#FFFFFF',
+    color: theme.colors.textPrimary,
   },
   description: {
     fontSize: 15,
-    color: '#A0AEC0',
+    color: theme.colors.textSecondary,
     lineHeight: 24,
     marginBottom: 12,
   },
@@ -372,12 +658,12 @@ const styles = StyleSheet.create({
   featureTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#FFFFFF',
+    color: theme.colors.textPrimary,
     marginBottom: 4,
   },
   featureDescription: {
     fontSize: 13,
-    color: '#A0AEC0',
+    color: theme.colors.textSecondary,
   },
   linkItem: {
     flexDirection: 'row',
@@ -389,12 +675,12 @@ const styles = StyleSheet.create({
   linkText: {
     flex: 1,
     fontSize: 15,
-    color: '#FFFFFF',
+    color: theme.colors.textPrimary,
     marginLeft: 12,
   },
   creditText: {
     fontSize: 14,
-    color: '#A0AEC0',
+    color: theme.colors.textSecondary,
     marginBottom: 8,
     textAlign: 'center',
   },
@@ -405,16 +691,60 @@ const styles = StyleSheet.create({
   },
   copyrightText: {
     fontSize: 13,
-    color: '#A0AEC0',
+    color: theme.colors.textSecondary,
     marginBottom: 4,
   },
   copyrightSubtext: {
     fontSize: 13,
-    color: '#A0AEC0',
+    color: theme.colors.textSecondary,
     fontStyle: 'italic',
     marginTop: 8,
   },
   bottomSpacing: {
     height: 30,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.8)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    height: '90%',
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    paddingTop: 20,
+    backgroundColor: '#1A1A2E',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingBottom: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.1)',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#FFF',
+  },
+  closeButtonModal: {
+    position: 'absolute',
+    left: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalBody: {
+    padding: 24,
+  },
+  legalText: {
+    color: '#A0AEC0',
+    fontSize: 15,
+    lineHeight: 24,
+    paddingBottom: 40,
   },
 });

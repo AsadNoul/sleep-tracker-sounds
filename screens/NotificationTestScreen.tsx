@@ -1,10 +1,12 @@
+import { useAppTheme } from '../hooks/useAppTheme';
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert, ScrollView } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
+import { Bell, ShieldCheck, Trophy, AlarmClock, Moon, Info } from 'lucide-react-native';
 import notificationService from '../services/notificationService';
 
 export default function NotificationTestScreen() {
+  const { theme, isDark } = useAppTheme();
   const [loading, setLoading] = useState(false);
 
   const handleTestImmediateNotification = async () => {
@@ -80,141 +82,141 @@ export default function NotificationTestScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <LinearGradient colors={['#0F111A', '#1B1D2A']} style={styles.gradient}>
-        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-          <View style={styles.header}>
-            <Ionicons name="notifications" size={48} color="#00FFD1" />
-            <Text style={styles.title}>Notification Test</Text>
-            <Text style={styles.subtitle}>Test all notification features</Text>
+    <View style={styles(theme).container}>
+      <LinearGradient colors={[theme.colors.background, theme.colors.backgroundSecondary]} style={styles(theme).gradient}>
+        <ScrollView style={styles(theme).content} showsVerticalScrollIndicator={false}>
+          <View style={styles(theme).header}>
+            <Bell size={48} color={theme.colors.accent} />
+            <Text style={styles(theme).title}>Notification Test</Text>
+            <Text style={styles(theme).subtitle}>Test all notification features</Text>
           </View>
 
           {/* Permissions Button */}
           <TouchableOpacity
-            style={styles.button}
+            style={styles(theme).button}
             onPress={handleRequestPermissions}
             disabled={loading}
           >
-            <LinearGradient colors={['#00FFD1', '#33C6FF']} style={styles.buttonGradient}>
-              <Ionicons name="shield-checkmark" size={24} color="#0F111A" />
-              <Text style={styles.buttonText}>Request Permissions</Text>
+            <LinearGradient colors={[theme.colors.accent, theme.colors.highlight]} style={styles(theme).buttonGradient}>
+              <ShieldCheck size={24} color="#0F111A" />
+              <Text style={styles(theme).buttonText}>Request Permissions</Text>
             </LinearGradient>
           </TouchableOpacity>
 
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>🧪 Immediate Notifications</Text>
+          <View style={styles(theme).section}>
+            <Text style={styles(theme).sectionTitle}>­ƒº¬ Immediate Notifications</Text>
 
             <TouchableOpacity
-              style={styles.testButton}
+              style={styles(theme).testButton}
               onPress={handleTestImmediateNotification}
               disabled={loading}
             >
-              <View style={styles.testButtonContent}>
-                <Ionicons name="notifications-outline" size={24} color="#00FFD1" />
-                <View style={styles.testButtonText}>
-                  <Text style={styles.testButtonTitle}>Test Immediate Notification</Text>
-                  <Text style={styles.testButtonSubtitle}>Sends notification right away</Text>
+              <View style={styles(theme).testButtonContent}>
+                <Bell size={24} color={theme.colors.accent} />
+                <View style={styles(theme).testButtonText}>
+                  <Text style={styles(theme).testButtonTitle}>Test Immediate Notification</Text>
+                  <Text style={styles(theme).testButtonSubtitle}>Sends notification right away</Text>
                 </View>
               </View>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={styles.testButton}
+              style={styles(theme).testButton}
               onPress={handleTestMilestone}
               disabled={loading}
             >
-              <View style={styles.testButtonContent}>
-                <Ionicons name="trophy-outline" size={24} color="#FFD700" />
-                <View style={styles.testButtonText}>
-                  <Text style={styles.testButtonTitle}>Test Milestone Notification</Text>
-                  <Text style={styles.testButtonSubtitle}>7-Day Streak notification</Text>
+              <View style={styles(theme).testButtonContent}>
+                <Trophy size={24} color={theme.colors.premium} />
+                <View style={styles(theme).testButtonText}>
+                  <Text style={styles(theme).testButtonTitle}>Test Milestone Notification</Text>
+                  <Text style={styles(theme).testButtonSubtitle}>7-Day Streak notification</Text>
                 </View>
               </View>
             </TouchableOpacity>
           </View>
 
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>⏰ Scheduled Alarms</Text>
+          <View style={styles(theme).section}>
+            <Text style={styles(theme).sectionTitle}>ÔÅ░ Scheduled Alarms</Text>
 
             <TouchableOpacity
-              style={styles.testButton}
+              style={styles(theme).testButton}
               onPress={() => handleTestDelayedAlarm(10)}
               disabled={loading}
             >
-              <View style={styles.testButtonContent}>
-                <Ionicons name="alarm-outline" size={24} color="#FF6B6B" />
-                <View style={styles.testButtonText}>
-                  <Text style={styles.testButtonTitle}>Test Alarm (10 seconds)</Text>
-                  <Text style={styles.testButtonSubtitle}>Quick test - fires in 10 sec</Text>
+              <View style={styles(theme).testButtonContent}>
+                <AlarmClock size={24} color={theme.colors.danger} />
+                <View style={styles(theme).testButtonText}>
+                  <Text style={styles(theme).testButtonTitle}>Test Alarm (10 seconds)</Text>
+                  <Text style={styles(theme).testButtonSubtitle}>Quick test - fires in 10 sec</Text>
                 </View>
               </View>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={styles.testButton}
+              style={styles(theme).testButton}
               onPress={() => handleTestDelayedAlarm(30)}
               disabled={loading}
             >
-              <View style={styles.testButtonContent}>
-                <Ionicons name="alarm-outline" size={24} color="#FF6B6B" />
-                <View style={styles.testButtonText}>
-                  <Text style={styles.testButtonTitle}>Test Alarm (30 seconds)</Text>
-                  <Text style={styles.testButtonSubtitle}>Medium test - fires in 30 sec</Text>
+              <View style={styles(theme).testButtonContent}>
+                <AlarmClock size={24} color={theme.colors.danger} />
+                <View style={styles(theme).testButtonText}>
+                  <Text style={styles(theme).testButtonTitle}>Test Alarm (30 seconds)</Text>
+                  <Text style={styles(theme).testButtonSubtitle}>Medium test - fires in 30 sec</Text>
                 </View>
               </View>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={styles.testButton}
+              style={styles(theme).testButton}
               onPress={() => handleTestDelayedAlarm(60)}
               disabled={loading}
             >
-              <View style={styles.testButtonContent}>
-                <Ionicons name="alarm-outline" size={24} color="#FF6B6B" />
-                <View style={styles.testButtonText}>
-                  <Text style={styles.testButtonTitle}>Test Alarm (1 minute)</Text>
-                  <Text style={styles.testButtonSubtitle}>Full test - fires in 60 sec</Text>
+              <View style={styles(theme).testButtonContent}>
+                <AlarmClock size={24} color={theme.colors.danger} />
+                <View style={styles(theme).testButtonText}>
+                  <Text style={styles(theme).testButtonTitle}>Test Alarm (1 minute)</Text>
+                  <Text style={styles(theme).testButtonSubtitle}>Full test - fires in 60 sec</Text>
                 </View>
               </View>
             </TouchableOpacity>
           </View>
 
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>🌙 Bedtime Reminders</Text>
+          <View style={styles(theme).section}>
+            <Text style={styles(theme).sectionTitle}>­ƒîÖ Bedtime Reminders</Text>
 
             <TouchableOpacity
-              style={styles.testButton}
+              style={styles(theme).testButton}
               onPress={handleTestBedtimeReminder}
               disabled={loading}
             >
-              <View style={styles.testButtonContent}>
-                <Ionicons name="moon-outline" size={24} color="#9B59B6" />
-                <View style={styles.testButtonText}>
-                  <Text style={styles.testButtonTitle}>Test Bedtime Reminder</Text>
-                  <Text style={styles.testButtonSubtitle}>Fires in 1 minute</Text>
+              <View style={styles(theme).testButtonContent}>
+                <Moon size={24} color="#9B59B6" />
+                <View style={styles(theme).testButtonText}>
+                  <Text style={styles(theme).testButtonTitle}>Test Bedtime Reminder</Text>
+                  <Text style={styles(theme).testButtonSubtitle}>Fires in 1 minute</Text>
                 </View>
               </View>
             </TouchableOpacity>
           </View>
 
-          <View style={styles.infoBox}>
-            <Ionicons name="information-circle" size={20} color="#00FFD1" />
-            <Text style={styles.infoText}>
+          <View style={styles(theme).infoBox}>
+            <Info size={20} color={theme.colors.accent} />
+            <Text style={styles(theme).infoText}>
               To test scheduled alarms, minimize the app after scheduling. Notifications work best when the app is in the background.
             </Text>
           </View>
 
-          <View style={styles.bottomSpacing} />
+          <View style={styles(theme).bottomSpacing} />
         </ScrollView>
       </LinearGradient>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+const styles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0F111A',
+    backgroundColor: theme.colors.background,
   },
   gradient: {
     flex: 1,
@@ -231,20 +233,20 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 32,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: theme.colors.textPrimary,
     marginTop: 16,
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 16,
-    color: '#A0AEC0',
+    color: theme.colors.textSecondary,
     textAlign: 'center',
   },
   button: {
     borderRadius: 16,
     overflow: 'hidden',
     marginBottom: 30,
-    shadowColor: '#00FFD1',
+    shadowColor: theme.colors.accent,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 12,
@@ -260,7 +262,7 @@ const styles = StyleSheet.create({
   buttonText: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#0F111A',
+    color: theme.colors.background,
   },
   section: {
     marginBottom: 30,
@@ -268,7 +270,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: theme.colors.textPrimary,
     marginBottom: 16,
   },
   testButton: {
@@ -290,12 +292,12 @@ const styles = StyleSheet.create({
   testButtonTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#FFFFFF',
+    color: theme.colors.textPrimary,
     marginBottom: 4,
   },
   testButtonSubtitle: {
     fontSize: 13,
-    color: '#A0AEC0',
+    color: theme.colors.textSecondary,
   },
   infoBox: {
     flexDirection: 'row',
@@ -310,7 +312,7 @@ const styles = StyleSheet.create({
   infoText: {
     flex: 1,
     fontSize: 14,
-    color: '#A0AEC0',
+    color: theme.colors.textSecondary,
     lineHeight: 20,
   },
   bottomSpacing: {

@@ -1,3 +1,4 @@
+import { useAppTheme } from '../hooks/useAppTheme';
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -12,6 +13,16 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
+
+const ICON_MAP: Record<string, any> = {
+  'bed-outline': 'bed',
+  'heart-circle-outline': 'heart',
+  'water-outline': 'water',
+  'pulse-outline': 'pulse',
+  'leaf-outline': 'leaf',
+  'sparkles-outline': 'sparkles',
+  'eye-outline': 'eye',
+};
 import { useAudio } from '../contexts/AudioContext';
 import Slider from '@react-native-community/slider';
 
@@ -25,6 +36,7 @@ interface SessionStep {
 }
 
 export default function SessionPlayerScreen() {
+  const { theme, isDark } = useAppTheme();
   const navigation = useNavigation();
   const route = useRoute();
   const { session } = route.params as { session: any };
@@ -198,55 +210,55 @@ export default function SessionPlayerScreen() {
   const currentStep = sessionSteps[currentStepIndex];
 
   return (
-    <View style={styles.container}>
+    <View style={styles(theme).container}>
       <LinearGradient
-        colors={['#0F111A', '#1B1D2A', '#2A1D3A']}
-        style={styles.gradient}
+        colors={[theme.colors.background, theme.colors.backgroundSecondary, '#2A1D3A']}
+        style={styles(theme).gradient}
       >
         {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
-            <Ionicons name="close" size={28} color="#FFFFFF" />
+        <View style={styles(theme).header}>
+          <TouchableOpacity onPress={handleClose} style={styles(theme).closeButton}>
+            <X size={28} color={theme.colors.textPrimary} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>{session?.title}</Text>
-          <View style={styles.closeButton} />
+          <Text style={styles(theme).headerTitle}>{session?.title}</Text>
+          <View style={styles(theme).closeButton} />
         </View>
 
         <ScrollView
-          style={styles.content}
+          style={styles(theme).content}
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={styles(theme).scrollContent}
         >
           {/* Session Image/Visualization */}
-          <View style={styles.visualizationContainer}>
-            <BlurView intensity={60} tint="dark" style={styles.visualizationBlur}>
+          <View style={styles(theme).visualizationContainer}>
+            <BlurView intensity={60} tint="dark" style={styles(theme).visualizationBlur}>
               <LinearGradient
                 colors={['rgba(157, 78, 221, 0.3)', 'rgba(0, 255, 209, 0.3)', 'rgba(51, 198, 255, 0.3)']}
-                style={styles.visualizationGradient}
+                style={styles(theme).visualizationGradient}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
               >
-                <View style={styles.imageWrapper}>
+                <View style={styles(theme).imageWrapper}>
                   <Image
                     source={{ uri: session?.image }}
-                    style={styles.sessionImage}
+                    style={styles(theme).sessionImage}
                     resizeMode="cover"
                   />
                   <LinearGradient
                     colors={['transparent', 'rgba(15, 17, 26, 0.8)']}
-                    style={styles.imageOverlay}
+                    style={styles(theme).imageOverlay}
                   />
                 </View>
 
                 {/* Breathing Circle Animation */}
                 {isPlaying && (
-                  <View style={styles.breathingCircle}>
+                  <View style={styles(theme).breathingCircle}>
                     <LinearGradient
-                      colors={['#00FFD1', '#33C6FF', '#9D4EDD']}
-                      style={styles.circleGradient}
+                      colors={[theme.colors.accent, theme.colors.highlight, '#9D4EDD']}
+                      style={styles(theme).circleGradient}
                     >
-                      <View style={styles.circleInner}>
-                        <Ionicons name="pulse" size={40} color="#FFFFFF" />
+                      <View style={styles(theme).circleInner}>
+                        <Activity size={40} color={theme.colors.textPrimary} />
                       </View>
                     </LinearGradient>
                   </View>
@@ -256,38 +268,42 @@ export default function SessionPlayerScreen() {
           </View>
 
           {/* Session Info */}
-          <View style={styles.sessionInfo}>
-            <View style={styles.infoRow}>
-              <View style={styles.infoBadge}>
-                <Ionicons name="time-outline" size={16} color="#00FFD1" />
-                <Text style={styles.infoBadgeText}>{session?.duration}</Text>
+          <View style={styles(theme).sessionInfo}>
+            <View style={styles(theme).infoRow}>
+              <View style={styles(theme).infoBadge}>
+                <Clock size={16} color={theme.colors.accent} />
+                <Text style={styles(theme).infoBadgeText}>{session?.duration}</Text>
               </View>
-              <View style={styles.infoBadge}>
-                <Ionicons name="speedometer-outline" size={16} color="#FFD700" />
-                <Text style={styles.infoBadgeText}>{session?.difficulty}</Text>
+              <View style={styles(theme).infoBadge}>
+                <Gauge size={16} color={theme.colors.premium} />
+                <Text style={styles(theme).infoBadgeText}>{session?.difficulty}</Text>
               </View>
             </View>
-            <Text style={styles.sessionDescription}>{session?.description}</Text>
+            <Text style={styles(theme).sessionDescription}>{session?.description}</Text>
           </View>
 
           {/* Current Step Card */}
           {isSessionActive && (
-            <BlurView intensity={20} tint="dark" style={styles.stepCard}>
-              <View style={styles.stepHeader}>
-                <Ionicons name={currentStep?.icon as any} size={24} color="#00FFD1" />
-                <Text style={styles.stepNumber}>
+            <BlurView intensity={20} tint="dark" style={styles(theme).stepCard}>
+              <View style={styles(theme).stepHeader}>
+                <Ionicons 
+                  name={ICON_MAP[currentStep?.icon] || 'pulse'} 
+                  size={24} 
+                  color={theme.colors.accent} 
+                />
+                <Text style={styles(theme).stepNumber}>
                   Step {currentStepIndex + 1} of {sessionSteps.length}
                 </Text>
               </View>
 
-              <Text style={styles.stepInstruction}>{currentStep?.instruction}</Text>
+              <Text style={styles(theme).stepInstruction}>{currentStep?.instruction}</Text>
 
               {/* Step Progress */}
-              <View style={styles.stepProgressContainer}>
-                <View style={styles.stepProgressBar}>
+              <View style={styles(theme).stepProgressContainer}>
+                <View style={styles(theme).stepProgressBar}>
                   <View
                     style={[
-                      styles.stepProgressFill,
+                      styles(theme).stepProgressFill,
                       { width: `${getCurrentStepProgress() * 100}%` }
                     ]}
                   />
@@ -298,16 +314,20 @@ export default function SessionPlayerScreen() {
 
           {/* All Steps List */}
           {!isSessionActive && (
-            <View style={styles.stepsContainer}>
-              <Text style={styles.stepsTitle}>Session Steps</Text>
+            <View style={styles(theme).stepsContainer}>
+              <Text style={styles(theme).stepsTitle}>Session Steps</Text>
               {sessionSteps.map((step, index) => (
-                <BlurView key={step.id} intensity={15} tint="dark" style={styles.stepItem}>
-                  <View style={styles.stepIconContainer}>
-                    <Ionicons name={step.icon as any} size={20} color="#00FFD1" />
+                <BlurView key={step.id} intensity={15} tint="dark" style={styles(theme).stepItem}>
+                  <View style={styles(theme).stepIconContainer}>
+                    <Ionicons 
+                      name={ICON_MAP[step.icon] || 'pulse'} 
+                      size={20} 
+                      color={theme.colors.accent} 
+                    />
                   </View>
-                  <View style={styles.stepContent}>
-                    <Text style={styles.stepItemTitle}>Step {index + 1}</Text>
-                    <Text style={styles.stepItemText}>{step.instruction}</Text>
+                  <View style={styles(theme).stepContent}>
+                    <Text style={styles(theme).stepItemTitle}>Step {index + 1}</Text>
+                    <Text style={styles(theme).stepItemText}>{step.instruction}</Text>
                   </View>
                 </BlurView>
               ))}
@@ -316,111 +336,111 @@ export default function SessionPlayerScreen() {
 
           {/* Progress Bar */}
           {isSessionActive && (
-            <View style={styles.progressContainer}>
-              <View style={styles.progressHeader}>
-                <Text style={styles.progressTime}>{formatTime(elapsedTime)}</Text>
-                <Text style={styles.progressTime}>{formatTime(totalDuration)}</Text>
+            <View style={styles(theme).progressContainer}>
+              <View style={styles(theme).progressHeader}>
+                <Text style={styles(theme).progressTime}>{formatTime(elapsedTime)}</Text>
+                <Text style={styles(theme).progressTime}>{formatTime(totalDuration)}</Text>
               </View>
-              <View style={styles.progressBar}>
-                <View style={[styles.progressFill, { width: `${getProgress() * 100}%` }]} />
+              <View style={styles(theme).progressBar}>
+                <View style={[styles(theme).progressFill, { width: `${getProgress() * 100}%` }]} />
               </View>
             </View>
           )}
 
           {/* Volume Control */}
           {isSessionActive && (
-            <BlurView intensity={20} tint="dark" style={styles.volumeCard}>
-              <Text style={styles.volumeLabel}>Volume</Text>
-              <View style={styles.volumeContainer}>
-                <Ionicons name="volume-low" size={20} color="#A0AEC0" />
+            <BlurView intensity={20} tint="dark" style={styles(theme).volumeCard}>
+              <Text style={styles(theme).volumeLabel}>Volume</Text>
+              <View style={styles(theme).volumeContainer}>
+                <Volume2 size={20} color={theme.colors.textSecondary} />
                 <Slider
-                  style={styles.volumeSlider}
+                  style={styles(theme).volumeSlider}
                   value={volume}
                   onValueChange={setVolume}
                   minimumValue={0}
                   maximumValue={1}
-                  minimumTrackTintColor="#00FFD1"
+                  minimumTrackTintColor={theme.colors.accent}
                   maximumTrackTintColor="#2A2D3A"
-                  thumbTintColor="#00FFD1"
+                  thumbTintColor={theme.colors.accent}
                 />
-                <Ionicons name="volume-high" size={20} color="#A0AEC0" />
-                <Text style={styles.volumePercent}>{Math.round(volume * 100)}%</Text>
+                <Volume2 size={20} color={theme.colors.textSecondary} />
+                <Text style={styles(theme).volumePercent}>{Math.round(volume * 100)}%</Text>
               </View>
             </BlurView>
           )}
 
           {/* Control Buttons */}
-          <View style={styles.controls}>
+          <View style={styles(theme).controls}>
             {!isSessionActive ? (
               <TouchableOpacity
-                style={styles.startButton}
+                style={styles(theme).startButton}
                 onPress={handleStartSession}
                 activeOpacity={0.8}
               >
                 <LinearGradient
-                  colors={['#00FFD1', '#33C6FF']}
-                  style={styles.startGradient}
+                  colors={[theme.colors.accent, theme.colors.highlight]}
+                  style={styles(theme).startGradient}
                 >
                   <Ionicons name="play" size={32} color="#0F111A" />
-                  <Text style={styles.startButtonText}>Begin Session</Text>
+                  <Text style={styles(theme).startButtonText}>Begin Session</Text>
                 </LinearGradient>
               </TouchableOpacity>
             ) : (
-              <View style={styles.playbackControls}>
+              <View style={styles(theme).playbackControls}>
                 <TouchableOpacity
-                  style={styles.controlButton}
+                  style={styles(theme).controlButton}
                   onPress={handleStop}
                   activeOpacity={0.7}
                 >
                   <LinearGradient
-                    colors={['#FF6B6B', '#FF8E8E']}
-                    style={styles.controlButtonGradient}
+                    colors={[theme.colors.danger, '#FF8E8E']}
+                    style={styles(theme).controlButtonGradient}
                   >
-                    <Ionicons name="stop" size={28} color="#FFFFFF" />
+                    <Ionicons name="stop" size={28} color={theme.colors.textPrimary} />
                   </LinearGradient>
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  style={styles.playPauseButton}
+                  style={styles(theme).playPauseButton}
                   onPress={handlePauseResume}
                   activeOpacity={0.8}
                 >
                   <LinearGradient
-                    colors={['#00FFD1', '#33C6FF']}
-                    style={styles.playPauseGradient}
+                    colors={[theme.colors.accent, theme.colors.highlight]}
+                    style={styles(theme).playPauseGradient}
                   >
-                    <Ionicons
-                      name={isPlaying ? 'pause' : 'play'}
-                      size={40}
-                      color="#0F111A"
-                    />
+                    {isPlaying ? (
+                      <Ionicons name="pause" size={40} color="#0F111A" />
+                    ) : (
+                      <Ionicons name="play" size={40} color="#0F111A" />
+                    )}
                   </LinearGradient>
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  style={styles.controlButton}
+                  style={styles(theme).controlButton}
                   onPress={handleClose}
                   activeOpacity={0.7}
                 >
-                  <BlurView intensity={20} tint="dark" style={styles.controlButtonGradient}>
-                    <Ionicons name="close" size={28} color="#FFFFFF" />
+                  <BlurView intensity={20} tint="dark" style={styles(theme).controlButtonGradient}>
+                    <Ionicons name="close" size={28} color={theme.colors.textPrimary} />
                   </BlurView>
                 </TouchableOpacity>
               </View>
             )}
           </View>
 
-          <View style={styles.bottomSpacing} />
+          <View style={styles(theme).bottomSpacing} />
         </ScrollView>
       </LinearGradient>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+const styles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0F111A',
+    backgroundColor: theme.colors.background,
   },
   gradient: {
     flex: 1,
@@ -442,7 +462,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#FFFFFF',
+    color: theme.colors.textPrimary,
   },
   content: {
     flex: 1,
@@ -516,12 +536,12 @@ const styles = StyleSheet.create({
   },
   infoBadgeText: {
     fontSize: 13,
-    color: '#FFFFFF',
+    color: theme.colors.textPrimary,
     fontWeight: '500',
   },
   sessionDescription: {
     fontSize: 15,
-    color: '#A0AEC0',
+    color: theme.colors.textSecondary,
     lineHeight: 22,
   },
   stepCard: {
@@ -541,12 +561,12 @@ const styles = StyleSheet.create({
   },
   stepNumber: {
     fontSize: 14,
-    color: '#00FFD1',
+    color: theme.colors.accent,
     fontWeight: '600',
   },
   stepInstruction: {
     fontSize: 16,
-    color: '#FFFFFF',
+    color: theme.colors.textPrimary,
     lineHeight: 24,
     marginBottom: 16,
   },
@@ -561,7 +581,7 @@ const styles = StyleSheet.create({
   },
   stepProgressFill: {
     height: '100%',
-    backgroundColor: '#00FFD1',
+    backgroundColor: theme.colors.accent,
   },
   stepsContainer: {
     paddingHorizontal: 20,
@@ -570,7 +590,7 @@ const styles = StyleSheet.create({
   stepsTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#FFFFFF',
+    color: theme.colors.textPrimary,
     marginBottom: 16,
   },
   stepItem: {
@@ -597,12 +617,12 @@ const styles = StyleSheet.create({
   stepItemTitle: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#00FFD1',
+    color: theme.colors.accent,
     marginBottom: 4,
   },
   stepItemText: {
     fontSize: 14,
-    color: '#A0AEC0',
+    color: theme.colors.textSecondary,
     lineHeight: 20,
   },
   progressContainer: {
@@ -616,7 +636,7 @@ const styles = StyleSheet.create({
   },
   progressTime: {
     fontSize: 13,
-    color: '#A0AEC0',
+    color: theme.colors.textSecondary,
     fontWeight: '500',
   },
   progressBar: {
@@ -627,7 +647,7 @@ const styles = StyleSheet.create({
   },
   progressFill: {
     height: '100%',
-    backgroundColor: '#00FFD1',
+    backgroundColor: theme.colors.accent,
   },
   volumeCard: {
     marginHorizontal: 20,
@@ -640,7 +660,7 @@ const styles = StyleSheet.create({
   },
   volumeLabel: {
     fontSize: 14,
-    color: '#FFFFFF',
+    color: theme.colors.textPrimary,
     fontWeight: '600',
     marginBottom: 12,
   },
@@ -654,7 +674,7 @@ const styles = StyleSheet.create({
   },
   volumePercent: {
     fontSize: 13,
-    color: '#A0AEC0',
+    color: theme.colors.textSecondary,
     fontWeight: '500',
     width: 40,
     textAlign: 'right',
@@ -676,7 +696,7 @@ const styles = StyleSheet.create({
   startButtonText: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#0F111A',
+    color: theme.colors.background,
   },
   playbackControls: {
     flexDirection: 'row',

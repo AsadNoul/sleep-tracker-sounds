@@ -1,8 +1,10 @@
+import { useAppTheme } from '../hooks/useAppTheme';
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function ClearQueueScreen() {
+  const { theme, isDark } = useAppTheme();
   const [isClearing, setIsClearing] = useState(false);
 
   const clearAllQueues = async () => {
@@ -40,24 +42,24 @@ export default function ClearQueueScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Clear Failed Sync Queue</Text>
-      <Text style={styles.description}>
+    <View style={styles(theme).container}>
+      <Text style={styles(theme).title}>Clear Failed Sync Queue</Text>
+      <Text style={styles(theme).description}>
         There are 9 old sleep records that failed to sync due to data format issues.{'\n\n'}
         These records are from before the recent fixes and cannot be recovered.{'\n\n'}
         Clearing the queue will:
       </Text>
-      <Text style={styles.bullet}>• Remove the 9 failed sync operations</Text>
-      <Text style={styles.bullet}>• Stop the repeated error messages</Text>
-      <Text style={styles.bullet}>• Allow new sleep sessions to sync perfectly</Text>
-      <Text style={styles.bullet}>• NOT affect any data in the database</Text>
+      <Text style={styles(theme).bullet}>• Remove the 9 failed sync operations</Text>
+      <Text style={styles(theme).bullet}>• Stop the repeated error messages</Text>
+      <Text style={styles(theme).bullet}>• Allow new sleep sessions to sync perfectly</Text>
+      <Text style={styles(theme).bullet}>• NOT affect any data in the database</Text>
 
       <TouchableOpacity
-        style={[styles.button, isClearing && styles.buttonDisabled]}
+        style={[styles(theme).button, isClearing && styles(theme).buttonDisabled]}
         onPress={clearAllQueues}
         disabled={isClearing}
       >
-        <Text style={styles.buttonText}>
+        <Text style={styles(theme).buttonText}>
           {isClearing ? 'Clearing...' : 'Clear Queue (9 items)'}
         </Text>
       </TouchableOpacity>
@@ -65,7 +67,7 @@ export default function ClearQueueScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
     padding: 20,
@@ -74,7 +76,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#FFFFFF',
+    color: theme.colors.textPrimary,
     marginBottom: 20,
   },
   description: {
@@ -85,12 +87,12 @@ const styles = StyleSheet.create({
   },
   bullet: {
     fontSize: 16,
-    color: '#00FFD1',
+    color: theme.colors.accent,
     marginLeft: 10,
     marginBottom: 10,
   },
   button: {
-    backgroundColor: '#FF6B6B',
+    backgroundColor: theme.colors.danger,
     padding: 18,
     borderRadius: 12,
     alignItems: 'center',
@@ -100,7 +102,7 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   buttonText: {
-    color: '#FFFFFF',
+    color: theme.colors.textPrimary,
     fontSize: 18,
     fontWeight: '600',
   },

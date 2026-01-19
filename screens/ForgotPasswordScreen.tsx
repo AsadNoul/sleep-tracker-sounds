@@ -1,3 +1,4 @@
+import { useAppTheme } from '../hooks/useAppTheme';
 import React, { useState } from 'react';
 import {
   View,
@@ -12,11 +13,12 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
-import { Ionicons } from '@expo/vector-icons';
+import { ChevronLeft, Key, Mail } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { supabase } from '../lib/supabase';
 
 export default function ForgotPasswordScreen() {
+  const { theme, isDark } = useAppTheme();
   const navigation = useNavigation();
   const [email, setEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -68,47 +70,47 @@ export default function ForgotPasswordScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={styles(theme).container}>
       <LinearGradient
-        colors={['#0F111A', '#1B1D2A', '#0F111A']}
-        style={styles.gradient}
+        colors={[theme.colors.background, theme.colors.backgroundSecondary, theme.colors.background]}
+        style={styles(theme).gradient}
       >
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={styles.keyboardView}
+          style={styles(theme).keyboardView}
         >
           <ScrollView
-            contentContainerStyle={styles.scrollContent}
+            contentContainerStyle={styles(theme).scrollContent}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
             {/* Header */}
-            <View style={styles.header}>
+            <View style={styles(theme).header}>
               <TouchableOpacity
-                style={styles.backButton}
+                style={styles(theme).backButton}
                 onPress={() => navigation.goBack()}
               >
-                <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+                <ChevronLeft size={24} color={theme.colors.textPrimary} />
               </TouchableOpacity>
             </View>
 
             {/* Content */}
-            <View style={styles.content}>
-              <View style={styles.iconContainer}>
-                <Ionicons name="key" size={60} color="#00FFD1" />
+            <View style={styles(theme).content}>
+              <View style={styles(theme).iconContainer}>
+                <Key size={60} color={theme.colors.accent} />
               </View>
 
-              <Text style={styles.title}>Forgot Password?</Text>
-              <Text style={styles.subtitle}>
+              <Text style={styles(theme).title}>Forgot Password?</Text>
+              <Text style={styles(theme).subtitle}>
                 No worries! Enter your email address and we'll send you a link to reset your password.
               </Text>
 
-              <BlurView intensity={20} tint="dark" style={styles.inputContainer}>
-                <Ionicons name="mail-outline" size={20} color="#A0AEC0" style={styles.inputIcon} />
+              <BlurView intensity={20} tint="dark" style={styles(theme).inputContainer}>
+                <Mail size={20} color={theme.colors.textSecondary} style={styles(theme).inputIcon} />
                 <TextInput
-                  style={styles.input}
+                  style={styles(theme).input}
                   placeholder="Email"
-                  placeholderTextColor="#A0AEC0"
+                  placeholderTextColor={theme.colors.textSecondary}
                   value={email}
                   onChangeText={setEmail}
                   keyboardType="email-address"
@@ -119,29 +121,29 @@ export default function ForgotPasswordScreen() {
               </BlurView>
 
               <TouchableOpacity
-                style={[styles.resetButton, (isLoading || emailSent) && styles.resetButtonDisabled]}
+                style={[styles(theme).resetButton, (isLoading || emailSent) && styles(theme).resetButtonDisabled]}
                 onPress={handleResetPassword}
                 disabled={isLoading || emailSent}
                 activeOpacity={0.9}
               >
                 <LinearGradient
-                  colors={['#00FFD1', '#33C6FF']}
-                  style={styles.resetButtonGradient}
+                  colors={[theme.colors.accent, theme.colors.highlight]}
+                  style={styles(theme).resetButtonGradient}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 0 }}
                 >
-                  <Text style={styles.resetButtonText}>
+                  <Text style={styles(theme).resetButtonText}>
                     {isLoading ? 'Sending...' : emailSent ? 'Email Sent!' : 'Send Reset Link'}
                   </Text>
                 </LinearGradient>
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={styles.backToLoginButton}
+                style={styles(theme).backToLoginButton}
                 onPress={() => navigation.goBack()}
               >
-                <Ionicons name="arrow-back-outline" size={20} color="#00FFD1" />
-                <Text style={styles.backToLoginText}>Back to Login</Text>
+                <ChevronLeft size={20} color={theme.colors.accent} />
+                <Text style={styles(theme).backToLoginText}>Back to Login</Text>
               </TouchableOpacity>
             </View>
           </ScrollView>
@@ -151,10 +153,10 @@ export default function ForgotPasswordScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0F111A',
+    backgroundColor: theme.colors.background,
   },
   gradient: {
     flex: 1,
@@ -198,13 +200,13 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 32,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: theme.colors.textPrimary,
     marginBottom: 12,
     textAlign: 'center',
   },
   subtitle: {
     fontSize: 16,
-    color: '#A0AEC0',
+    color: theme.colors.textSecondary,
     textAlign: 'center',
     marginBottom: 40,
     lineHeight: 24,
@@ -228,12 +230,12 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 16,
     fontSize: 16,
-    color: '#FFFFFF',
+    color: theme.colors.textPrimary,
   },
   resetButton: {
     borderRadius: 16,
     overflow: 'hidden',
-    shadowColor: '#00FFD1',
+    shadowColor: theme.colors.accent,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 12,
@@ -251,7 +253,7 @@ const styles = StyleSheet.create({
   resetButtonText: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#0F111A',
+    color: theme.colors.background,
   },
   backToLoginButton: {
     flexDirection: 'row',
@@ -262,7 +264,7 @@ const styles = StyleSheet.create({
   backToLoginText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#00FFD1',
+    color: theme.colors.accent,
     marginLeft: 8,
   },
 });

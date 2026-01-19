@@ -1,3 +1,4 @@
+import { useAppTheme } from '../hooks/useAppTheme';
 import React, { useState } from 'react';
 import {
   View,
@@ -9,24 +10,26 @@ import {
   Alert,
   ActivityIndicator,
   Dimensions,
-  Platform
+  Platform,
+  Linking
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
-import { Ionicons } from '@expo/vector-icons';
+import { 
+  ChevronLeft, 
+  HelpCircle, 
+  Mail, 
+  ChevronUp, 
+  ChevronDown, 
+  Clock, 
+  Twitter,
+  Send
+} from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 
 const { width } = Dimensions.get('window');
 
-const theme = {
-  background: '#0F111A',
-  card: '#1B1D2A',
-  accent: '#00FFD1',
-  highlight: '#33C6FF',
-  textPrimary: '#FFFFFF',
-  textSecondary: '#A0AEC0',
-};
 
 // FAQ data
 const faqs = [
@@ -83,6 +86,8 @@ const faqs = [
 ];
 
 export default function HelpSupportScreen() {
+  const { theme, isDark } = useAppTheme();
+  const insets = useSafeAreaInsets();
   const navigation = useNavigation();
   const [activeTab, setActiveTab] = useState('faq');
   const [expandedFaq, setExpandedFaq] = useState(null);
@@ -108,87 +113,100 @@ export default function HelpSupportScreen() {
       Alert.alert('Error', 'Please fill in all fields');
       return;
     }
-    
+
     // Email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
       Alert.alert('Error', 'Please enter a valid email address');
       return;
     }
-    
+
     setIsSending(true);
-    
+
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      // Success
+      // Use mailto so users can send via their email client without backend dependency
+      const mailto = `mailto:asadalibscs20@gmail.com?subject=${encodeURIComponent(subject.trim())}&body=${encodeURIComponent(
+        `From: ${name.trim()} <${email.trim()}>\n\n${message.trim()}\n\nSent from Sleep Architect`
+      )}`;
+
+      const supported = await Linking.canOpenURL(mailto);
+      if (!supported) {
+        throw new Error('No email client available');
+      }
+
+      await Linking.openURL(mailto);
+
       Alert.alert(
-        'Message Sent',
-        'Thank you for contacting us. We will get back to you as soon as possible.',
-        [{ text: 'OK', onPress: () => {
-          setName('');
-          setEmail('');
-          setMessage('');
-          setSubject('');
-        }}]
+        'Ready to Send',
+        'We opened your email app with your message. Please press send to complete.',
+        [{
+          text: 'OK',
+          onPress: () => {
+            setName('');
+            setEmail('');
+            setMessage('');
+            setSubject('');
+          }
+        }]
       );
     } catch (error) {
-      Alert.alert('Error', 'Failed to send message. Please try again later.');
+      console.error('Contact form error:', error);
+      Alert.alert(
+        'Error',
+        'Failed to send message. Please email us directly at asadalibscs20@gmail.com'
+      );
     } finally {
       setIsSending(false);
     }
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles(theme).container} edges={['top']}>
       <LinearGradient
-        colors={[theme.background, '#0A0C14']}
+        colors={[theme.colors.background, '#0A0C14']}
         style={StyleSheet.absoluteFill}
       />
       
-      <View style={styles.header}>
+      <View style={styles(theme).header}>
         <TouchableOpacity 
-          style={styles.backButton}
+          style={styles(theme).backButton}
           onPress={() => navigation.goBack()}
         >
-          <Ionicons name="arrow-back" size={24} color={theme.textPrimary} />
+          <ChevronLeft size={24} color={theme.colors.textPrimary} />
         </TouchableOpacity>
-        <Text style={styles.title}>Help & Support</Text>
-        <View style={styles.placeholder} />
+        <Text style={styles(theme).title}>Help & Support</Text>
+        <View style={styles(theme).placeholder} />
       </View>
       
       {/* Tab Selector */}
-      <View style={styles.tabContainer}>
+      <View style={styles(theme).tabContainer}>
         <TouchableOpacity 
-          style={[styles.tab, activeTab === 'faq' && styles.activeTab]}
+          style={[styles(theme).tab, activeTab === 'faq' && styles(theme).activeTab]}
           onPress={() => setActiveTab('faq')}
         >
-          <Ionicons 
-            name="help-circle" 
+          <HelpCircle 
             size={20} 
-            color={activeTab === 'faq' ? theme.accent : theme.textSecondary} 
+            color={activeTab === 'faq' ? theme.colors.accent : theme.colors.textSecondary} 
           />
           <Text style={[
-            styles.tabText,
-            activeTab === 'faq' && styles.activeTabText
+            styles(theme).tabText,
+            activeTab === 'faq' && styles(theme).activeTabText
           ]}>
             FAQ
           </Text>
         </TouchableOpacity>
         
         <TouchableOpacity 
-          style={[styles.tab, activeTab === 'contact' && styles.activeTab]}
+          style={[styles(theme).tab, activeTab === 'contact' && styles(theme).activeTab]}
           onPress={() => setActiveTab('contact')}
         >
-          <Ionicons 
-            name="mail" 
+          <Mail 
             size={20} 
-            color={activeTab === 'contact' ? theme.accent : theme.textSecondary} 
+            color={activeTab === 'contact' ? theme.colors.accent : theme.colors.textSecondary} 
           />
           <Text style={[
-            styles.tabText,
-            activeTab === 'contact' && styles.activeTabText
+            styles(theme).tabText,
+            activeTab === 'contact' && styles(theme).activeTabText
           ]}>
             Contact Us
           </Text>
@@ -196,13 +214,18 @@ export default function HelpSupportScreen() {
       </View>
       
       <ScrollView 
-        style={styles.content}
+        style={styles(theme).content}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles(theme).scrollContent,
+          { 
+            paddingBottom: insets.bottom + 100 
+          }
+        ]}
       >
         {activeTab === 'faq' ? (
-          <View style={styles.faqContainer}>
-            <Text style={styles.sectionDescription}>
+          <View style={styles(theme).faqContainer}>
+            <Text style={styles(theme).sectionDescription}>
               Find answers to commonly asked questions about our app and services.
             </Text>
             
@@ -210,75 +233,75 @@ export default function HelpSupportScreen() {
               <TouchableOpacity
                 key={faq.id}
                 style={[
-                  styles.faqItem,
-                  expandedFaq === faq.id && styles.expandedFaqItem
+                  styles(theme).faqItem,
+                  expandedFaq === faq.id && styles(theme).expandedFaqItem
                 ]}
                 onPress={() => setExpandedFaq(expandedFaq === faq.id ? null : faq.id)}
                 activeOpacity={0.8}
               >
-                <BlurView intensity={20} style={styles.faqBlur}>
-                  <View style={styles.faqHeader}>
-                    <Text style={styles.faqQuestion}>{faq.question}</Text>
-                    <Ionicons
-                      name={expandedFaq === faq.id ? "chevron-up" : "chevron-down"}
-                      size={20}
-                      color={theme.textSecondary}
-                    />
+                <BlurView intensity={20} style={styles(theme).faqBlur}>
+                  <View style={styles(theme).faqHeader}>
+                    <Text style={styles(theme).faqQuestion}>{faq.question}</Text>
+                    {expandedFaq === faq.id ? (
+                      <ChevronUp size={20} color={theme.colors.textSecondary} />
+                    ) : (
+                      <ChevronDown size={20} color={theme.colors.textSecondary} />
+                    )}
                   </View>
 
                   {expandedFaq === faq.id && (
-                    <View style={styles.faqAnswer}>
-                      <Text style={styles.faqAnswerText}>{faq.answer}</Text>
+                    <View style={styles(theme).faqAnswer}>
+                      <Text style={styles(theme).faqAnswerText}>{faq.answer}</Text>
                     </View>
                   )}
                 </BlurView>
               </TouchableOpacity>
             ))}
             
-            <View style={styles.moreHelpSection}>
-              <Text style={styles.moreHelpTitle}>Need More Help?</Text>
-              <Text style={styles.moreHelpText}>
+            <View style={styles(theme).moreHelpSection}>
+              <Text style={styles(theme).moreHelpTitle}>Need More Help?</Text>
+              <Text style={styles(theme).moreHelpText}>
                 If you couldn't find the answer to your question, please contact our support team.
               </Text>
               <TouchableOpacity 
-                style={styles.contactButton}
+                style={styles(theme).contactButton}
                 onPress={() => setActiveTab('contact')}
               >
                 <LinearGradient
-                  colors={[theme.accent, theme.highlight]}
+                  colors={[theme.colors.accent, theme.colors.highlight]}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 0 }}
-                  style={styles.contactButtonGradient}
+                  style={styles(theme).contactButtonGradient}
                 >
-                  <Text style={styles.contactButtonText}>Contact Support</Text>
+                  <Text style={styles(theme).contactButtonText}>Contact Support</Text>
                 </LinearGradient>
               </TouchableOpacity>
             </View>
           </View>
         ) : (
-          <View style={styles.contactContainer}>
-            <Text style={styles.sectionDescription}>
+          <View style={styles(theme).contactContainer}>
+            <Text style={styles(theme).sectionDescription}>
               Have a question or need assistance? Fill out the form below and our support team will get back to you as soon as possible.
             </Text>
             
-            <View style={styles.formContainer}>
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Name</Text>
+            <View style={styles(theme).formContainer}>
+              <View style={styles(theme).inputGroup}>
+                <Text style={styles(theme).inputLabel}>Name</Text>
                 <TextInput
-                  style={styles.input}
+                  style={styles(theme).input}
                   placeholder="Your name"
-                  placeholderTextColor={theme.textSecondary}
+                  placeholderTextColor={theme.colors.textSecondary}
                   value={name}
                   onChangeText={setName}
                 />
               </View>
               
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Email</Text>
+              <View style={styles(theme).inputGroup}>
+                <Text style={styles(theme).inputLabel}>Email</Text>
                 <TextInput
-                  style={styles.input}
+                  style={styles(theme).input}
                   placeholder="your.email@example.com"
-                  placeholderTextColor={theme.textSecondary}
+                  placeholderTextColor={theme.colors.textSecondary}
                   keyboardType="email-address"
                   autoCapitalize="none"
                   value={email}
@@ -286,23 +309,23 @@ export default function HelpSupportScreen() {
                 />
               </View>
               
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Subject</Text>
+              <View style={styles(theme).inputGroup}>
+                <Text style={styles(theme).inputLabel}>Subject</Text>
                 <TextInput
-                  style={styles.input}
+                  style={styles(theme).input}
                   placeholder="What is this regarding?"
-                  placeholderTextColor={theme.textSecondary}
+                  placeholderTextColor={theme.colors.textSecondary}
                   value={subject}
                   onChangeText={setSubject}
                 />
               </View>
               
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Message</Text>
+              <View style={styles(theme).inputGroup}>
+                <Text style={styles(theme).inputLabel}>Message</Text>
                 <TextInput
-                  style={[styles.input, styles.messageInput]}
+                  style={[styles(theme).input, styles(theme).messageInput]}
                   placeholder="Please describe your issue or question in detail"
-                  placeholderTextColor={theme.textSecondary}
+                  placeholderTextColor={theme.colors.textSecondary}
                   multiline
                   numberOfLines={6}
                   textAlignVertical="top"
@@ -312,57 +335,67 @@ export default function HelpSupportScreen() {
               </View>
               
               <TouchableOpacity 
-                style={[styles.submitButton, isSending && styles.disabledButton]}
+                style={[styles(theme).submitButton, isSending && styles(theme).disabledButton]}
                 onPress={handleSubmit}
                 disabled={isSending}
               >
                 <LinearGradient
-                  colors={[theme.accent, theme.highlight]}
+                  colors={[theme.colors.accent, theme.colors.highlight]}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 0 }}
-                  style={styles.submitButtonGradient}
+                  style={styles(theme).submitButtonGradient}
                 >
                   {isSending ? (
                     <ActivityIndicator color="#000" size="small" />
                   ) : (
-                    <Text style={styles.submitButtonText}>Send Message</Text>
+                    <Text style={styles(theme).submitButtonText}>Send Message</Text>
                   )}
                 </LinearGradient>
               </TouchableOpacity>
             </View>
             
-            <View style={styles.alternativeContactSection}>
-              <Text style={styles.alternativeContactTitle}>Other Ways to Reach Us</Text>
+            <View style={styles(theme).alternativeContactSection}>
+              <Text style={styles(theme).alternativeContactTitle}>Other Ways to Reach Us</Text>
               
-              <View style={styles.contactMethodsContainer}>
-                <View style={styles.contactMethod}>
-                  <View style={styles.contactMethodIcon}>
-                    <Ionicons name="mail" size={24} color={theme.accent} />
+              <View style={styles(theme).contactMethodsContainer}>
+                <View style={styles(theme).contactMethod}>
+                  <View style={styles(theme).contactMethodIcon}>
+                    <Mail size={24} color={theme.colors.accent} />
                   </View>
                   <View>
-                    <Text style={styles.contactMethodTitle}>Email</Text>
-                    <Text style={styles.contactMethodValue}>support@sleepapp.com</Text>
+                    <Text style={styles(theme).contactMethodTitle}>Email</Text>
+                    <Text style={styles(theme).contactMethodValue}>support@sleepapp.com</Text>
                   </View>
                 </View>
                 
-                <View style={styles.contactMethod}>
-                  <View style={styles.contactMethodIcon}>
-                    <Ionicons name="time" size={24} color={theme.accent} />
+                <View style={styles(theme).contactMethod}>
+                  <View style={styles(theme).contactMethodIcon}>
+                    <Clock size={24} color={theme.colors.accent} />
                   </View>
                   <View>
-                    <Text style={styles.contactMethodTitle}>Response Time</Text>
-                    <Text style={styles.contactMethodValue}>Within 24 hours</Text>
+                    <Text style={styles(theme).contactMethodTitle}>Response Time</Text>
+                    <Text style={styles(theme).contactMethodValue}>Within 24 hours</Text>
                   </View>
                 </View>
                 
-                <View style={styles.contactMethod}>
-                  <View style={styles.contactMethodIcon}>
-                    <Ionicons name="logo-twitter" size={24} color={theme.accent} />
+                <View style={styles(theme).contactMethod}>
+                  <View style={styles(theme).contactMethodIcon}>
+                    <Twitter size={24} color={theme.colors.accent} />
                   </View>
-                  <View>
-                    <Text style={styles.contactMethodTitle}>Twitter</Text>
-                    <Text style={styles.contactMethodValue}>@sleepapp</Text>
+                  <TouchableOpacity onPress={() => Linking.openURL('https://x.com/mxsports5')}>
+                    <Text style={styles(theme).contactMethodTitle}>X (Twitter)</Text>
+                    <Text style={styles(theme).contactMethodValue}>@Sleeptracker</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <View style={styles(theme).contactMethod}>
+                  <View style={styles(theme).contactMethodIcon}>
+                    <Send size={24} color={theme.colors.accent} />
                   </View>
+                  <TouchableOpacity onPress={() => Linking.openURL('https://t.me/asadalinaul1')}>
+                    <Text style={styles(theme).contactMethodTitle}>Telegram</Text>
+                    <Text style={styles(theme).contactMethodValue}>t.me/asadalinaul1</Text>
+                  </TouchableOpacity>
                 </View>
               </View>
             </View>
@@ -370,16 +403,16 @@ export default function HelpSupportScreen() {
         )}
         
         {/* Bottom padding for tab bar */}
-        <View style={styles.bottomPadding} />
+        <View style={styles(theme).bottomPadding} />
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
+const styles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.background,
+    backgroundColor: theme.colors.background,
   },
   header: {
     flexDirection: 'row',
@@ -399,7 +432,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: theme.textPrimary,
+    color: theme.colors.textPrimary,
   },
   placeholder: {
     width: 40,
@@ -421,16 +454,16 @@ const styles = StyleSheet.create({
   activeTab: {
     backgroundColor: 'rgba(0, 255, 209, 0.15)',
     borderWidth: 1,
-    borderColor: theme.accent,
+    borderColor: theme.colors.accent,
   },
   tabText: {
     fontSize: 14,
     fontWeight: '600',
-    color: theme.textSecondary,
+    color: theme.colors.textSecondary,
     marginLeft: 6,
   },
   activeTabText: {
-    color: theme.accent,
+    color: theme.colors.accent,
   },
   content: {
     flex: 1,
@@ -440,7 +473,7 @@ const styles = StyleSheet.create({
   },
   sectionDescription: {
     fontSize: 14,
-    color: theme.textSecondary,
+    color: theme.colors.textSecondary,
     marginBottom: 24,
     lineHeight: 20,
   },
@@ -455,7 +488,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(51, 198, 255, 0.1)',
   },
   expandedFaqItem: {
-    borderColor: theme.accent,
+    borderColor: theme.colors.accent,
   },
   faqBlur: {
     borderRadius: 16,
@@ -471,7 +504,7 @@ const styles = StyleSheet.create({
   faqQuestion: {
     fontSize: 16,
     fontWeight: '600',
-    color: theme.textPrimary,
+    color: theme.colors.textPrimary,
     flex: 1,
     marginRight: 10,
   },
@@ -483,7 +516,7 @@ const styles = StyleSheet.create({
   },
   faqAnswerText: {
     fontSize: 14,
-    color: theme.textSecondary,
+    color: theme.colors.textSecondary,
     lineHeight: 20,
   },
   moreHelpSection: {
@@ -496,12 +529,12 @@ const styles = StyleSheet.create({
   moreHelpTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: theme.textPrimary,
+    color: theme.colors.textPrimary,
     marginBottom: 8,
   },
   moreHelpText: {
     fontSize: 14,
-    color: theme.textSecondary,
+    color: theme.colors.textSecondary,
     textAlign: 'center',
     marginBottom: 16,
   },
@@ -533,7 +566,7 @@ const styles = StyleSheet.create({
   inputLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: theme.textPrimary,
+    color: theme.colors.textPrimary,
     marginBottom: 8,
   },
   input: {
@@ -543,7 +576,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 12,
     fontSize: 14,
-    color: theme.textPrimary,
+    color: theme.colors.textPrimary,
   },
   messageInput: {
     height: 120,
@@ -574,7 +607,7 @@ const styles = StyleSheet.create({
   alternativeContactTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: theme.textPrimary,
+    color: theme.colors.textPrimary,
     marginBottom: 16,
   },
   contactMethodsContainer: {
@@ -597,12 +630,12 @@ const styles = StyleSheet.create({
   contactMethodTitle: {
     fontSize: 14,
     fontWeight: '600',
-    color: theme.textPrimary,
+    color: theme.colors.textPrimary,
     marginBottom: 4,
   },
   contactMethodValue: {
     fontSize: 14,
-    color: theme.highlight,
+    color: theme.colors.highlight,
   },
   bottomPadding: {
     height: 100,

@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+import { useAppTheme } from '../hooks/useAppTheme';
+import { isPremiumActive } from '../utils/subscriptionHelpers';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -11,41 +13,193 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
-import { Ionicons } from '@expo/vector-icons';
+import {
+  Sparkles,
+  Star,
+  X,
+  Clock,
+  BarChart2,
+  CheckCircle2,
+  Heart,
+  Search,
+  Settings,
+  Mic,
+  Timer,
+  Pause,
+  Square,
+  ChevronDown,
+  ChevronLeft,
+  MoreHorizontal,
+  Wind,
+  BookOpen,
+  Accessibility,
+  Play,
+  AlertCircle,
+  Zap,
+  Shield
+} from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAudio } from '../contexts/AudioContext';
 import { useAuth } from '../contexts/AuthContext';
+import {
+  saveMindfulnessSession,
+  getMindfulnessStats,
+  formatMindfulnessTime,
+  type MindfulnessStats,
+} from '../utils/mindfulnessTracking';
+import BreathingCoach from '../components/BreathingCoach';
+import { useSafeBottomMargin } from '../hooks/useSafeBottomMargin';
 
 type RootStackParamList = {
   SessionPlayer: { session: any };
 };
 
+interface MindfulnessSession {
+  id: string;
+  title: string;
+  duration: string;
+  difficulty: string;
+  image: string;
+  premium: boolean;
+  uri: string;
+  description: string;
+}
+
 export default function MindfulnessScreen() {
+  const { theme, isDark } = useAppTheme();
+  const insets = useSafeAreaInsets();
+  const bottomMargin = useSafeBottomMargin();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { isPlaying, currentSound, playSound, stopSound } = useAudio();
   const { user } = useAuth();
   const [selectedCategory, setSelectedCategory] = useState('meditation');
-  const [selectedSession, setSelectedSession] = useState(null);
+  const [selectedSession, setSelectedSession] = useState<MindfulnessSession | null>(null);
   const [showSessionModal, setShowSessionModal] = useState(false);
+  const [showBreathingCoach, setShowBreathingCoach] = useState(false);
+  const [breathingPattern, setBreathingPattern] = useState<'box' | '4-7-8' | 'calm'>('box');
+  const [mindfulnessStats, setMindfulnessStats] = useState<MindfulnessStats>({
+    totalSessions: 0,
+    totalMinutes: 0,
+    currentStreak: 0,
+    lastSessionDate: null,
+    sessionHistory: [],
+  });
+
+  // Load mindfulness stats on mount and when session modal closes
+  useEffect(() => {
+    loadStats();
+  }, []);
+
+  const loadStats = async () => {
+    const stats = await getMindfulnessStats();
+    setMindfulnessStats(stats);
+  };
 
   const GITHUB_BASE_URL = 'https://raw.githubusercontent.com/AsadNoul/sleep-tracker-sounds/main';
 
   const categories = [
-    { id: 'meditation', name: 'Meditation', icon: 'leaf' },
-    { id: 'breathing', name: 'Breathing', icon: 'pulse' },
-    { id: 'stories', name: 'Sleep Stories', icon: 'book', premium: true },
-    { id: 'yoga', name: 'Yoga', icon: 'body', premium: true },
+    { id: 'quick-relief', name: 'Quick Relief', icon: Zap },
+    { id: 'breathing-coach', name: 'Breathing Coach', icon: Wind },
+    { id: 'meditation', name: 'Meditation', icon: Sparkles },
+    { id: 'breathing', name: 'Breathing', icon: Wind },
+    { id: 'stories', name: 'Sleep Stories', icon: BookOpen, premium: true },
+    { id: 'yoga', name: 'Yoga', icon: Accessibility, premium: true },
   ];
 
   const sessions = {
+    'quick-relief': [
+      {
+        id: 'anxiety-relief',
+        title: 'Anxiety Relief',
+        duration: '3 min',
+        difficulty: 'All Levels',
+        image: 'https://images.unsplash.com/photo-1506126613408-eca07ce68773?w=400&q=80',
+        premium: false,
+        uri: `${GITHUB_BASE_URL}/meditation-calm.mp3`,
+        description: 'Rapid calming technique to reduce anxiety in just 3 minutes'
+      },
+      {
+        id: 'panic-help',
+        title: 'Panic Attack Help',
+        duration: '5 min',
+        difficulty: 'All Levels',
+        image: 'https://images.unsplash.com/photo-1528715471579-d1bcf0ba5e83?w=400&q=80',
+        premium: false,
+        uri: `${GITHUB_BASE_URL}/meditation-deep.mp3`,
+        description: 'Grounding exercise to help you through a panic attack'
+      },
+      {
+        id: 'stress-release',
+        title: 'Stress Release',
+        duration: '4 min',
+        difficulty: 'All Levels',
+        image: 'https://images.unsplash.com/photo-1593811167562-9cef47bfc4d7?w=400&q=80',
+        premium: false,
+        uri: `${GITHUB_BASE_URL}/meditation-calm.mp3`,
+        description: 'Quick body scan to release accumulated stress'
+      },
+    ],
+    'breathing-coach': [
+      {
+        id: 'box-breathing',
+        title: 'Box Breathing',
+        duration: '5 min',
+        difficulty: 'Beginner',
+        image: 'https://images.unsplash.com/photo-1506126613408-eca07ce68773?w=400&q=80',
+        premium: false,
+        uri: '',
+        description: '4-4-4-4 pattern used by Navy SEALs for focus and calm'
+      },
+      {
+        id: '4-7-8-breathing',
+        title: '4-7-8 Breathing',
+        duration: '5 min',
+        difficulty: 'Beginner',
+        image: 'https://images.unsplash.com/photo-1528715471579-d1bcf0ba5e83?w=400&q=80',
+        premium: false,
+        uri: '',
+        description: 'Dr. Weil\'s technique for rapid relaxation and sleep'
+      },
+      {
+        id: 'calm-breathing',
+        title: 'Calm Breathing',
+        duration: '5 min',
+        difficulty: 'Beginner',
+        image: 'https://images.unsplash.com/photo-1593811167562-9cef47bfc4d7?w=400&q=80',
+        premium: false,
+        uri: '',
+        description: 'Extended exhale pattern for deep relaxation'
+      },
+    ],
     meditation: [
+      {
+        id: 'meditation-yoga-nidra',
+        title: 'Yoga Nidra (Psychic Sleep)',
+        duration: '30 min',
+        difficulty: 'All Levels',
+        image: 'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=400&q=80',
+        premium: true,
+        uri: `${GITHUB_BASE_URL}/meditation-deep.mp3`,
+        description: 'Guided deep relaxation based on the ancient practice of Yoga Nidra.'
+      },
+      {
+        id: 'meditation-gratitude',
+        title: 'Gratitude for Sleep',
+        duration: '10 min',
+        difficulty: 'Beginner',
+        image: 'https://images.unsplash.com/photo-1506126613408-eca07ce68773?w=400&q=80',
+        premium: false,
+        uri: `${GITHUB_BASE_URL}/meditation-calm.mp3`,
+        description: 'End your day with a positive reflection to calm your mind.'
+      },
       {
         id: 'meditation-1',
         title: 'Deep Sleep Meditation',
         duration: '20 min',
         difficulty: 'Beginner',
-        image: 'https://api.a0.dev/assets/image?text=peaceful%20meditation%20scene%20with%20soft%20lighting&aspect=4:3',
+        image: 'https://images.unsplash.com/photo-1512438248247-f0f2a5a8b7f0?w=400&q=80',
         premium: false,
         uri: `${GITHUB_BASE_URL}/meditation-deep.mp3`,
         description: 'A calming guided meditation to help you drift into deep, restful sleep'
@@ -55,39 +209,29 @@ export default function MindfulnessScreen() {
         title: 'Body Scan Relaxation',
         duration: '15 min',
         difficulty: 'Beginner',
-        image: 'https://api.a0.dev/assets/image?text=serene%20body%20relaxation%20visualization&aspect=4:3',
+        image: 'https://images.unsplash.com/photo-1536629894121-4d162a042191?w=400&q=80',
         premium: false,
         uri: `${GITHUB_BASE_URL}/meditation-calm.mp3`,
         description: 'Progressive relaxation technique to release tension throughout your body'
       },
-      {
-        id: 'meditation-3',
-        title: 'Mindful Sleep Journey',
-        duration: '30 min',
-        difficulty: 'Intermediate',
-        image: 'https://api.a0.dev/assets/image?text=dreamy%20sleep%20journey%20landscape&aspect=4:3',
-        premium: true,
-        uri: `${GITHUB_BASE_URL}/meditation-mindfulness.mp3`,
-        description: 'Extended mindfulness practice for deeper relaxation and peaceful sleep'
-      },
-      {
-        id: 'meditation-4',
-        title: 'Advanced Sleep Mastery',
-        duration: '45 min',
-        difficulty: 'Advanced',
-        image: 'https://api.a0.dev/assets/image?text=advanced%20meditation%20temple%20scene&aspect=4:3',
-        premium: true,
-        uri: `${GITHUB_BASE_URL}/meditation-sleep.mp3`,
-        description: 'Comprehensive meditation session for complete mind-body relaxation'
-      },
     ],
     breathing: [
+      {
+        id: 'breathing-pmr',
+        title: 'Progressive Muscle Relaxation',
+        duration: '15 min',
+        difficulty: 'Beginner',
+        image: 'https://images.unsplash.com/photo-1593811167562-9cef47bfc4d7?w=400&q=80',
+        premium: true,
+        uri: `${GITHUB_BASE_URL}/meditation-calm.mp3`,
+        description: 'Step-by-step physical technique to release body tension before bed.'
+      },
       {
         id: 'breathing-1',
         title: '4-7-8 Breathing',
         duration: '10 min',
         difficulty: 'Beginner',
-        image: 'https://api.a0.dev/assets/image?text=calming%20breathing%20exercise%20visualization&aspect=4:3',
+        image: 'https://images.unsplash.com/photo-1518531933037-91b2f5f229cc?w=400&q=80',
         premium: false,
         uri: `${GITHUB_BASE_URL}/meditation-calm.mp3`,
         description: 'Simple breathing technique to reduce anxiety and promote relaxation'
@@ -97,29 +241,29 @@ export default function MindfulnessScreen() {
         title: 'Box Breathing',
         duration: '8 min',
         difficulty: 'Beginner',
-        image: 'https://api.a0.dev/assets/image?text=geometric%20breathing%20pattern%20visualization&aspect=4:3',
+        image: 'https://images.unsplash.com/photo-1515377905703-c4788e51af15?w=400&q=80',
         premium: false,
         uri: `${GITHUB_BASE_URL}/meditation-deep.mp3`,
-        description: 'Structured breathing pattern used by athletes and Navy SEALs for stress relief'
-      },
-      {
-        id: 'breathing-3',
-        title: 'Pranayama Sleep Prep',
-        duration: '25 min',
-        difficulty: 'Advanced',
-        image: 'https://api.a0.dev/assets/image?text=ancient%20breathing%20technique%20scene&aspect=4:3',
-        premium: true,
-        uri: `${GITHUB_BASE_URL}/meditation-mindfulness.mp3`,
-        description: 'Ancient yogic breathing exercises to prepare mind and body for deep sleep'
+        description: 'Structured breathing pattern used by focus-driven professionals'
       },
     ],
     stories: [
+      {
+        id: 'binaural-zeta',
+        title: 'Binaural Beats (Zeta)',
+        duration: '60 min',
+        difficulty: 'Specialist',
+        image: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=400&q=80',
+        premium: true,
+        uri: `${GITHUB_BASE_URL}/white-noise.mp3`,
+        description: 'Advanced frequencies optimized for deep sleep and stress reduction.'
+      },
       {
         id: 'story-1',
         title: 'Enchanted Forest Walk',
         duration: '35 min',
         difficulty: 'All Levels',
-        image: 'https://api.a0.dev/assets/image?text=magical%20enchanted%20forest%20path&aspect=4:3',
+        image: 'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=400&q=80',
         premium: true,
         uri: `${GITHUB_BASE_URL}/forest-ambience.mp3`,
         description: 'A magical journey through an enchanted forest filled with wonder and peace'
@@ -129,20 +273,10 @@ export default function MindfulnessScreen() {
         title: 'Ocean Dreams',
         duration: '40 min',
         difficulty: 'All Levels',
-        image: 'https://api.a0.dev/assets/image?text=peaceful%20ocean%20dreams%20seascape&aspect=4:3',
+        image: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=400&q=80',
         premium: true,
         uri: `${GITHUB_BASE_URL}/ocean-waves.mp3`,
         description: 'Drift away on gentle ocean waves in this soothing bedtime story'
-      },
-      {
-        id: 'story-3',
-        title: 'Mountain Cabin Retreat',
-        duration: '50 min',
-        difficulty: 'All Levels',
-        image: 'https://api.a0.dev/assets/image?text=cozy%20mountain%20cabin%20retreat&aspect=4:3',
-        premium: true,
-        uri: `${GITHUB_BASE_URL}/rain-light.mp3`,
-        description: 'Cozy retreat in a peaceful mountain cabin with gentle rain on the roof'
       },
     ],
     yoga: [
@@ -151,58 +285,59 @@ export default function MindfulnessScreen() {
         title: 'Bedtime Yoga Flow',
         duration: '20 min',
         difficulty: 'Beginner',
-        image: 'https://api.a0.dev/assets/image?text=gentle%20bedtime%20yoga%20poses&aspect=4:3',
+        image: 'https://images.unsplash.com/photo-1552196564-97ccf6131f0a?w=400&q=80',
         premium: true,
         uri: `${GITHUB_BASE_URL}/meditation-calm.mp3`,
         description: 'Gentle yoga sequence to release tension and prepare your body for sleep'
       },
-      {
-        id: 'yoga-2',
-        title: 'Restorative Yoga',
-        duration: '30 min',
-        difficulty: 'All Levels',
-        image: 'https://api.a0.dev/assets/image?text=restorative%20yoga%20peaceful%20setting&aspect=4:3',
-        premium: true,
-        uri: `${GITHUB_BASE_URL}/meditation-sleep.mp3`,
-        description: 'Deep relaxation through supported poses held for extended periods'
-      },
     ],
   };
 
-  const getDifficultyColor = (difficulty) => {
+  const getDifficultyColor = (difficulty: string) => {
     switch (difficulty) {
-      case 'Beginner': return '#00FFD1';
-      case 'Intermediate': return '#FFD700';
-      case 'Advanced': return '#FF6B6B';
-      default: return '#33C6FF';
+      case 'Beginner': return theme.colors.accent;
+      case 'Intermediate': return theme.colors.premium;
+      case 'Advanced': return theme.colors.danger;
+      default: return theme.colors.highlight;
     }
   };
 
-  const handleSessionPress = (session) => {
+  const handleSessionPress = (session: MindfulnessSession) => {
+    // Handle breathing coach sessions specially
+    if (selectedCategory === 'breathing-coach') {
+      const patternMap: { [key: string]: 'box' | '4-7-8' | 'calm' } = {
+        'box-breathing': 'box',
+        '4-7-8-breathing': '4-7-8',
+        'calm-breathing': 'calm',
+      };
+      setBreathingPattern(patternMap[session.id] || 'box');
+      setShowBreathingCoach(true);
+      return;
+    }
+
     if (session.premium) {
-      // Check if user has premium subscription
-      const isPremium = user?.subscription_status === 'premium_monthly' || 
-                       user?.subscription_status === 'premium_yearly';
-      
-      if (!isPremium) {
+      // Check if user has premium subscription (including cancelled with valid end date)
+      const hasPremiumAccess = isPremiumActive(user?.subscription_status, user?.subscription_end_date);
+
+      if (!hasPremiumAccess) {
         Alert.alert(
-          '🔒 Premium Content',
+          'Premium Content',
           'This session is part of our premium content. Upgrade to unlock all meditation sessions, sleep stories, breathing exercises, and yoga flows.',
           [
-            { 
-              text: 'Maybe Later', 
-              style: 'cancel' 
+            {
+              text: 'Maybe Later',
+              style: 'cancel'
             },
-            { 
-              text: 'Upgrade Now', 
-              onPress: () => navigation.navigate('Subscription' as never) 
+            {
+              text: 'Upgrade Now',
+              onPress: () => navigation.navigate('Subscription' as never)
             }
           ]
         );
         return;
       }
     }
-    
+
     setSelectedSession(session);
     setShowSessionModal(true);
   };
@@ -222,284 +357,297 @@ export default function MindfulnessScreen() {
     setShowSessionModal(true);
   };
 
-  const handleBeginSession = () => {
+  const handleBeginSession = async () => {
     if (selectedSession) {
-      closeSessionModal();
-      navigation.navigate('SessionPlayer', { session: selectedSession });
+      // Save session completion
+      const durationMinutes = parseInt(selectedSession.duration) || 15;
+
+      try {
+        await saveMindfulnessSession({
+          sessionId: selectedSession.id,
+          sessionTitle: selectedSession.title,
+          category: selectedCategory,
+          duration: durationMinutes,
+          userId: user?.id,
+        });
+
+        // Reload stats
+        await loadStats();
+
+        setShowSessionModal(false);
+        navigation.navigate('SessionPlayer', { session: selectedSession });
+      } catch (error) {
+        console.error('Error saving mindfulness session:', error);
+        setShowSessionModal(false);
+        navigation.navigate('SessionPlayer', { session: selectedSession });
+      }
     }
   };
 
-  const closeSessionModal = () => {
-    setShowSessionModal(false);
-    setSelectedSession(null);
-  };
-
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <LinearGradient
-        colors={['#0F111A', '#1B1D2A']}
-        style={styles.gradient}
-      >
-        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-          <View style={styles.header}>
-            <Text style={styles.title}>Mindfulness</Text>
-            <Text style={styles.subtitle}>Guided sessions for better sleep</Text>
-          </View>
+        colors={isDark ? ['#1a1a2e', '#16213e'] : ['#f0f4ff', '#ffffff']}
+        style={StyleSheet.absoluteFill}
+      />
 
-          {/* Today's Recommendation */}
-          <BlurView intensity={20} tint="dark" style={styles.recommendationCard}>
-            <View style={styles.recommendationHeader}>
-              <Text style={styles.recommendationTitle}>Today's Recommendation</Text>
-              <Ionicons name="sparkles" size={20} color="#FFD700" />
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + 20 }]}
+      >
+        {/* Header */}
+        <View style={styles.header}>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={() => navigation.goBack()}
+            >
+              <ChevronLeft size={24} color={theme.colors.textPrimary} />
+            </TouchableOpacity>
+            <View style={{ marginLeft: 12 }}>
+              <Text style={[styles.greeting, { color: theme.colors.textPrimary }]}>Mindfulness</Text>
+              <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>Find your inner peace</Text>
             </View>
+          </View>
+          <TouchableOpacity
+            style={[styles.statsButton, { backgroundColor: theme.colors.card }]}
+            onPress={() => navigation.navigate('SleepAnalysis' as never)}
+          >
+            <BarChart2 size={20} color={theme.colors.accent} />
+          </TouchableOpacity>
+        </View>
+
+        {/* Stats Overview */}
+        <View style={[styles.statsContainer, { backgroundColor: theme.colors.card }]}>
+          <View style={styles.statItem}>
+            <Text style={[styles.statValue, { color: theme.colors.textPrimary }]}>{mindfulnessStats.totalSessions}</Text>
+            <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Sessions</Text>
+          </View>
+          <View style={[styles.statDivider, { backgroundColor: theme.colors.cardBorder }]} />
+          <View style={styles.statItem}>
+            <Text style={[styles.statValue, { color: theme.colors.textPrimary }]}>{mindfulnessStats.totalMinutes}</Text>
+            <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Minutes</Text>
+          </View>
+          <View style={[styles.statDivider, { backgroundColor: theme.colors.cardBorder }]} />
+          <View style={styles.statItem}>
+            <Text style={[styles.statValue, { color: theme.colors.textPrimary }]}>{mindfulnessStats.currentStreak}</Text>
+            <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Day Streak</Text>
+          </View>
+        </View>
+
+        {/* Daily Recommendation */}
+        <TouchableOpacity
+          style={styles.recommendationCard}
+          onPress={handleStartRecommendation}
+        >
+          <Image
+            source={{ uri: 'https://api.a0.dev/assets/image?text=peaceful%20zen%20garden%20at%20sunset&aspect=16:9' }}
+            style={styles.recommendationImage}
+          />
+          <BlurView intensity={80} tint={isDark ? 'dark' : 'light'} style={styles.recommendationOverlay}>
             <View style={styles.recommendationContent}>
-              <Image
-                source={{ uri: 'https://api.a0.dev/assets/image?text=peaceful%20evening%20meditation%20scene&aspect=16:9' }}
-                style={styles.recommendationImage}
-                onError={(e) => console.log('Recommendation image load error:', e.nativeEvent.error)}
-                defaultSource={require('../assets/icon.png')}
-              />
-              <View style={styles.recommendationInfo}>
-                <Text style={styles.recommendationSessionTitle}>Evening Wind Down</Text>
-                <Text style={styles.recommendationDescription}>Perfect for tonight's sleep preparation</Text>
+              <View>
+                <Text style={styles.recommendationTag}>RECOMMENDED FOR YOU</Text>
+                <Text style={styles.recommendationTitle}>Evening Wind Down</Text>
                 <View style={styles.recommendationMeta}>
-                  <Text style={styles.recommendationDuration}>15 min</Text>
-                  <View style={styles.dot} />
-                  <Text style={styles.recommendationDifficulty}>Beginner</Text>
+                  <Clock size={14} color="#fff" />
+                  <Text style={styles.recommendationMetaText}>15 min</Text>
+                  <View style={styles.metaDot} />
+                  <Sparkles size={14} color="#fff" />
+                  <Text style={styles.recommendationMetaText}>Beginner</Text>
                 </View>
               </View>
+              <View style={styles.playButton}>
+                <Play size={24} color="#fff" fill="#fff" />
+              </View>
             </View>
-            <TouchableOpacity style={styles.startButton} onPress={handleStartRecommendation}>
-              <LinearGradient
-                colors={['#00FFD1', '#33C6FF']}
-                style={styles.startButtonGradient}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-              >
-                <Ionicons name="play" size={16} color="#000" />
-                <Text style={styles.startButtonText}>Start Session</Text>
-              </LinearGradient>
-            </TouchableOpacity>
           </BlurView>
+        </TouchableOpacity>
 
-          {/* Category Selector */}
-          <ScrollView 
-            horizontal 
-            showsHorizontalScrollIndicator={false}
-            style={styles.categoryContainer}
-          >
-            {categories.map((category) => (
+        {/* Categories */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.categoriesContainer}
+          contentContainerStyle={styles.categoriesContent}
+        >
+          {categories.map((category) => {
+            const Icon = category.icon;
+            const isSelected = selectedCategory === category.id;
+            return (
               <TouchableOpacity
                 key={category.id}
                 style={[
                   styles.categoryButton,
-                  selectedCategory === category.id && styles.categoryButtonActive
+                  { backgroundColor: isSelected ? theme.colors.accent : theme.colors.card }
                 ]}
                 onPress={() => setSelectedCategory(category.id)}
               >
-                <Ionicons 
-                  name={category.icon} 
-                  size={18} 
-                  color={selectedCategory === category.id ? '#000' : category.premium ? '#FFD700' : '#00FFD1'} 
-                />
+                <Icon size={18} color={isSelected ? '#fff' : theme.colors.textSecondary} />
                 <Text style={[
                   styles.categoryText,
-                  selectedCategory === category.id && styles.categoryTextActive
+                  { color: isSelected ? '#fff' : theme.colors.textSecondary }
                 ]}>
                   {category.name}
                 </Text>
-                {category.premium && (
-                  <Ionicons name="star" size={12} color={selectedCategory === category.id ? '#000' : '#FFD700'} />
+                {category.premium && !isSelected && (
+                  <Star size={10} color={theme.colors.premium} fill={theme.colors.premium} style={styles.premiumStar} />
                 )}
               </TouchableOpacity>
-            ))}
-          </ScrollView>
-
-          {/* Sessions List */}
-          <View style={styles.sessionsList}>
-            {sessions[selectedCategory]?.map((session) => (
-              <BlurView key={session.id} intensity={20} tint="dark" style={styles.sessionCard}>
-                <TouchableOpacity
-                  style={styles.sessionContent}
-                  onPress={() => handleSessionPress(session)}
-                  activeOpacity={0.7}
-                >
-                  <Image
-                    source={{ uri: session.image }}
-                    style={styles.sessionImage}
-                    onError={(e) => console.log('Image load error:', e.nativeEvent.error)}
-                    defaultSource={require('../assets/icon.png')}
-                  />
-                  <View style={styles.sessionInfo}>
-                    <View style={styles.sessionHeader}>
-                      <Text style={styles.sessionTitle}>{session.title}</Text>
-                      {session.premium && (
-                        <View style={styles.premiumBadge}>
-                          <Ionicons name="star" size={10} color="#000" />
-                        </View>
-                      )}
-                    </View>
-                    <View style={styles.sessionMeta}>
-                      <Text style={styles.sessionDuration}>{session.duration}</Text>
-                      <View style={styles.dot} />
-                      <Text style={[
-                        styles.sessionDifficulty,
-                        { color: getDifficultyColor(session.difficulty) }
-                      ]}>
-                        {session.difficulty}
-                      </Text>
-                    </View>
-                  </View>
-                  <View style={styles.playButtonContainer}>
-                    {currentSound === session.id && isPlaying && (
-                      <View style={styles.nowPlayingBadge}>
-                        <View style={styles.playingDot} />
-                        <Text style={styles.nowPlayingText}>Playing</Text>
-                      </View>
-                    )}
-                    <TouchableOpacity
-                      style={[
-                        styles.playButton,
-                        currentSound === session.id && isPlaying && styles.playButtonActive
-                      ]}
-                      onPress={() => handleSessionPress(session)}
-                    >
-                      <Ionicons
-                        name={currentSound === session.id && isPlaying ? 'pause' : 'play'}
-                        size={20}
-                        color={currentSound === session.id && isPlaying ? '#000' : '#00FFD1'}
-                      />
-                    </TouchableOpacity>
-                  </View>
-                </TouchableOpacity>
-              </BlurView>
-            )) || (
-              <Text style={{ color: '#A0AEC0', textAlign: 'center', marginTop: 20 }}>
-                No sessions available in this category
-              </Text>
-            )}
-          </View>
-
-          {/* Progress Section */}
-          <BlurView intensity={20} tint="dark" style={styles.card}>
-            <View style={styles.cardHeader}>
-              <Text style={styles.cardTitle}>Your Progress</Text>
-              <View style={styles.premiumBadge}>
-                <Ionicons name="star" size={12} color="#000" />
-                <Text style={styles.premiumText}>PRO</Text>
-              </View>
-            </View>
-            
-            <View style={styles.progressStats}>
-              <View style={styles.progressItem}>
-                <Text style={styles.progressValue}>12</Text>
-                <Text style={styles.progressLabel}>Sessions Completed</Text>
-              </View>
-              <View style={styles.progressItem}>
-                <Text style={styles.progressValue}>4h 30m</Text>
-                <Text style={styles.progressLabel}>Total Time</Text>
-              </View>
-              <View style={styles.progressItem}>
-                <Text style={styles.progressValue}>7</Text>
-                <Text style={styles.progressLabel}>Day Streak</Text>
-              </View>
-            </View>
-
-            <View style={styles.streakContainer}>
-              <Text style={styles.streakText}>🔥 Keep your streak going!</Text>
-              <Text style={styles.streakSubtext}>Complete today's session to maintain your 7-day streak</Text>
-            </View>
-          </BlurView>
-
-          <View style={styles.bottomSpacing} />
+            );
+          })}
         </ScrollView>
-      </LinearGradient>
 
-      {/* Session Player Modal */}
+        {/* Sessions Grid */}
+        <View style={styles.sessionsGrid}>
+          {(sessions[selectedCategory as keyof typeof sessions] || []).map((session) => (
+            <TouchableOpacity
+              key={session.id}
+              style={[styles.sessionCard, { backgroundColor: theme.colors.card }]}
+              onPress={() => handleSessionPress(session)}
+            >
+              <Image source={{ uri: session.image }} style={styles.sessionImage} />
+              {session.premium && (
+                <View style={styles.premiumBadge}>
+                  <Star size={12} color="#fff" fill="#fff" />
+                </View>
+              )}
+              <View style={styles.sessionInfo}>
+                <Text style={[styles.sessionTitle, { color: theme.colors.textPrimary }]} numberOfLines={1}>
+                  {session.title}
+                </Text>
+                <View style={styles.sessionMeta}>
+                  <Text style={[styles.sessionDuration, { color: theme.colors.textSecondary }]}>
+                    {session.duration}
+                  </Text>
+                  <View style={[styles.difficultyBadge, { backgroundColor: getDifficultyColor(session.difficulty) + '20' }]}>
+                    <Text style={[styles.difficultyText, { color: getDifficultyColor(session.difficulty) }]}>
+                      {session.difficulty}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        <View style={{ height: bottomMargin }} />
+      </ScrollView>
+
+      {/* Mini-Player */}
+      {isPlaying && (
+        <TouchableOpacity
+          style={[styles.miniPlayer, { bottom: bottomMargin + 15 }]}
+          onPress={() => {
+            // Re-open current session detail
+            if (selectedSession) setShowSessionModal(true);
+          }}
+        >
+          <BlurView intensity={90} tint="dark" style={StyleSheet.absoluteFill} />
+          {/* Blue tint overlay for visibility */}
+          <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(59, 130, 246, 0.1)' }]} />
+
+          <View style={styles.miniPlayerContent}>
+            <Image
+              source={{ uri: selectedSession?.image || 'https://images.unsplash.com/photo-1506126613408-eca07ce68773?w=100' }}
+              style={styles.miniArtwork}
+            />
+            <View style={styles.miniInfo}>
+              <Text style={[styles.miniTitle, { color: theme.colors.textPrimary }]} numberOfLines={1}>
+                {selectedSession?.title || 'Relaxing Session'}
+              </Text>
+              <Text style={[styles.miniSubtitle, { color: theme.colors.textSecondary }]}>
+                {isPlaying ? 'Now Playing' : 'Paused'}
+              </Text>
+            </View>
+            <TouchableOpacity
+              style={[styles.miniPlayButton, { backgroundColor: theme.colors.accent + '20' }]}
+              onPress={() => stopSound()}
+            >
+              <Pause size={20} color={theme.colors.accent} fill={theme.colors.accent} />
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      )}
+
+      {/* Session Detail Modal */}
       <Modal
         visible={showSessionModal}
+        transparent
         animationType="slide"
-        transparent={true}
-        onRequestClose={closeSessionModal}
+        onRequestClose={() => setShowSessionModal(false)}
       >
-        <View style={styles.modalOverlay}>
-          <BlurView intensity={30} tint="dark" style={styles.modalContainer}>
-            <View style={styles.modalContent}>
-              {/* Close Button */}
+        <View style={styles.modalContainer}>
+          <BlurView intensity={100} tint={isDark ? 'dark' : 'light'} style={styles.modalBlur}>
+            <View style={[styles.modalContent, { backgroundColor: theme.colors.card }]}>
               <TouchableOpacity
                 style={styles.closeButton}
-                onPress={closeSessionModal}
+                onPress={() => setShowSessionModal(false)}
               >
-                <Ionicons name="close" size={28} color="#FFFFFF" />
+                <X size={24} color={theme.colors.textPrimary} />
               </TouchableOpacity>
 
-              {/* Session Image */}
               {selectedSession && (
                 <>
-                  <Image
-                    source={{ uri: selectedSession.image }}
-                    style={styles.modalImage}
-                    defaultSource={require('../assets/icon.png')}
-                  />
+                  <Image source={{ uri: selectedSession.image }} style={styles.modalImage} />
+                  <View style={styles.modalBody}>
+                    <Text style={[styles.modalTitle, { color: theme.colors.textPrimary }]}>
+                      {selectedSession.title}
+                    </Text>
+                    <View style={styles.modalMeta}>
+                      <View style={styles.modalMetaItem}>
+                        <Clock size={16} color={theme.colors.textSecondary} />
+                        <Text style={[styles.modalMetaText, { color: theme.colors.textSecondary }]}>
+                          {selectedSession.duration}
+                        </Text>
+                      </View>
+                      <View style={styles.modalMetaItem}>
+                        <Sparkles size={16} color={theme.colors.textSecondary} />
+                        <Text style={[styles.modalMetaText, { color: theme.colors.textSecondary }]}>
+                          {selectedSession.difficulty}
+                        </Text>
+                      </View>
+                    </View>
+                    <Text style={[styles.modalDescription, { color: theme.colors.textSecondary }]}>
+                      {selectedSession.description}
+                    </Text>
 
-                  {/* Session Info */}
-                  <Text style={styles.modalTitle}>{selectedSession.title}</Text>
-
-                  {selectedSession.description && (
-                    <Text style={styles.modalDescription}>{selectedSession.description}</Text>
-                  )}
-
-                  <View style={styles.modalMeta}>
-                    <View style={styles.modalMetaItem}>
-                      <Ionicons name="time-outline" size={20} color="#00FFD1" />
-                      <Text style={styles.modalMetaText}>{selectedSession.duration}</Text>
-                    </View>
-                    <View style={styles.modalMetaItem}>
-                      <Ionicons name="bar-chart-outline" size={20} color={getDifficultyColor(selectedSession.difficulty)} />
-                      <Text style={styles.modalMetaText}>{selectedSession.difficulty}</Text>
-                    </View>
-                  </View>
-
-                  {/* Session Instructions */}
-                  <View style={styles.instructionsContainer}>
-                    <Text style={styles.instructionsTitle}>What to Expect:</Text>
-                    <View style={styles.instructionItem}>
-                      <Ionicons name="checkmark-circle" size={20} color="#00FFD1" />
-                      <Text style={styles.instructionText}>Find a quiet, comfortable space</Text>
-                    </View>
-                    <View style={styles.instructionItem}>
-                      <Ionicons name="checkmark-circle" size={20} color="#00FFD1" />
-                      <Text style={styles.instructionText}>Use headphones for best experience</Text>
-                    </View>
-                    <View style={styles.instructionItem}>
-                      <Ionicons name="checkmark-circle" size={20} color="#00FFD1" />
-                      <Text style={styles.instructionText}>Follow along with guided instructions</Text>
-                    </View>
-                    <View style={styles.instructionItem}>
-                      <Ionicons name="checkmark-circle" size={20} color="#00FFD1" />
-                      <Text style={styles.instructionText}>Relax and enjoy the session</Text>
-                    </View>
-                  </View>
-
-                  {/* Play Button */}
-                  <TouchableOpacity
-                    style={styles.modalPlayButton}
-                    onPress={handleBeginSession}
-                  >
-                    <LinearGradient
-                      colors={['#00FFD1', '#33C6FF']}
-                      style={styles.modalPlayGradient}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 0 }}
+                    <TouchableOpacity
+                      style={[styles.beginButton, { backgroundColor: theme.colors.accent }]}
+                      onPress={handleBeginSession}
                     >
-                      <Ionicons name="play" size={24} color="#000" />
-                      <Text style={styles.modalPlayText}>Begin Session</Text>
-                    </LinearGradient>
-                  </TouchableOpacity>
+                      <Play size={20} color="#fff" fill="#fff" />
+                      <Text style={styles.beginButtonText}>Begin Session</Text>
+                    </TouchableOpacity>
+                  </View>
                 </>
               )}
             </View>
           </BlurView>
+        </View>
+      </Modal>
+
+      {/* Breathing Coach Modal */}
+      <Modal
+        visible={showBreathingCoach}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowBreathingCoach(false)}
+      >
+        <View style={styles.breathingCoachContainer}>
+          <TouchableOpacity
+            style={styles.breathingCloseButton}
+            onPress={() => setShowBreathingCoach(false)}
+          >
+            <X size={32} color="#fff" />
+          </TouchableOpacity>
+          <BreathingCoach
+            pattern={breathingPattern}
+            onComplete={() => {
+              setShowBreathingCoach(false);
+              Alert.alert('Complete!', 'Great job! You completed your breathing session.');
+            }}
+          />
         </View>
       </Modal>
     </View>
@@ -509,395 +657,340 @@ export default function MindfulnessScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0F111A',
   },
-  gradient: {
-    flex: 1,
-  },
-  content: {
-    flex: 1,
+  scrollContent: {
     paddingHorizontal: 20,
-    paddingTop: 60,
   },
   header: {
-    marginBottom: 30,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 25,
   },
-  title: {
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  greeting: {
     fontSize: 28,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    marginBottom: 5,
+    fontWeight: 'bold',
   },
   subtitle: {
     fontSize: 16,
-    color: '#A0AEC0',
+    marginTop: 4,
+  },
+  statsButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  statsContainer: {
+    flexDirection: 'row',
+    padding: 20,
+    borderRadius: 20,
+    marginBottom: 25,
+    alignItems: 'center',
+    justifyContent: 'space-around',
+  },
+  statItem: {
+    alignItems: 'center',
+  },
+  statValue: {
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
+  statLabel: {
+    fontSize: 12,
+    marginTop: 4,
+  },
+  statDivider: {
+    width: 1,
+    height: 30,
   },
   recommendationCard: {
-    backgroundColor: 'rgba(27, 29, 42, 0.7)',
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    height: 200,
+    borderRadius: 25,
+    overflow: 'hidden',
+    marginBottom: 30,
   },
-  recommendationHeader: {
+  recommendationImage: {
+    width: '100%',
+    height: '100%',
+  },
+  recommendationOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 80,
+  },
+  recommendationContent: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 15,
+    paddingHorizontal: 20,
+  },
+  recommendationTag: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: 'bold',
+    letterSpacing: 1,
+    opacity: 0.8,
   },
   recommendationTitle: {
+    color: '#fff',
     fontSize: 18,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
-  recommendationContent: {
-    flexDirection: 'row',
-    marginBottom: 15,
-  },
-  recommendationImage: {
-    width: 80,
-    height: 60,
-    borderRadius: 8,
-    marginRight: 12,
-  },
-  recommendationInfo: {
-    flex: 1,
-  },
-  recommendationSessionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#FFFFFF',
-    marginBottom: 4,
-  },
-  recommendationDescription: {
-    fontSize: 14,
-    color: '#A0AEC0',
-    marginBottom: 8,
+    fontWeight: 'bold',
+    marginTop: 2,
   },
   recommendationMeta: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginTop: 4,
   },
-  recommendationDuration: {
+  recommendationMetaText: {
+    color: '#fff',
     fontSize: 12,
-    color: '#00FFD1',
+    marginLeft: 4,
+    opacity: 0.9,
   },
-  recommendationDifficulty: {
-    fontSize: 12,
-    color: '#00FFD1',
-  },
-  dot: {
+  metaDot: {
     width: 3,
     height: 3,
     borderRadius: 1.5,
-    backgroundColor: '#A0AEC0',
-    marginHorizontal: 6,
+    backgroundColor: '#fff',
+    marginHorizontal: 8,
+    opacity: 0.5,
   },
-  startButton: {
-    alignSelf: 'flex-start',
-  },
-  startButtonGradient: {
-    flexDirection: 'row',
+  playButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(255,255,255,0.3)',
+    justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.5)',
+  },
+  categoriesContainer: {
+    marginBottom: 25,
+    marginHorizontal: -20,
+  },
+  categoriesContent: {
     paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 20,
-  },
-  startButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#000',
-    marginLeft: 6,
-  },
-  categoryContainer: {
-    marginBottom: 20,
   },
   categoryButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(27, 29, 42, 0.7)',
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 20,
     marginRight: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  categoryButtonActive: {
-    backgroundColor: '#00FFD1',
   },
   categoryText: {
     fontSize: 14,
-    fontWeight: '500',
-    color: '#FFFFFF',
+    fontWeight: '600',
+    marginLeft: 8,
+  },
+  premiumStar: {
     marginLeft: 6,
-    marginRight: 4,
   },
-  categoryTextActive: {
-    color: '#000',
-  },
-  sessionsList: {
-    marginBottom: 20,
+  sessionsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
   },
   sessionCard: {
-    backgroundColor: 'rgba(27, 29, 42, 0.7)',
-    borderRadius: 16,
-    marginBottom: 15,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  sessionContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
+    width: '48%',
+    borderRadius: 20,
+    marginBottom: 20,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   sessionImage: {
-    width: 60,
-    height: 45,
-    borderRadius: 8,
-    marginRight: 12,
-  },
-  sessionInfo: {
-    flex: 1,
-  },
-  sessionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 6,
-  },
-  sessionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#FFFFFF',
-    flex: 1,
+    width: '100%',
+    height: 120,
   },
   premiumBadge: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     backgroundColor: '#FFD700',
-    width: 16,
-    height: 16,
-    borderRadius: 8,
     justifyContent: 'center',
     alignItems: 'center',
-    marginLeft: 8,
+  },
+  sessionInfo: {
+    padding: 12,
+  },
+  sessionTitle: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    marginBottom: 8,
   },
   sessionMeta: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
   },
   sessionDuration: {
     fontSize: 12,
-    color: '#A0AEC0',
   },
-  sessionDifficulty: {
-    fontSize: 12,
-    fontWeight: '500',
+  difficultyBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
   },
-  playButtonContainer: {
-    alignItems: 'center',
-    gap: 6,
-  },
-  nowPlayingBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  playingDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#00FFD1',
-  },
-  nowPlayingText: {
+  difficultyText: {
     fontSize: 10,
-    color: '#00FFD1',
-    fontWeight: '600',
-  },
-  playButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(0, 255, 209, 0.1)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(0, 255, 209, 0.3)',
-  },
-  playButtonActive: {
-    backgroundColor: '#00FFD1',
-    borderColor: '#00FFD1',
-  },
-  card: {
-    backgroundColor: 'rgba(27, 29, 42, 0.7)',
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 15,
-  },
-  cardTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
-  premiumText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#000',
-    marginLeft: 2,
-  },
-  progressStats: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 20,
-  },
-  progressItem: {
-    alignItems: 'center',
-  },
-  progressValue: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#00FFD1',
-    marginBottom: 4,
-  },
-  progressLabel: {
-    fontSize: 12,
-    color: '#A0AEC0',
-    textAlign: 'center',
-  },
-  streakContainer: {
-    backgroundColor: 'rgba(255, 215, 0, 0.1)',
-    borderRadius: 12,
-    padding: 15,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 215, 0, 0.3)',
-  },
-  streakText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#FFD700',
-    marginBottom: 4,
-  },
-  streakSubtext: {
-    fontSize: 14,
-    color: '#A0AEC0',
-    lineHeight: 20,
-  },
-  bottomSpacing: {
-    height: 30,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    justifyContent: 'flex-end',
+    fontWeight: 'bold',
   },
   modalContainer: {
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    overflow: 'hidden',
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  modalBlur: {
+    flex: 1,
+    justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: 'rgba(27, 29, 42, 0.95)',
-    padding: 24,
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
     paddingBottom: 40,
-    maxHeight: '85%',
+    overflow: 'hidden',
   },
   closeButton: {
     position: 'absolute',
     top: 20,
     right: 20,
     zIndex: 10,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 20,
     width: 40,
     height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0,0,0,0.1)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   modalImage: {
     width: '100%',
-    height: 200,
-    borderRadius: 16,
-    marginBottom: 20,
-    marginTop: 20,
+    height: 250,
+  },
+  modalBody: {
+    padding: 25,
   },
   modalTitle: {
     fontSize: 24,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    marginBottom: 12,
-    textAlign: 'center',
-  },
-  modalDescription: {
-    fontSize: 16,
-    color: '#A0AEC0',
-    textAlign: 'center',
-    marginBottom: 20,
-    lineHeight: 24,
+    fontWeight: 'bold',
+    marginBottom: 10,
   },
   modalMeta: {
     flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 30,
-    gap: 24,
+    marginBottom: 20,
   },
   modalMetaItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    marginRight: 20,
   },
   modalMetaText: {
-    fontSize: 16,
-    color: '#FFFFFF',
-    fontWeight: '500',
-  },
-  instructionsContainer: {
-    backgroundColor: 'rgba(0, 255, 209, 0.05)',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 24,
-    borderWidth: 1,
-    borderColor: 'rgba(0, 255, 209, 0.2)',
-  },
-  instructionsTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#FFFFFF',
-    marginBottom: 12,
-  },
-  instructionItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 10,
-    gap: 10,
-  },
-  instructionText: {
     fontSize: 14,
-    color: '#A0AEC0',
+    marginLeft: 6,
+  },
+  modalDescription: {
+    fontSize: 16,
+    lineHeight: 24,
+    marginBottom: 30,
+  },
+  beginButton: {
+    flexDirection: 'row',
+    height: 56,
+    borderRadius: 28,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  beginButtonText: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginLeft: 10,
+  },
+  breathingCoachContainer: {
     flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.95)',
   },
-  modalPlayButton: {
-    width: '100%',
+  breathingCloseButton: {
+    position: 'absolute',
+    top: 60,
+    right: 20,
+    zIndex: 10,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  modalPlayGradient: {
+  miniPlayer: {
+    position: 'absolute',
+    left: 20,
+    right: 20,
+    height: 70,
+    borderRadius: 20,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  miniPlayerContent: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 16,
-    borderRadius: 12,
-    gap: 10,
+    paddingHorizontal: 12,
   },
-  modalPlayText: {
-    fontSize: 18,
+  miniArtwork: {
+    width: 46,
+    height: 46,
+    borderRadius: 12,
+  },
+  miniInfo: {
+    flex: 1,
+    marginLeft: 15,
+  },
+  miniTitle: {
+    fontSize: 15,
     fontWeight: '700',
-    color: '#000',
+  },
+  miniSubtitle: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  miniPlayButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });

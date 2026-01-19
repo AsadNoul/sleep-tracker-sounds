@@ -1,5 +1,5 @@
 import { useAppTheme } from '../hooks/useAppTheme';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -14,30 +14,32 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
-import { 
-  CloudRain, 
-  Droplets, 
-  Leaf, 
-  Flower2, 
-  Radio, 
-  Music, 
-  X, 
-  AlarmClock, 
-  Mic, 
-  List, 
-  SkipBack, 
-  SkipForward, 
-  Play, 
-  Pause, 
-  VolumeX, 
-  Volume2, 
-  CircleStop, 
-  ChevronRight, 
+import {
+  CloudRain,
+  Droplets,
+  Leaf,
+  Flower2,
+  Radio,
+  Music,
+  X,
+  AlarmClock,
+  Mic,
+  List,
+  SkipBack,
+  SkipForward,
+  Play,
+  Pause,
+  VolumeX,
+  Volume2,
+  CircleStop,
+  ChevronRight,
+  ChevronLeft,
   Clock,
   Info,
   Lightbulb,
   Moon,
-  CheckCircle2
+  CheckCircle2,
+  Star
 } from 'lucide-react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -50,6 +52,21 @@ import SleepBackgroundAnimation from '../components/SleepBackgroundAnimation';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import notificationService from '../services/notificationService';
 import sleepRecorderService from '../services/sleepRecorderService';
+
+const GlassView = ({ style, children, intensity = 20, tint = "dark" }: any) => {
+  if (Platform.OS === 'android') {
+    return (
+      <View style={[style, { backgroundColor: 'rgba(17, 25, 40, 0.7)' }]}>
+        {children}
+      </View>
+    );
+  }
+  return (
+    <BlurView intensity={intensity} tint={tint} style={style}>
+      {children}
+    </BlurView>
+  );
+};
 
 const ICON_MAP: Record<string, any> = {
   'rainy': CloudRain,
@@ -86,9 +103,6 @@ const sleepSounds = [
   { id: 'meditation-calm', name: 'Calm Meditation', uri: `${GITHUB_BASE_URL}/meditation-calm.mp3`, icon: 'flower', category: 'meditation' },
   { id: 'meditation-deep', name: 'Deep Meditation', uri: `${GITHUB_BASE_URL}/meditation-deep.mp3`, icon: 'flower', category: 'meditation' },
   { id: 'white-noise', name: 'White Noise', uri: `${GITHUB_BASE_URL}/white-noise.mp3`, icon: 'radio', category: 'noise' },
-  { id: 'piano-sleep', name: 'Sleep Piano', uri: `${GITHUB_BASE_URL}/piano-sleep.mp3`, icon: 'musical-note', category: 'music' },
-  { id: 'lullaby', name: 'Soft Lullaby', uri: `${GITHUB_BASE_URL}/lullaby.mp3`, icon: 'musical-note', category: 'music' },
-  { id: 'wind-storm', name: 'Wind & Storm', uri: `${GITHUB_BASE_URL}/wind-storm.mp3`, icon: 'rainy', category: 'nature' },
 ];
 
 export default function SleepSessionScreen() {
@@ -99,14 +113,16 @@ export default function SleepSessionScreen() {
   const { user } = useAuth();
   const { currentSession, isTracking, startSleepSession, endSleepSession } = useSleep();
   const { isPlaying, currentSound, volume, playSound, pauseSound, stopSound, setVolume } = useAudio();
+  const themedStyles = useMemo(() => styles(theme), [theme]);
   const [currentTime, setCurrentTime] = useState(new Date());
-  
+
   // Initialize states from navigation params if available
   const [sleepSoundsEnabled, setSleepSoundsEnabled] = useState(route.params?.initialSounds ?? false);
   const [smartAlarmEnabled, setSmartAlarmEnabled] = useState(route.params?.initialSmartAlarm ?? true);
   const [sleepRecorderEnabled, setSleepRecorderEnabled] = useState(route.params?.initialRecorder ?? false);
   const [wakeUps, setWakeUps] = useState('0');
   const [notes, setNotes] = useState('');
+  const [sleepRating, setSleepRating] = useState(0);
   const [showEndForm, setShowEndForm] = useState(false);
   const [showMusicPicker, setShowMusicPicker] = useState(false);
   const [selectedMusic, setSelectedMusic] = useState(sleepSounds[0]);
@@ -197,9 +213,9 @@ export default function SleepSessionScreen() {
     try {
       // Pass settings to startSleepSession
       await startSleepSession(
-        sleepSoundsEnabled, 
-        smartAlarmEnabled, 
-        sleepRecorderEnabled, 
+        sleepSoundsEnabled,
+        smartAlarmEnabled,
+        sleepRecorderEnabled,
         alarmTime || undefined
       );
 
@@ -222,7 +238,7 @@ export default function SleepSessionScreen() {
       // Auto-start music if sleep sounds are enabled
       if (sleepSoundsEnabled && selectedMusic) {
         try {
-          await playSound(selectedMusic.id, selectedMusic.uri, selectedMusic.name);
+          await playSound(selectedMusic.id, selectedMusic.uri);
         } catch (audioError) {
           console.log('Failed to start music, but session started:', audioError);
         }
@@ -241,7 +257,7 @@ export default function SleepSessionScreen() {
     // If already tracking and music is playing, switch to new sound
     if (isTracking) {
       try {
-        await playSound(sound.id, sound.uri, sound.name);
+        await playSound(sound.id, sound.uri);
       } catch (error) {
         Alert.alert('Playback Error', 'Unable to play this sound. Please try another.');
       }
@@ -253,7 +269,7 @@ export default function SleepSessionScreen() {
       await pauseSound();
     } else if (selectedMusic) {
       try {
-        await playSound(selectedMusic.id, selectedMusic.uri, selectedMusic.name);
+        await playSound(selectedMusic.id, selectedMusic.uri);
       } catch (error) {
         Alert.alert('Playback Error', 'Unable to play sound. Please check your connection.');
       }
@@ -269,7 +285,7 @@ export default function SleepSessionScreen() {
 
     if (isTracking && isPlaying) {
       try {
-        await playSound(nextSound.id, nextSound.uri, nextSound.name);
+        await playSound(nextSound.id, nextSound.uri);
       } catch (error) {
         Alert.alert('Playback Error', 'Unable to play next sound.');
       }
@@ -285,7 +301,7 @@ export default function SleepSessionScreen() {
 
     if (isTracking && isPlaying) {
       try {
-        await playSound(prevSound.id, prevSound.uri, prevSound.name);
+        await playSound(prevSound.id, prevSound.uri);
       } catch (error) {
         Alert.alert('Playback Error', 'Unable to play previous sound.');
       }
@@ -355,13 +371,14 @@ export default function SleepSessionScreen() {
       let recordingSummary = null;
       if (sleepRecorderService.getStatus().isRecording) {
         recordingSummary = await sleepRecorderService.stopRecording();
-        console.log('📊 Recording Summary:', recordingSummary);
+        console.log('🎙️ Recording Summary:', recordingSummary);
 
         // Save recording events to database
         if (user && currentSession?.id && recordingSummary) {
           const saved = await sleepRecorderService.saveEventsToDatabase(
             user.id,
-            currentSession.id
+            currentSession.id,
+            new Date(currentSession.startTime) // Pass session start time for offset calculation
           );
           if (saved) {
             console.log('✅ Recording events saved to database');
@@ -372,15 +389,16 @@ export default function SleepSessionScreen() {
       }
 
       const wakeUpsNumber = parseInt(wakeUps) || 0;
-      await endSleepSession(wakeUpsNumber, notes);
+      await endSleepSession(wakeUpsNumber, notes, sleepRating);
       setShowEndForm(false);
       setWakeUps('0');
       setNotes('');
+      setSleepRating(0);
 
       // Show recording summary if available
       let message = 'Your sleep data has been saved successfully!';
       if (recordingSummary && recordingSummary.totalNoiseEvents > 0) {
-        message += `\n\n🎤 Recording Summary:\n• Snoring events: ${recordingSummary.snoringEvents}\n• Sleep talk events: ${recordingSummary.sleepTalkEvents}`;
+        message += `\n\n📊 Recording Summary:\n🔊 Snoring events: ${recordingSummary.snoringEvents}\n💬 Sleep talk events: ${recordingSummary.sleepTalkEvents}`;
       }
 
       Alert.alert(
@@ -436,21 +454,50 @@ export default function SleepSessionScreen() {
 
   if (showEndForm) {
     return (
-      <View style={styles(theme).container}>
-        <LinearGradient colors={['#0F0F1E', '#161632', '#0F0F1E']} style={styles(theme).gradient}>
-          <ScrollView style={styles(theme).formContainer} showsVerticalScrollIndicator={false}>
-            <View style={styles(theme).formHeader}>
-              <Text style={styles(theme).formTitle}>End Sleep Session</Text>
-              <Text style={styles(theme).formSubtitle}>
+      <View style={themedStyles.container}>
+        <LinearGradient colors={['#0F0F1E', '#161632', '#0F0F1E']} style={themedStyles.gradient}>
+          <ScrollView style={themedStyles.formContainer} showsVerticalScrollIndicator={false}>
+            <View style={themedStyles.formHeader}>
+              <Text style={themedStyles.formTitle}>End Sleep Session</Text>
+              <Text style={themedStyles.formSubtitle}>
                 You slept for {getElapsedTime()}
               </Text>
             </View>
 
-            <BlurView intensity={20} tint="dark" style={styles(theme).formCard}>
-              <View style={styles(theme).inputGroup}>
-                <Text style={styles(theme).inputLabel}>How many times did you wake up?</Text>
+            <GlassView intensity={20} tint="dark" style={themedStyles.formCard}>
+              {/* Sleep Quality Rating */}
+              <View style={themedStyles.inputGroup}>
+                <Text style={themedStyles.inputLabel}>How would you rate your sleep?</Text>
+                <View style={themedStyles.starRatingContainer}>
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <TouchableOpacity
+                      key={star}
+                      onPress={() => setSleepRating(star)}
+                      style={themedStyles.starButton}
+                      activeOpacity={0.7}
+                    >
+                      <Star
+                        size={40}
+                        color={star <= sleepRating ? '#F59E0B' : '#4A4A5A'}
+                        fill={star <= sleepRating ? '#F59E0B' : 'transparent'}
+                      />
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                <Text style={themedStyles.ratingLabel}>
+                  {sleepRating === 0 && 'Tap to rate'}
+                  {sleepRating === 1 && 'Poor - Very restless night'}
+                  {sleepRating === 2 && 'Fair - Somewhat restless'}
+                  {sleepRating === 3 && 'Good - Average sleep'}
+                  {sleepRating === 4 && 'Great - Slept well'}
+                  {sleepRating === 5 && 'Excellent - Perfect sleep!'}
+                </Text>
+              </View>
+
+              <View style={themedStyles.inputGroup}>
+                <Text style={themedStyles.inputLabel}>How many times did you wake up?</Text>
                 <TextInput
-                  style={styles(theme).input}
+                  style={themedStyles.input}
                   value={wakeUps}
                   onChangeText={setWakeUps}
                   keyboardType="number-pad"
@@ -459,10 +506,10 @@ export default function SleepSessionScreen() {
                 />
               </View>
 
-              <View style={styles(theme).inputGroup}>
-                <Text style={styles(theme).inputLabel}>Notes (optional)</Text>
+              <View style={themedStyles.inputGroup}>
+                <Text style={themedStyles.inputLabel}>Notes (optional)</Text>
                 <TextInput
-                  style={[styles(theme).input, styles(theme).textArea]}
+                  style={[themedStyles.input, themedStyles.textArea]}
                   value={notes}
                   onChangeText={setNotes}
                   multiline
@@ -473,27 +520,27 @@ export default function SleepSessionScreen() {
               </View>
 
               <TouchableOpacity
-                style={styles(theme).confirmButton}
+                style={themedStyles.confirmButton}
                 onPress={handleEndSleepConfirm}
                 activeOpacity={0.8}
               >
                 <LinearGradient
                   colors={['#8B5CF6', '#6366F1']}
-                  style={styles(theme).confirmGradient}
+                  style={themedStyles.confirmGradient}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 0 }}
                 >
-                  <Text style={styles(theme).confirmButtonText}>Save Sleep Data</Text>
+                  <Text style={themedStyles.confirmButtonText}>Save Sleep Data</Text>
                 </LinearGradient>
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={styles(theme).cancelButton}
+                style={themedStyles.cancelButton}
                 onPress={() => setShowEndForm(false)}
               >
-                <Text style={styles(theme).cancelButtonText}>Cancel</Text>
+                <Text style={themedStyles.cancelButtonText}>Cancel</Text>
               </TouchableOpacity>
-            </BlurView>
+            </GlassView>
           </ScrollView>
         </LinearGradient>
       </View>
@@ -503,130 +550,130 @@ export default function SleepSessionScreen() {
   if (isTracking && currentSession) {
     if (isDimmed) {
       return (
-        <TouchableOpacity 
-          activeOpacity={1} 
-          style={styles(theme).dimmedContainer} 
+        <TouchableOpacity
+          activeOpacity={1}
+          style={themedStyles.dimmedContainer}
           onPress={() => setIsDimmed(false)}
         >
           <StatusBar hidden />
-          <View style={styles(theme).dimmedContent}>
-            <Text style={styles(theme).dimmedTime}>
+          <View style={themedStyles.dimmedContent}>
+            <Text style={themedStyles.dimmedTime}>
               {format12HourTime(currentTime)}
             </Text>
-            <View style={styles(theme).dimmedStats}>
+            <View style={themedStyles.dimmedStats}>
               <Moon size={20} color={theme.colors.textSecondary} style={{ marginRight: 8 }} />
-              <Text style={styles(theme).dimmedDuration}>
+              <Text style={themedStyles.dimmedDuration}>
                 {getElapsedTime().split(':').slice(0, 2).join('h ')}m asleep
               </Text>
             </View>
-            <Text style={styles(theme).dimmedHint}>Tap anywhere to wake screen</Text>
+            <Text style={themedStyles.dimmedHint}>Tap anywhere to wake screen</Text>
           </View>
         </TouchableOpacity>
       );
     }
 
     return (
-      <View style={styles(theme).container}>
+      <View style={themedStyles.container}>
         <StatusBar hidden />
 
         {/* Animated Space Background */}
         <SleepBackgroundAnimation duration={300} transitionDuration={3} />
 
-        <View style={styles(theme).contentOverlay}>
-          <View style={styles(theme).topControls}>
-            <TouchableOpacity onPress={exitSleepMode} style={styles(theme).exitButton}>
+        <View style={themedStyles.contentOverlay}>
+          <View style={themedStyles.topControls}>
+            <TouchableOpacity onPress={exitSleepMode} style={themedStyles.exitButton}>
               <X size={24} color={theme.colors.textSecondary} />
             </TouchableOpacity>
 
-            <View style={styles(theme).trackingBadge}>
-              <View style={styles(theme).trackingDot} />
-              <Text style={styles(theme).trackingText}>Tracking</Text>
+            <View style={themedStyles.trackingBadge}>
+              <View style={themedStyles.trackingDot} />
+              <Text style={themedStyles.trackingText}>Tracking</Text>
             </View>
           </View>
 
-          <View style={styles(theme).clockContainer}>
-            <Text style={styles(theme).elapsedLabel}>Sleep Duration</Text>
-            <Text style={styles(theme).timeDisplay}>{getElapsedTime()}</Text>
-            <Text style={styles(theme).dateDisplay}>
+          <View style={themedStyles.clockContainer}>
+            <Text style={themedStyles.elapsedLabel}>Sleep Duration</Text>
+            <Text style={themedStyles.timeDisplay}>{getElapsedTime()}</Text>
+            <Text style={themedStyles.dateDisplay}>
               Started at {format12HourTime(new Date(currentSession.startTime))}
             </Text>
           </View>
 
           {currentSession.sleepSoundsEnabled && (
-            <View style={styles(theme).soundStatus}>
-              <View style={styles(theme).soundIndicator}>
-                <View style={styles(theme).soundWave} />
-                <View style={styles(theme).soundWave} />
-                <View style={styles(theme).soundWave} />
+            <View style={themedStyles.soundStatus}>
+              <View style={themedStyles.soundIndicator}>
+                <View style={themedStyles.soundWave} />
+                <View style={themedStyles.soundWave} />
+                <View style={themedStyles.soundWave} />
               </View>
-              <Text style={styles(theme).soundText}>Sleep Sounds Playing</Text>
+              <Text style={themedStyles.soundText}>Sleep Sounds Playing</Text>
             </View>
           )}
 
           {currentSession.smartAlarmEnabled && alarmTime && (
-            <View style={styles(theme).alarmContainer}>
+            <View style={themedStyles.alarmContainer}>
               <AlarmClock size={20} color={theme.colors.accent} />
-              <Text style={styles(theme).alarmText}>
+              <Text style={themedStyles.alarmText}>
                 Alarm: {format12HourTime(alarmTime)}
               </Text>
             </View>
           )}
 
           {recordingStatus && recordingStatus.isRecording && (
-            <View style={styles(theme).recordingContainer}>
+            <View style={themedStyles.recordingContainer}>
               <Mic size={20} color={theme.colors.danger} />
-              <View style={styles(theme).recordingDetails}>
-                <View style={styles(theme).recordingHeader}>
-                  <Text style={styles(theme).recordingText}>🎤 Recording Active</Text>
-                  <View style={styles(theme).volumeMeter}>
-                    <View 
+              <View style={themedStyles.recordingDetails}>
+                <View style={themedStyles.recordingHeader}>
+                  <Text style={themedStyles.recordingText}>🎙️ Recording Active</Text>
+                  <View style={themedStyles.volumeMeter}>
+                    <View
                       style={[
-                        styles(theme).volumeBar, 
+                        themedStyles.volumeBar,
                         { width: `${Math.min(100, recordingStatus.currentVolume * 100)}%` }
-                      ]} 
+                      ]}
                     />
                   </View>
                 </View>
-                <Text style={styles(theme).recordingStats}>
-                  Snoring: {recordingStatus.snoringEvents} • Sleep Talk: {recordingStatus.sleepTalkEvents}
+                <Text style={themedStyles.recordingStats}>
+                  Snoring: {recordingStatus.snoringEvents} | Sleep Talk: {recordingStatus.sleepTalkEvents}
                 </Text>
               </View>
             </View>
           )}
 
           {/* Enhanced Music Player Controls */}
-          <View style={styles(theme).musicPlayerContainer}>
-            <BlurView intensity={30} tint="dark" style={styles(theme).musicPlayer}>
+          <View style={themedStyles.musicPlayerContainer}>
+            <GlassView intensity={30} tint="dark" style={themedStyles.musicPlayer}>
               {/* Track Info with Playlist Button */}
-              <View style={styles(theme).musicHeader}>
-                <View style={styles(theme).musicInfo}>
-                  <View style={styles(theme).musicIconContainer}>
+              <View style={themedStyles.musicHeader}>
+                <View style={themedStyles.musicInfo}>
+                  <View style={themedStyles.musicIconContainer}>
                     {(() => {
                       const Icon = ICON_MAP[selectedMusic?.icon || 'musical-note'] || Music;
                       return <Icon size={28} color={theme.colors.accent} />;
                     })()}
                   </View>
-                  <View style={styles(theme).musicDetails}>
-                    <Text style={styles(theme).musicName}>{selectedMusic?.name || 'No Music'}</Text>
-                    <Text style={styles(theme).musicStatus}>
-                      {isPlaying && currentSound === selectedMusic?.id ? '🎵 Playing' : '⏸ Paused'}
+                  <View style={themedStyles.musicDetails}>
+                    <Text style={themedStyles.musicName}>{selectedMusic?.name || 'No Music'}</Text>
+                    <Text style={themedStyles.musicStatus}>
+                      {isPlaying && currentSound === selectedMusic?.id ? '▶ Playing' : '⏸ Paused'}
                     </Text>
                   </View>
                 </View>
                 <TouchableOpacity
-                  style={styles(theme).playlistButton}
+                  style={themedStyles.playlistButton}
                   onPress={() => setShowMusicPicker(true)}
                   activeOpacity={0.7}
                 >
                   <List size={24} color={theme.colors.accent} />
-                  <Text style={styles(theme).playlistButtonText}>Playlist</Text>
+                  <Text style={themedStyles.playlistButtonText}>Playlist</Text>
                 </TouchableOpacity>
               </View>
 
               {/* Playback Controls */}
-              <View style={styles(theme).musicControls}>
+              <View style={themedStyles.musicControls}>
                 <TouchableOpacity
-                  style={styles(theme).musicButton}
+                  style={themedStyles.musicButton}
                   onPress={handlePreviousTrack}
                   activeOpacity={0.7}
                 >
@@ -634,13 +681,13 @@ export default function SleepSessionScreen() {
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  style={styles(theme).playPauseButton}
+                  style={themedStyles.playPauseButton}
                   onPress={toggleMusicPlayback}
                   activeOpacity={0.8}
                 >
                   <LinearGradient
                     colors={['#8B5CF6', '#6366F1']}
-                    style={styles(theme).playPauseGradient}
+                    style={themedStyles.playPauseGradient}
                   >
                     {isPlaying && currentSound === selectedMusic?.id ? (
                       <Pause size={32} color="#FFFFFF" fill="#FFFFFF" />
@@ -651,7 +698,7 @@ export default function SleepSessionScreen() {
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  style={styles(theme).musicButton}
+                  style={themedStyles.musicButton}
                   onPress={handleNextTrack}
                   activeOpacity={0.7}
                 >
@@ -660,12 +707,12 @@ export default function SleepSessionScreen() {
               </View>
 
               {/* Volume Control */}
-              <View style={styles(theme).volumeContainer}>
+              <View style={themedStyles.volumeContainer}>
                 <TouchableOpacity onPress={() => setVolume(0)} activeOpacity={0.7}>
                   <VolumeX size={22} color={theme.colors.textSecondary} />
                 </TouchableOpacity>
                 <Slider
-                  style={styles(theme).volumeSlider}
+                  style={themedStyles.volumeSlider}
                   value={volume}
                   onValueChange={setVolume}
                   minimumValue={0}
@@ -681,29 +728,29 @@ export default function SleepSessionScreen() {
 
               {/* Stop Button */}
               <TouchableOpacity
-                style={styles(theme).stopButton}
+                style={themedStyles.stopButton}
                 onPress={stopSound}
                 activeOpacity={0.7}
               >
                 <CircleStop size={20} color={theme.colors.danger} />
-                <Text style={styles(theme).stopButtonText}>Stop Playback</Text>
+                <Text style={themedStyles.stopButtonText}>Stop Playback</Text>
               </TouchableOpacity>
-            </BlurView>
+            </GlassView>
           </View>
 
           <TouchableOpacity
-            style={styles(theme).endButton}
+            style={themedStyles.endButton}
             onPress={handleEndSleepClick}
             activeOpacity={0.9}
           >
             <LinearGradient
               colors={[theme.colors.danger, '#FF8E8E']}
-              style={styles(theme).endGradient}
+              style={themedStyles.endGradient}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
             >
               <CircleStop size={24} color={theme.colors.textPrimary} />
-              <Text style={styles(theme).endButtonText}>End Sleep Session</Text>
+              <Text style={themedStyles.endButtonText}>End Sleep Session</Text>
             </LinearGradient>
           </TouchableOpacity>
         </View>
@@ -711,44 +758,47 @@ export default function SleepSessionScreen() {
     );
   }
 
+  // Memoize styles to prevent unnecessary re-renders
+
   return (
-    <View style={styles(theme).container}>
-      <LinearGradient colors={['#0F0F1E', '#161632', '#0F0F1E']} style={styles(theme).gradient}>
-        <View style={styles(theme).topControls}>
-          <TouchableOpacity onPress={exitSleepMode} style={styles(theme).exitButton}>
-            <X size={24} color={theme.colors.textSecondary} />
+    <View style={themedStyles.container}>
+      <LinearGradient colors={['#0F0F1E', '#161632', '#0F0F1E']} style={themedStyles.gradient}>
+        <View style={themedStyles.topControls}>
+          <TouchableOpacity onPress={exitSleepMode} style={themedStyles.backButton}>
+            <ChevronLeft size={28} color={theme.colors.textSecondary} />
+            <Text style={themedStyles.backButtonText}>Back</Text>
           </TouchableOpacity>
         </View>
 
-        <ScrollView 
-          style={styles(theme).content} 
-          contentContainerStyle={{ 
+        <ScrollView
+          style={themedStyles.content}
+          contentContainerStyle={{
             paddingTop: insets.top + 20,
-            paddingBottom: insets.bottom + 100 
+            paddingBottom: insets.bottom + 100
           }}
           showsVerticalScrollIndicator={false}
         >
-          <View style={styles(theme).header}>
-            <Text style={styles(theme).title}>Ready to Sleep?</Text>
-            <Text style={styles(theme).subtitle}>Configure your sleep session</Text>
+          <View style={themedStyles.header}>
+            <Text style={themedStyles.title}>Ready to Sleep?</Text>
+            <Text style={themedStyles.subtitle}>Configure your sleep session</Text>
           </View>
 
-          <BlurView intensity={20} tint="dark" style={styles(theme).card}>
-            <Text style={styles(theme).cardTitle}>Sleep Settings</Text>
+          <GlassView intensity={20} tint="dark" style={themedStyles.card}>
+            <Text style={themedStyles.cardTitle}>Sleep Settings</Text>
 
-            <View style={styles(theme).settingItem}>
-              <View style={styles(theme).settingLeft}>
+            <View style={themedStyles.settingItem}>
+              <View style={themedStyles.settingLeft}>
                 <Music size={24} color={theme.colors.accent} />
-                <Text style={styles(theme).settingLabel}>Sleep Sounds</Text>
+                <Text style={themedStyles.settingLabel}>Sleep Sounds</Text>
               </View>
               <TouchableOpacity
-                style={[styles(theme).toggle, sleepSoundsEnabled && styles(theme).toggleActive]}
+                style={[themedStyles.toggle, sleepSoundsEnabled && themedStyles.toggleActive]}
                 onPress={() => setSleepSoundsEnabled(!sleepSoundsEnabled)}
               >
                 <View
                   style={[
-                    styles(theme).toggleThumb,
-                    sleepSoundsEnabled && styles(theme).toggleThumbActive,
+                    themedStyles.toggleThumb,
+                    sleepSoundsEnabled && themedStyles.toggleThumbActive,
                   ]}
                 />
               </TouchableOpacity>
@@ -756,33 +806,33 @@ export default function SleepSessionScreen() {
 
             {sleepSoundsEnabled && (
               <TouchableOpacity
-                style={styles(theme).musicSelectButton}
+                style={themedStyles.musicSelectButton}
                 onPress={() => setShowMusicPicker(true)}
               >
-                <View style={styles(theme).musicSelectContent}>
+                <View style={themedStyles.musicSelectContent}>
                   {(() => {
                     const Icon = ICON_MAP[selectedMusic?.icon || 'musical-note'] || Music;
                     return <Icon size={20} color={theme.colors.accent} />;
                   })()}
-                  <Text style={styles(theme).musicSelectText}>{selectedMusic?.name || 'Choose Music'}</Text>
+                  <Text style={themedStyles.musicSelectText}>{selectedMusic?.name || 'Choose Music'}</Text>
                 </View>
                 <ChevronRight size={20} color={theme.colors.textSecondary} />
               </TouchableOpacity>
             )}
 
-            <View style={styles(theme).settingItem}>
-              <View style={styles(theme).settingLeft}>
+            <View style={themedStyles.settingItem}>
+              <View style={themedStyles.settingLeft}>
                 <AlarmClock size={24} color={theme.colors.highlight} />
-                <Text style={styles(theme).settingLabel}>Smart Alarm</Text>
+                <Text style={themedStyles.settingLabel}>Smart Alarm</Text>
               </View>
               <TouchableOpacity
-                style={[styles(theme).toggle, smartAlarmEnabled && styles(theme).toggleActive]}
+                style={[themedStyles.toggle, smartAlarmEnabled && themedStyles.toggleActive]}
                 onPress={() => setSmartAlarmEnabled(!smartAlarmEnabled)}
               >
                 <View
                   style={[
-                    styles(theme).toggleThumb,
-                    smartAlarmEnabled && styles(theme).toggleThumbActive,
+                    themedStyles.toggleThumb,
+                    smartAlarmEnabled && themedStyles.toggleThumbActive,
                   ]}
                 />
               </TouchableOpacity>
@@ -790,12 +840,12 @@ export default function SleepSessionScreen() {
 
             {smartAlarmEnabled && (
               <TouchableOpacity
-                style={styles(theme).alarmTimeButton}
+                style={themedStyles.alarmTimeButton}
                 onPress={() => setShowAlarmPicker(true)}
               >
-                <View style={styles(theme).alarmTimeContent}>
+                <View style={themedStyles.alarmTimeContent}>
                   <Clock size={20} color={theme.colors.highlight} />
-                  <Text style={styles(theme).alarmTimeText}>
+                  <Text style={themedStyles.alarmTimeText}>
                     {alarmTime ? `Wake up at ${format12HourTime(alarmTime)}` : 'Set Alarm Time'}
                   </Text>
                 </View>
@@ -803,64 +853,64 @@ export default function SleepSessionScreen() {
               </TouchableOpacity>
             )}
 
-            <View style={styles(theme).settingItem}>
-              <View style={styles(theme).settingLeft}>
+            <View style={themedStyles.settingItem}>
+              <View style={themedStyles.settingLeft}>
                 <Mic size={24} color={theme.colors.danger} />
-                <Text style={styles(theme).settingLabel}>Sleep Recorder</Text>
+                <Text style={themedStyles.settingLabel}>Sleep Recorder</Text>
               </View>
               <TouchableOpacity
-                style={[styles(theme).toggle, sleepRecorderEnabled && styles(theme).toggleActive]}
+                style={[themedStyles.toggle, sleepRecorderEnabled && themedStyles.toggleActive]}
                 onPress={() => setSleepRecorderEnabled(!sleepRecorderEnabled)}
               >
                 <View
                   style={[
-                    styles(theme).toggleThumb,
-                    sleepRecorderEnabled && styles(theme).toggleThumbActive,
+                    themedStyles.toggleThumb,
+                    sleepRecorderEnabled && themedStyles.toggleThumbActive,
                   ]}
                 />
               </TouchableOpacity>
             </View>
 
             {sleepRecorderEnabled && (
-              <View style={styles(theme).recorderInfo}>
+              <View style={themedStyles.recorderInfo}>
                 <Info size={16} color={theme.colors.textSecondary} />
-                <Text style={styles(theme).recorderInfoText}>
+                <Text style={themedStyles.recorderInfoText}>
                   Monitors audio for snoring and sleep talk detection
                 </Text>
               </View>
             )}
-          </BlurView>
+          </GlassView>
 
-          <BlurView intensity={20} tint="dark" style={styles(theme).tipsCard}>
-            <View style={styles(theme).tipHeader}>
+          <GlassView intensity={20} tint="dark" style={themedStyles.tipsCard}>
+            <View style={themedStyles.tipHeader}>
               <Lightbulb size={20} color={theme.colors.premium} />
-              <Text style={styles(theme).tipTitle}>Sleep Tips</Text>
+              <Text style={themedStyles.tipTitle}>Sleep Tips</Text>
             </View>
-            <Text style={styles(theme).tipText}>
+            <Text style={themedStyles.tipText}>
               • Place your phone face down on a stable surface{'\n'}
               • Keep your phone plugged in{'\n'}
               • Enable Do Not Disturb mode{'\n'}
               • Create a comfortable sleep environment
             </Text>
-          </BlurView>
+          </GlassView>
 
           <TouchableOpacity
-            style={styles(theme).startButton}
+            style={themedStyles.startButton}
             onPress={handleStartSleep}
             activeOpacity={0.9}
           >
             <LinearGradient
               colors={['#8B5CF6', '#6366F1']}
-              style={styles(theme).startGradient}
+              style={themedStyles.startGradient}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
             >
               <Moon size={24} color="#FFFFFF" />
-              <Text style={styles(theme).startButtonText}>Start Sleep Session</Text>
+              <Text style={themedStyles.startButtonText}>Start Sleep Session</Text>
             </LinearGradient>
           </TouchableOpacity>
 
-          <View style={styles(theme).bottomSpacing} />
+          <View style={themedStyles.bottomSpacing} />
         </ScrollView>
 
         {/* Music Picker Modal */}
@@ -870,34 +920,34 @@ export default function SleepSessionScreen() {
           transparent={true}
           onRequestClose={() => setShowMusicPicker(false)}
         >
-          <View style={styles(theme).modalOverlay}>
-            <BlurView intensity={90} tint="dark" style={styles(theme).modalBlur}>
-              <View style={styles(theme).modalContent}>
-                <View style={styles(theme).modalHeader}>
-                  <Text style={styles(theme).modalTitle}>Choose Sleep Music</Text>
+          <View style={themedStyles.modalOverlay}>
+            <GlassView intensity={90} tint="dark" style={themedStyles.modalBlur}>
+              <View style={themedStyles.modalContent}>
+                <View style={themedStyles.modalHeader}>
+                  <Text style={themedStyles.modalTitle}>Choose Sleep Music</Text>
                   <TouchableOpacity
                     onPress={() => setShowMusicPicker(false)}
-                    style={styles(theme).modalClose}
+                    style={themedStyles.modalClose}
                   >
                     <X size={28} color={theme.colors.textSecondary} />
                   </TouchableOpacity>
                 </View>
 
-                <ScrollView style={styles(theme).soundsList} showsVerticalScrollIndicator={false}>
+                <ScrollView style={themedStyles.soundsList} showsVerticalScrollIndicator={false}>
                   {sleepSounds.map((sound) => (
                     <TouchableOpacity
                       key={sound.id}
                       style={[
-                        styles(theme).soundItem,
-                        selectedMusic?.id === sound.id && styles(theme).soundItemSelected,
+                        themedStyles.soundItem,
+                        selectedMusic?.id === sound.id && themedStyles.soundItemSelected,
                       ]}
                       onPress={() => handleMusicSelect(sound)}
                     >
-                      <View style={styles(theme).soundItemLeft}>
+                      <View style={themedStyles.soundItemLeft}>
                         <View
                           style={[
-                            styles(theme).soundIcon,
-                            selectedMusic?.id === sound.id && styles(theme).soundIconSelected,
+                            themedStyles.soundIcon,
+                            selectedMusic?.id === sound.id && themedStyles.soundIconSelected,
                           ]}
                         >
                           {(() => {
@@ -910,7 +960,7 @@ export default function SleepSessionScreen() {
                             );
                           })()}
                         </View>
-                        <Text style={styles(theme).soundName}>{sound.name}</Text>
+                        <Text style={themedStyles.soundName}>{sound.name}</Text>
                       </View>
                       {selectedMusic?.id === sound.id && (
                         <CheckCircle2 size={24} color={theme.colors.accent} />
@@ -919,7 +969,7 @@ export default function SleepSessionScreen() {
                   ))}
                 </ScrollView>
               </View>
-            </BlurView>
+            </GlassView>
           </View>
         </Modal>
 
@@ -932,115 +982,115 @@ export default function SleepSessionScreen() {
             onRequestClose={() => setShowAlarmPicker(false)}
           >
             <TouchableOpacity
-              style={styles(theme).modalOverlay}
+              style={themedStyles.modalOverlay}
               activeOpacity={1}
               onPress={() => setShowAlarmPicker(false)}
             >
-              <BlurView intensity={90} tint="dark" style={styles(theme).modalBlur}>
+              <GlassView intensity={90} tint="dark" style={themedStyles.modalBlur}>
                 <TouchableOpacity
                   activeOpacity={1}
                   onPress={(e) => e.stopPropagation()}
                 >
-                  <View style={styles(theme).modalContent}>
-                  <View style={styles(theme).modalHeader}>
-                    <Text style={styles(theme).modalTitle}>Set Wake-Up Time</Text>
-                    <TouchableOpacity
-                      onPress={() => setShowAlarmPicker(false)}
-                      style={styles(theme).modalClose}
-                    >
-                      <X size={28} color={theme.colors.textSecondary} />
-                    </TouchableOpacity>
-                  </View>
-
-                  <View style={styles(theme).pickerContainer}>
-                    {/* Quick Preset Buttons */}
-                    <View style={styles(theme).quickPresetsContainer}>
-                      <Text style={styles(theme).quickPresetsLabel}>Quick Select:</Text>
-                      <View style={styles(theme).quickPresetsButtons}>
-                        {[6, 7, 8, 9].map((hour) => {
-                          const presetTime = new Date();
-                          const currentHour = presetTime.getHours();
-
-                          // If the preset hour has already passed today, set it for tomorrow
-                          if (hour <= currentHour) {
-                            presetTime.setDate(presetTime.getDate() + 1);
-                          }
-
-                          presetTime.setHours(hour, 0, 0, 0);
-
-                          return (
-                            <TouchableOpacity
-                              key={hour}
-                              style={styles(theme).presetButton}
-                              onPress={() => {
-                                setAlarmTime(presetTime);
-                                setTempAlarmTime(presetTime);
-                                setShowAlarmPicker(false);
-                              }}
-                            >
-                              <Text style={styles(theme).presetButtonText}>{hour}:00</Text>
-                              <Text style={styles(theme).presetButtonLabel}>AM</Text>
-                            </TouchableOpacity>
-                          );
-                        })}
-                      </View>
+                  <View style={themedStyles.modalContent}>
+                    <View style={themedStyles.modalHeader}>
+                      <Text style={themedStyles.modalTitle}>Set Wake-Up Time</Text>
+                      <TouchableOpacity
+                        onPress={() => setShowAlarmPicker(false)}
+                        style={themedStyles.modalClose}
+                      >
+                        <X size={28} color={theme.colors.textSecondary} />
+                      </TouchableOpacity>
                     </View>
 
-                    <Text style={styles(theme).orText}>or set custom time</Text>
+                    <View style={themedStyles.pickerContainer}>
+                      {/* Quick Preset Buttons */}
+                      <View style={themedStyles.quickPresetsContainer}>
+                        <Text style={themedStyles.quickPresetsLabel}>Quick Select:</Text>
+                        <View style={themedStyles.quickPresetsButtons}>
+                          {[6, 7, 8, 9].map((hour) => {
+                            const presetTime = new Date();
+                            const currentHour = presetTime.getHours();
 
-                    {/* Current Selection Display */}
-                    {tempAlarmTime && (
-                      <View style={styles(theme).selectedTimeDisplay}>
-                        <Text style={styles(theme).selectedTimeLabel}>Selected Time:</Text>
-                        <Text style={styles(theme).selectedTimeValue}>
-                          {format12HourTime(tempAlarmTime)}
-                        </Text>
+                            // If the preset hour has already passed today, set it for tomorrow
+                            if (hour <= currentHour) {
+                              presetTime.setDate(presetTime.getDate() + 1);
+                            }
+
+                            presetTime.setHours(hour, 0, 0, 0);
+
+                            return (
+                              <TouchableOpacity
+                                key={hour}
+                                style={themedStyles.presetButton}
+                                onPress={() => {
+                                  setAlarmTime(presetTime);
+                                  setTempAlarmTime(presetTime);
+                                  setShowAlarmPicker(false);
+                                }}
+                              >
+                                <Text style={themedStyles.presetButtonText}>{hour}:00</Text>
+                                <Text style={themedStyles.presetButtonLabel}>AM</Text>
+                              </TouchableOpacity>
+                            );
+                          })}
+                        </View>
                       </View>
-                    )}
 
-                    {/* Time Picker */}
-                    <DateTimePicker
-                      value={tempAlarmTime}
-                      mode="time"
-                      display={Platform.OS === 'ios' ? 'spinner' : 'clock'}
-                      onChange={(event, selectedDate) => {
-                        if (event.type === 'dismissed') {
-                          return;
-                        }
-                        if (selectedDate) {
-                          setTempAlarmTime(selectedDate);
-                          // On Android, automatically close and set time
-                          if (Platform.OS === 'android') {
-                            setAlarmTime(selectedDate);
-                            setShowAlarmPicker(false);
+                      <Text style={themedStyles.orText}>or set custom time</Text>
+
+                      {/* Current Selection Display */}
+                      {tempAlarmTime && (
+                        <View style={themedStyles.selectedTimeDisplay}>
+                          <Text style={themedStyles.selectedTimeLabel}>Selected Time:</Text>
+                          <Text style={themedStyles.selectedTimeValue}>
+                            {format12HourTime(tempAlarmTime)}
+                          </Text>
+                        </View>
+                      )}
+
+                      {/* Time Picker */}
+                      <DateTimePicker
+                        value={tempAlarmTime}
+                        mode="time"
+                        display={Platform.OS === 'ios' ? 'spinner' : 'clock'}
+                        onChange={(event, selectedDate) => {
+                          if (event.type === 'dismissed') {
+                            return;
                           }
-                        }
-                      }}
-                      textColor="#FFFFFF"
-                      themeVariant="dark"
-                    />
-
-                    {/* iOS Only: Confirm Button */}
-                    {Platform.OS === 'ios' && (
-                      <TouchableOpacity
-                        style={styles(theme).pickerDoneButton}
-                        onPress={() => {
-                          setAlarmTime(tempAlarmTime);
-                          setShowAlarmPicker(false);
+                          if (selectedDate) {
+                            setTempAlarmTime(selectedDate);
+                            // On Android, automatically close and set time
+                            if (Platform.OS === 'android') {
+                              setAlarmTime(selectedDate);
+                              setShowAlarmPicker(false);
+                            }
+                          }
                         }}
-                      >
-                        <LinearGradient
-                          colors={['#8B5CF6', '#6366F1']}
-                          style={styles(theme).pickerDoneGradient}
+                        textColor="#FFFFFF"
+                        themeVariant="dark"
+                      />
+
+                      {/* iOS Only: Confirm Button */}
+                      {Platform.OS === 'ios' && (
+                        <TouchableOpacity
+                          style={themedStyles.pickerDoneButton}
+                          onPress={() => {
+                            setAlarmTime(tempAlarmTime);
+                            setShowAlarmPicker(false);
+                          }}
                         >
-                          <Text style={styles(theme).pickerDoneText}>Set Alarm</Text>
-                        </LinearGradient>
-                      </TouchableOpacity>
-                    )}
-                  </View>
+                          <LinearGradient
+                            colors={['#8B5CF6', '#6366F1']}
+                            style={themedStyles.pickerDoneGradient}
+                          >
+                            <Text style={themedStyles.pickerDoneText}>Set Alarm</Text>
+                          </LinearGradient>
+                        </TouchableOpacity>
+                      )}
+                    </View>
                   </View>
                 </TouchableOpacity>
-              </BlurView>
+              </GlassView>
             </TouchableOpacity>
           </Modal>
         )}
@@ -1060,19 +1110,21 @@ const styles = (theme: any) => StyleSheet.create({
     alignItems: 'center',
   },
   dimmedTime: {
-    fontSize: 72,
-    fontWeight: '200',
-    color: 'rgba(255, 255, 255, 0.8)',
-    letterSpacing: 2,
+    fontSize: 84,
+    fontWeight: '100',
+    color: 'rgba(255, 255, 255, 0.4)',
+    letterSpacing: 4,
   },
   dimmedStats: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 30,
+    marginTop: 30,
+    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 40,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.05)',
   },
   dimmedDuration: {
     fontSize: 20,
@@ -1088,7 +1140,7 @@ const styles = (theme: any) => StyleSheet.create({
   },
   container: {
     flex: 1,
-    backgroundColor: theme.colors.background,
+    backgroundColor: '#05050A', // Deeper black for better contrast
   },
   contentOverlay: {
     flex: 1,
@@ -1109,6 +1161,18 @@ const styles = (theme: any) => StyleSheet.create({
   },
   exitButton: {
     padding: 10,
+  },
+  backButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 10,
+    marginLeft: -10,
+  },
+  backButtonText: {
+    fontSize: 16,
+    color: theme.colors.textSecondary,
+    marginLeft: 4,
+    fontWeight: '600',
   },
   trackingBadge: {
     flexDirection: 'row',
@@ -1358,6 +1422,23 @@ const styles = (theme: any) => StyleSheet.create({
     color: theme.colors.textPrimary,
     marginBottom: 12,
     fontWeight: '500',
+  },
+  starRatingContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginVertical: 16,
+    gap: 8,
+  },
+  starButton: {
+    padding: 4,
+  },
+  ratingLabel: {
+    fontSize: 14,
+    color: theme.colors.textSecondary,
+    textAlign: 'center',
+    marginTop: 8,
+    fontStyle: 'italic',
   },
   input: {
     backgroundColor: 'rgba(42, 45, 58, 0.6)',
@@ -1835,3 +1916,4 @@ const styles = (theme: any) => StyleSheet.create({
     fontStyle: 'italic',
   },
 });
+

@@ -1,7 +1,8 @@
+import { useAppTheme } from '../hooks/useAppTheme';
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
+import { Moon, BarChart3, Music, Lightbulb } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAuth } from '../contexts/AuthContext';
@@ -13,6 +14,7 @@ type RootStackParamList = {
 };
 
 export default function WelcomeScreen() {
+  const { theme, isDark } = useAppTheme();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { completeOnboarding } = useAuth();
 
@@ -21,68 +23,72 @@ export default function WelcomeScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={styles(theme).container}>
       <LinearGradient
-        colors={['#0F111A', '#1B1D2A', '#0F111A']}
-        style={styles.gradient}
+        colors={[theme.colors.background, theme.colors.backgroundSecondary, theme.colors.background]}
+        style={styles(theme).gradient}
       >
-        <View style={styles.content}>
+        <View style={styles(theme).content}>
           {/* Logo and Icon */}
-          <View style={styles.logoContainer}>
-            <View style={styles.iconCircle}>
-              <Ionicons name="moon" size={80} color="#00FFD1" />
+          <View style={styles(theme).logoContainer}>
+            <View style={styles(theme).iconCircle}>
+              <Image 
+                source={require('../assets/app_logo.png')} 
+                style={{ width: 100, height: 100, borderRadius: 25 }} 
+                resizeMode="contain"
+              />
             </View>
-            <Text style={styles.appName}>SleepTracker</Text>
-            <Text style={styles.tagline}>Your Personal Sleep Companion</Text>
+            <Text style={styles(theme).appName}>Sleep Architect</Text>
+            <Text style={styles(theme).tagline}>Your VIP Personalized Sleep Intelligence</Text>
           </View>
 
           {/* Features Preview */}
-          <View style={styles.featuresPreview}>
-            <View style={styles.featureItem}>
-              <Ionicons name="analytics" size={24} color="#00FFD1" />
-              <Text style={styles.featureText}>Track Sleep Quality</Text>
+          <View style={styles(theme).featuresPreview}>
+            <View style={styles(theme).featureItem}>
+              <BarChart3 size={24} color={theme.colors.accent} />
+              <Text style={styles(theme).featureText}>Track Sleep Quality</Text>
             </View>
-            <View style={styles.featureItem}>
-              <Ionicons name="musical-notes" size={24} color="#33C6FF" />
-              <Text style={styles.featureText}>Relaxing Sounds</Text>
+            <View style={styles(theme).featureItem}>
+              <Music size={24} color="#33C6FF" />
+              <Text style={styles(theme).featureText}>Relaxing Sounds</Text>
             </View>
-            <View style={styles.featureItem}>
-              <Ionicons name="bulb" size={24} color="#FFD700" />
-              <Text style={styles.featureText}>Smart Recommendations</Text>
+            <View style={styles(theme).featureItem}>
+              <Lightbulb size={24} color="#FFD700" />
+              <Text style={styles(theme).featureText}>Smart Recommendations</Text>
             </View>
           </View>
 
           {/* Buttons */}
-          <View style={styles.buttonContainer}>
+          <View style={styles(theme).buttonContainer}>
             <TouchableOpacity
-              style={styles.primaryButton}
+              style={styles(theme).primaryButton}
               onPress={() => navigation.navigate('Signup')}
               activeOpacity={0.9}
             >
               <LinearGradient
-                colors={['#00FFD1', '#33C6FF']}
-                style={styles.buttonGradient}
+                colors={[theme.colors.accent, theme.colors.highlight]}
+                style={styles(theme).buttonGradient}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
               >
-                <Text style={styles.primaryButtonText}>Get Started</Text>
+                <Text style={styles(theme).primaryButtonText}>Get Started</Text>
               </LinearGradient>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={styles.secondaryButton}
+              style={styles(theme).secondaryButton}
               onPress={() => navigation.navigate('Login')}
               activeOpacity={0.8}
             >
-              <Text style={styles.secondaryButtonText}>I Already Have an Account</Text>
+              <Text style={styles(theme).secondaryButtonText}>I Already Have an Account</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={styles.skipButton}
+              style={styles(theme).skipButton}
               onPress={handleSkip}
               activeOpacity={0.7}
             >
-              <Text style={styles.skipButtonText}>Continue as Guest (Free)</Text>
+              <Text style={styles(theme).skipButtonText}>Continue as Guest (Free)</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -91,10 +97,10 @@ export default function WelcomeScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0F111A',
+    backgroundColor: theme.colors.background,
   },
   gradient: {
     flex: 1,
@@ -104,7 +110,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     justifyContent: 'space-between',
     paddingTop: 80,
-    paddingBottom: 50,
+    paddingBottom: 100,
   },
   logoContainer: {
     alignItems: 'center',
@@ -114,23 +120,25 @@ const styles = StyleSheet.create({
     width: 160,
     height: 160,
     borderRadius: 80,
-    backgroundColor: 'rgba(0, 255, 209, 0.1)',
+    backgroundColor: 'rgba(139, 92, 246, 0.1)',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 24,
     borderWidth: 2,
-    borderColor: 'rgba(0, 255, 209, 0.3)',
+    borderColor: 'rgba(139, 92, 246, 0.3)',
   },
   appName: {
     fontSize: 36,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: theme.colors.textPrimary,
     marginBottom: 8,
+    letterSpacing: 1,
   },
   tagline: {
     fontSize: 16,
-    color: '#A0AEC0',
+    color: theme.colors.textSecondary,
     fontWeight: '500',
+    letterSpacing: 0.5,
   },
   featuresPreview: {
     marginVertical: 40,
@@ -147,7 +155,7 @@ const styles = StyleSheet.create({
   },
   featureText: {
     fontSize: 16,
-    color: '#FFFFFF',
+    color: theme.colors.textPrimary,
     marginLeft: 16,
     fontWeight: '500',
   },
@@ -157,7 +165,7 @@ const styles = StyleSheet.create({
   primaryButton: {
     borderRadius: 16,
     overflow: 'hidden',
-    shadowColor: '#00FFD1',
+    shadowColor: theme.colors.accent,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 12,
@@ -171,7 +179,7 @@ const styles = StyleSheet.create({
   primaryButtonText: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#0F111A',
+    color: theme.colors.background,
   },
   secondaryButton: {
     paddingVertical: 18,
@@ -185,7 +193,7 @@ const styles = StyleSheet.create({
   secondaryButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#00FFD1',
+    color: theme.colors.accent,
   },
   skipButton: {
     paddingVertical: 16,
@@ -195,6 +203,6 @@ const styles = StyleSheet.create({
   skipButtonText: {
     fontSize: 15,
     fontWeight: '500',
-    color: '#A0AEC0',
+    color: theme.colors.textSecondary,
   },
 });

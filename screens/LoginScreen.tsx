@@ -1,3 +1,4 @@
+import { useAppTheme } from '../hooks/useAppTheme';
 import React, { useState } from 'react';
 import {
   View,
@@ -9,10 +10,11 @@ import {
   Platform,
   ScrollView,
   Alert,
+  Image,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
-import { Ionicons } from '@expo/vector-icons';
+import { ChevronLeft, Moon, Mail, Lock, Eye, EyeOff, Chrome } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAuth } from '../contexts/AuthContext';
@@ -26,12 +28,14 @@ type RootStackParamList = {
 };
 
 export default function LoginScreen() {
+  const { theme, isDark } = useAppTheme();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const { signIn, completeOnboarding } = useAuth();
+  const { signIn, signInWithGoogle, completeOnboarding } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
 
   const handleSkip = async () => {
     await completeOnboarding();
@@ -64,48 +68,63 @@ export default function LoginScreen() {
     }
   };
 
+  const handleGoogleSignIn = async () => {
+    setIsGoogleLoading(true);
+    try {
+      await signInWithGoogle();
+    } catch (error: any) {
+      Alert.alert('Google Sign-In Failed', 'Failed to sign in with Google');
+    } finally {
+      setIsGoogleLoading(false);
+    }
+  };
+
   return (
-    <View style={styles.container}>
+    <View style={styles(theme).container}>
       <LinearGradient
-        colors={['#0F111A', '#1B1D2A', '#0F111A']}
-        style={styles.gradient}
+        colors={[theme.colors.background, theme.colors.backgroundSecondary, theme.colors.background]}
+        style={styles(theme).gradient}
       >
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={styles.keyboardView}
+          style={styles(theme).keyboardView}
         >
           <ScrollView
-            contentContainerStyle={styles.scrollContent}
+            contentContainerStyle={styles(theme).scrollContent}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
             {/* Header */}
-            <View style={styles.header}>
+            <View style={styles(theme).header}>
               <TouchableOpacity
-                style={styles.backButton}
+                style={styles(theme).backButton}
                 onPress={() => navigation.goBack()}
               >
-                <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+                <ChevronLeft size={24} color={theme.colors.textPrimary} />
               </TouchableOpacity>
             </View>
 
             {/* Logo */}
-            <View style={styles.logoContainer}>
-              <View style={styles.iconCircle}>
-                <Ionicons name="moon" size={60} color="#00FFD1" />
+            <View style={styles(theme).logoContainer}>
+              <View style={styles(theme).iconCircle}>
+                <Image 
+                  source={require('../assets/app_logo.png')} 
+                  style={{ width: 80, height: 80, borderRadius: 20 }} 
+                  resizeMode="contain"
+                />
               </View>
-              <Text style={styles.title}>Welcome Back</Text>
-              <Text style={styles.subtitle}>Sign in to continue tracking your sleep</Text>
+              <Text style={styles(theme).title}>Welcome Back</Text>
+              <Text style={styles(theme).subtitle}>Sign in to your VIP Sleep Suite</Text>
             </View>
 
             {/* Form */}
-            <View style={styles.formContainer}>
-              <BlurView intensity={20} tint="dark" style={styles.inputContainer}>
-                <Ionicons name="mail-outline" size={20} color="#A0AEC0" style={styles.inputIcon} />
+            <View style={styles(theme).formContainer}>
+              <BlurView intensity={20} tint="dark" style={styles(theme).inputContainer}>
+                <Mail size={20} color={theme.colors.textSecondary} style={styles(theme).inputIcon} />
                 <TextInput
-                  style={styles.input}
+                  style={styles(theme).input}
                   placeholder="Email"
-                  placeholderTextColor="#A0AEC0"
+                  placeholderTextColor={theme.colors.textSecondary}
                   value={email}
                   onChangeText={setEmail}
                   keyboardType="email-address"
@@ -114,12 +133,12 @@ export default function LoginScreen() {
                 />
               </BlurView>
 
-              <BlurView intensity={20} tint="dark" style={styles.inputContainer}>
-                <Ionicons name="lock-closed-outline" size={20} color="#A0AEC0" style={styles.inputIcon} />
+              <BlurView intensity={20} tint="dark" style={styles(theme).inputContainer}>
+                <Lock size={20} color={theme.colors.textSecondary} style={styles(theme).inputIcon} />
                 <TextInput
-                  style={styles.input}
+                  style={styles(theme).input}
                   placeholder="Password"
-                  placeholderTextColor="#A0AEC0"
+                  placeholderTextColor={theme.colors.textSecondary}
                   value={password}
                   onChangeText={setPassword}
                   secureTextEntry={!showPassword}
@@ -128,56 +147,78 @@ export default function LoginScreen() {
                 />
                 <TouchableOpacity
                   onPress={() => setShowPassword(!showPassword)}
-                  style={styles.eyeIcon}
+                  style={styles(theme).eyeIcon}
                 >
-                  <Ionicons
-                    name={showPassword ? 'eye-outline' : 'eye-off-outline'}
-                    size={20}
-                    color="#A0AEC0"
-                  />
+                  {showPassword ? (
+                    <Eye size={20} color={theme.colors.textSecondary} />
+                  ) : (
+                    <EyeOff size={20} color={theme.colors.textSecondary} />
+                  )}
                 </TouchableOpacity>
               </BlurView>
 
               <TouchableOpacity
-                style={styles.forgotPassword}
+                style={styles(theme).forgotPassword}
                 onPress={() => navigation.navigate('ForgotPassword')}
               >
-                <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
+                <Text style={styles(theme).forgotPasswordText}>Forgot Password?</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={styles.loginButton}
+                style={styles(theme).loginButton}
                 onPress={handleLogin}
                 disabled={isLoading}
                 activeOpacity={0.9}
               >
                 <LinearGradient
-                  colors={['#00FFD1', '#33C6FF']}
-                  style={styles.loginButtonGradient}
+                  colors={[theme.colors.accent, theme.colors.highlight]}
+                  style={styles(theme).loginButtonGradient}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 0 }}
                 >
                   {isLoading ? (
-                    <Text style={styles.loginButtonText}>Signing In...</Text>
+                    <Text style={styles(theme).loginButtonText}>Signing In...</Text>
                   ) : (
-                    <Text style={styles.loginButtonText}>Sign In</Text>
+                    <Text style={styles(theme).loginButtonText}>Sign In</Text>
                   )}
                 </LinearGradient>
               </TouchableOpacity>
 
-              <View style={styles.signupContainer}>
-                <Text style={styles.signupText}>Don't have an account? </Text>
+              {/* Social Login Divider */}
+              <View style={styles(theme).divider}>
+                <View style={styles(theme).dividerLine} />
+                <Text style={styles(theme).dividerText}>OR CONTINUE WITH</Text>
+                <View style={styles(theme).dividerLine} />
+              </View>
+
+              {/* Google Sign-In Button */}
+              <TouchableOpacity
+                style={styles(theme).googleButton}
+                onPress={handleGoogleSignIn}
+                disabled={isGoogleLoading}
+                activeOpacity={0.9}
+              >
+                <View style={styles(theme).googleButtonContent}>
+                  <Chrome size={24} color={theme.colors.textPrimary} />
+                  <Text style={styles(theme).googleButtonText}>
+                    {isGoogleLoading ? 'Signing in with Google...' : 'Sign in with Google'}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+
+              <View style={styles(theme).signupContainer}>
+                <Text style={styles(theme).signupText}>Don't have an account? </Text>
                 <TouchableOpacity onPress={() => navigation.navigate('Signup')}>
-                  <Text style={styles.signupLink}>Sign Up</Text>
+                  <Text style={styles(theme).signupLink}>Sign Up</Text>
                 </TouchableOpacity>
               </View>
 
               <TouchableOpacity
-                style={styles.skipButton}
+                style={styles(theme).skipButton}
                 onPress={handleSkip}
                 activeOpacity={0.7}
               >
-                <Text style={styles.skipButtonText}>Continue as Guest (Free)</Text>
+                <Text style={styles(theme).skipButtonText}>Continue as Guest (Free)</Text>
               </TouchableOpacity>
             </View>
           </ScrollView>
@@ -187,10 +228,10 @@ export default function LoginScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0F111A',
+    backgroundColor: theme.colors.background,
   },
   gradient: {
     flex: 1,
@@ -201,6 +242,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: 24,
+    paddingBottom: 120,
   },
   header: {
     paddingTop: 60,
@@ -222,22 +264,22 @@ const styles = StyleSheet.create({
     width: 120,
     height: 120,
     borderRadius: 60,
-    backgroundColor: 'rgba(0, 255, 209, 0.1)',
+    backgroundColor: 'rgba(139, 92, 246, 0.1)',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 20,
     borderWidth: 2,
-    borderColor: 'rgba(0, 255, 209, 0.3)',
+    borderColor: 'rgba(139, 92, 246, 0.3)',
   },
   title: {
     fontSize: 32,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: theme.colors.textPrimary,
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 16,
-    color: '#A0AEC0',
+    color: theme.colors.textSecondary,
     textAlign: 'center',
   },
   formContainer: {
@@ -261,7 +303,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 16,
     fontSize: 16,
-    color: '#FFFFFF',
+    color: theme.colors.textPrimary,
   },
   eyeIcon: {
     padding: 4,
@@ -272,13 +314,13 @@ const styles = StyleSheet.create({
   },
   forgotPasswordText: {
     fontSize: 14,
-    color: '#00FFD1',
+    color: theme.colors.accent,
     fontWeight: '600',
   },
   loginButton: {
     borderRadius: 16,
     overflow: 'hidden',
-    shadowColor: '#00FFD1',
+    shadowColor: theme.colors.accent,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 12,
@@ -292,7 +334,7 @@ const styles = StyleSheet.create({
   loginButtonText: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#0F111A',
+    color: theme.colors.background,
   },
   divider: {
     flexDirection: 'row',
@@ -306,7 +348,7 @@ const styles = StyleSheet.create({
   },
   dividerText: {
     fontSize: 14,
-    color: '#A0AEC0',
+    color: theme.colors.textSecondary,
     marginHorizontal: 16,
     fontWeight: '600',
   },
@@ -330,15 +372,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    paddingBottom: 40,
+    marginBottom: 16,
   },
   signupText: {
     fontSize: 16,
-    color: '#A0AEC0',
+    color: theme.colors.textSecondary,
   },
   signupLink: {
     fontSize: 16,
-    color: '#00FFD1',
+    color: theme.colors.accent,
     fontWeight: '700',
   },
   skipButton: {
@@ -346,10 +388,31 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 8,
+    marginBottom: 40,
   },
   skipButtonText: {
     fontSize: 15,
     fontWeight: '500',
-    color: '#A0AEC0',
+    color: theme.colors.textSecondary,
+  },
+  googleButton: {
+    backgroundColor: 'rgba(27, 29, 42, 0.7)',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    marginBottom: 24,
+    overflow: 'hidden',
+  },
+  googleButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    gap: 12,
+  },
+  googleButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.colors.textPrimary,
   },
 });
