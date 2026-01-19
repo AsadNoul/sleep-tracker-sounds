@@ -48,6 +48,15 @@ export const darkTheme = {
   },
 
   typography: {
+    fontFamily: {
+      light: 'Poppins-Light',
+      regular: 'Poppins-Regular',
+      medium: 'Poppins-Medium',
+      semibold: 'Poppins-SemiBold',
+      bold: 'Poppins-Bold',
+      extrabold: 'Poppins-ExtraBold',
+      black: 'Poppins-Black',
+    },
     sizes: {
       xs: 10,
       sm: 12,
@@ -158,6 +167,15 @@ export const lightTheme = {
   },
 
   typography: {
+    fontFamily: {
+      light: 'Poppins-Light',
+      regular: 'Poppins-Regular',
+      medium: 'Poppins-Medium',
+      semibold: 'Poppins-SemiBold',
+      bold: 'Poppins-Bold',
+      extrabold: 'Poppins-ExtraBold',
+      black: 'Poppins-Black',
+    },
     sizes: {
       xs: 10,
       sm: 12,

@@ -25,6 +25,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 import revenueCatService from './services/revenueCatService';
 import { crashLogger, setupGlobalErrorHandlers } from './services/crashLogger';
 import alarmService from './services/alarmService';
+import { useFonts } from 'expo-font';
 
 // Import screens
 import HomeScreen from './screens/HomeScreen';
@@ -267,6 +268,17 @@ function AppNavigator() {
 }
 
 export default function App() {
+  // Load Poppins fonts
+  const [fontsLoaded] = useFonts({
+    'Poppins-Light': require('./assets/fonts/Poppins-Light.ttf'),
+    'Poppins-Regular': require('./assets/fonts/Poppins-Regular.ttf'),
+    'Poppins-Medium': require('./assets/fonts/Poppins-Medium.ttf'),
+    'Poppins-SemiBold': require('./assets/fonts/Poppins-SemiBold.ttf'),
+    'Poppins-Bold': require('./assets/fonts/Poppins-Bold.ttf'),
+    'Poppins-ExtraBold': require('./assets/fonts/Poppins-ExtraBold.ttf'),
+    'Poppins-Black': require('./assets/fonts/Poppins-Black.ttf'),
+  });
+
   // Initialize crash reporting and services on app start
   useEffect(() => {
     const initializeApp = async () => {
@@ -313,6 +325,16 @@ export default function App() {
 
     initializeApp();
   }, []);
+
+  // Wait for fonts to load
+  if (!fontsLoaded) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#8B5CF6" />
+        <Text style={{ color: '#fff', marginTop: 20, fontFamily: 'System' }}>Loading fonts...</Text>
+      </View>
+    );
+  }
 
   return (
     <SafeAreaProvider>
