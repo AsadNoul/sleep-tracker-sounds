@@ -269,7 +269,7 @@ function AppNavigator() {
 
 export default function App() {
   // Load Poppins fonts
-  const [fontsLoaded] = useFonts({
+  const [fontsLoaded, fontError] = useFonts({
     'Poppins-Light': require('./assets/fonts/Poppins-Light.ttf'),
     'Poppins-Regular': require('./assets/fonts/Poppins-Regular.ttf'),
     'Poppins-Medium': require('./assets/fonts/Poppins-Medium.ttf'),
@@ -278,6 +278,16 @@ export default function App() {
     'Poppins-ExtraBold': require('./assets/fonts/Poppins-ExtraBold.ttf'),
     'Poppins-Black': require('./assets/fonts/Poppins-Black.ttf'),
   });
+
+  // Log font loading status
+  useEffect(() => {
+    if (fontsLoaded) {
+      console.log('✅ Poppins fonts loaded successfully!');
+    }
+    if (fontError) {
+      console.error('❌ Font loading error:', fontError);
+    }
+  }, [fontsLoaded, fontError]);
 
   // Initialize crash reporting and services on app start
   useEffect(() => {
@@ -327,13 +337,17 @@ export default function App() {
   }, []);
 
   // Wait for fonts to load
-  if (!fontsLoaded) {
+  if (!fontsLoaded && !fontError) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#8B5CF6" />
-        <Text style={{ color: '#fff', marginTop: 20, fontFamily: 'System' }}>Loading fonts...</Text>
+        <Text style={{ color: '#fff', marginTop: 20 }}>Loading Poppins fonts...</Text>
       </View>
     );
+  }
+
+  if (fontError) {
+    console.error('Font loading failed, continuing without custom fonts');
   }
 
   return (
