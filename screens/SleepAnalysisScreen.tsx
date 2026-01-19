@@ -36,122 +36,62 @@ import {
   Calendar,
   Award,
   Battery,
-  Sun
+  Sun,
+  FileText,
+  AlertCircle
 } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSleep } from '../contexts/SleepContext';
 import { useAuth } from '../contexts/AuthContext';
 import CircularProgress from '../components/CircularProgress';
-import Svg, { Rect, G, Line, Circle, Path } from 'react-native-svg';
+import Svg, { Rect, G, Line, Circle, Path, Defs, LinearGradient as SvgLinearGradient, Stop } from 'react-native-svg';
 
 const { width } = Dimensions.get('window');
 
-/**
- * Sleep Stage Pie Chart Component
- */
-const StagePieChart = memo(({ stages, theme, isDark }: any) => {
-  const total = stages.reduce((sum: number, s: any) => sum + s.percentage, 0);
-
-  const stageColors: any = {
-    deep: '#4F46E5',
-    rem: '#8B5CF6',
-    light: '#6366F1',
-    awake: '#EF4444'
-  };
-
-  let currentAngle = -90;
-
-  return (
-    <View style={{ alignItems: 'center', marginVertical: 20 }}>
-      <Svg height="140" width="140">
-        <G>
-          {stages.map((stage: any, i: number) => {
-            const angle = (stage.percentage / 100) * 360;
-            const startAngle = currentAngle;
-            const endAngle = currentAngle + angle;
-
-            const startX = 70 + 60 * Math.cos((startAngle * Math.PI) / 180);
-            const startY = 70 + 60 * Math.sin((startAngle * Math.PI) / 180);
-            const endX = 70 + 60 * Math.cos((endAngle * Math.PI) / 180);
-            const endY = 70 + 60 * Math.sin((endAngle * Math.PI) / 180);
-
-            const largeArc = angle > 180 ? 1 : 0;
-
-            const pathData = [
-              `M 70 70`,
-              `L ${startX} ${startY}`,
-              `A 60 60 0 ${largeArc} 1 ${endX} ${endY}`,
-              `Z`
-            ].join(' ');
-
-            currentAngle = endAngle;
-
-            return (
-              <Path
-                key={i}
-                d={pathData}
-                fill={stageColors[stage.name]}
-                opacity={0.9}
-              />
-            );
-          })}
-          <Circle cx="70" cy="70" r="35" fill={theme.colors.background} />
-        </G>
-      </Svg>
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 15, gap: 10, justifyContent: 'center' }}>
-        {stages.map((stage: any, i: number) => (
-          <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-            <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: stageColors[stage.name] }} />
-            <Text style={{ color: theme.colors.textSecondary, fontSize: 11, fontWeight: '700' }}>
-              {stage.label}: {stage.percentage}%
-            </Text>
-          </View>
-        ))}
-      </View>
-    </View>
-  );
-});
+type TimeFrame = 'week' | 'month' | '3months' | '6months';
 
 /**
- * Sleep Trend Line Chart
+ * Enhanced Sleep Trend Area Chart
  */
-const TrendLineChart = memo(({ data, theme, isDark }: any) => {
-  const maxValue = Math.max(...data.map((d: any) => d.value), 8);
-  const chartHeight = 100;
-  const chartWidth = width - 80;
+const SleepTrendAreaChart = memo(({ data, theme, isDark }: any) => {
+  const maxValue = Math.max(...data.map((d: any) => d.value), 100);
+  const chartHeight = 150;
+  const chartWidth = width - 60;
   const pointSpacing = chartWidth / (data.length - 1 || 1);
+
+  // Create path for the line and area
+  const linePath = data.map((d: any, i: number) => {
+    const x = i * pointSpacing;
+    const y = chartHeight - (d.value / maxValue) * chartHeight;
+    return `${i === 0 ? 'M' : 'L'} ${x} ${y}`;
+  }).join(' ');
+
+  const areaPath = `${linePath} L ${chartWidth} ${chartHeight} L 0 ${chartHeight} Z`;
 
   return (
     <View style={{ marginVertical: 20 }}>
       <Svg height={chartHeight + 40} width={chartWidth}>
+        <Defs>
+          <SvgLinearGradient id="areaGradient" x1="0" y1="0" x2="0" y2="1">
+            <Stop offset="0" stopColor="#8B5CF6" stopOpacity="0.4" />
+            <Stop offset="1" stopColor="#8B5CF6" stopOpacity="0" />
+          </SvgLinearGradient>
+        </Defs>
         <G>
-          {/* Grid lines */}
-          {[0, 25, 50, 75, 100].map((y, i) => (
-            <Line
-              key={i}
-              x1="0"
-              y1={(chartHeight * y) / 100}
-              x2={chartWidth}
-              y2={(chartHeight * y) / 100}
-              stroke={isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'}
-              strokeWidth="1"
-            />
-          ))}
+          {/* Area fill */}
+          <Path
+            d={areaPath}
+            fill="url(#areaGradient)"
+          />
 
-          {/* Line path */}
-          {data.length > 1 && (
-            <Path
-              d={data.map((d: any, i: number) => {
-                const x = i * pointSpacing;
-                const y = chartHeight - (d.value / maxValue) * chartHeight;
-                return `${i === 0 ? 'M' : 'L'} ${x} ${y}`;
-              }).join(' ')}
-              stroke="#8B5CF6"
-              strokeWidth="3"
-              fill="none"
-            />
-          )}
+          {/* Line */}
+          <Path
+            d={linePath}
+            stroke="#8B5CF6"
+            strokeWidth="3"
+            fill="none"
+          />
 
           {/* Data points */}
           {data.map((d: any, i: number) => {
@@ -162,8 +102,10 @@ const TrendLineChart = memo(({ data, theme, isDark }: any) => {
                 key={i}
                 cx={x}
                 cy={y}
-                r="4"
+                r="5"
                 fill="#8B5CF6"
+                stroke="#fff"
+                strokeWidth="2"
               />
             );
           })}
@@ -173,8 +115,64 @@ const TrendLineChart = memo(({ data, theme, isDark }: any) => {
       {/* X-axis labels */}
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 }}>
         {data.map((d: any, i: number) => (
-          <Text key={i} style={{ color: theme.colors.textSecondary, fontSize: 9, fontWeight: '700' }}>
+          <Text key={i} style={{ color: theme.colors.textSecondary, fontSize: 9, fontWeight: '700', fontFamily: theme.typography.fontFamily.semibold }}>
             {d.label}
+          </Text>
+        ))}
+      </View>
+    </View>
+  );
+});
+
+/**
+ * Sleep Stages Heatmap
+ */
+const SleepStagesHeatmap = memo(({ data, theme, isDark }: any) => {
+  const cellSize = (width - 80) / 7;
+
+  const stageColors: any = {
+    deep: '#4F46E5',
+    rem: '#8B5CF6',
+    light: '#6366F1',
+    awake: '#EF4444',
+    none: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'
+  };
+
+  return (
+    <View style={{ marginVertical: 20 }}>
+      {data.map((week: any, weekIndex: number) => (
+        <View key={weekIndex} style={{ flexDirection: 'row', gap: 4, marginBottom: 4 }}>
+          {week.map((day: any, dayIndex: number) => (
+            <View
+              key={dayIndex}
+              style={{
+                width: cellSize,
+                height: cellSize,
+                backgroundColor: stageColors[day.dominantStage || 'none'],
+                borderRadius: 8,
+              }}
+            />
+          ))}
+        </View>
+      ))}
+
+      {/* Legend */}
+      <View style={{ flexDirection: 'row', justifyContent: 'space-around', marginTop: 15 }}>
+        {['Deep', 'Light', 'REM'].map((stage, i) => (
+          <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: stageColors[stage.toLowerCase()] }} />
+            <Text style={{ color: theme.colors.textSecondary, fontSize: 10, fontWeight: '700', fontFamily: theme.typography.fontFamily.semibold }}>
+              {stage}
+            </Text>
+          </View>
+        ))}
+      </View>
+
+      {/* Day labels */}
+      <View style={{ flexDirection: 'row', justifyContent: 'space-around', marginTop: 10 }}>
+        {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((day, i) => (
+          <Text key={i} style={{ color: theme.colors.textSecondary, fontSize: 10, fontWeight: '700', fontFamily: theme.typography.fontFamily.semibold, width: cellSize, textAlign: 'center' }}>
+            {day}
           </Text>
         ))}
       </View>
@@ -219,7 +217,7 @@ const PremiumLockedSection = memo(({ children, isPremium, title, icon: Icon, the
             <Sparkles size={24} color="#8B5CF6" />
           </View>
           <Text style={styles(theme, isDark).lockTitle}>Unlock Premium Analytics</Text>
-          <Text style={styles(theme, isDark).lockSubtitle}>Advanced insights, trends, and AI-driven recommendations.</Text>
+          <Text style={styles(theme, isDark).lockSubtitle}>Advanced trends, insights, and comprehensive reports.</Text>
 
           <TouchableOpacity
             style={styles(theme, isDark).unlockButton}
@@ -234,73 +232,6 @@ const PremiumLockedSection = memo(({ children, isPremium, title, icon: Icon, the
   );
 });
 
-/**
- * Architecture Graph Component
- */
-const ArchitectureGraph = memo(({ data, theme, isDark }: any) => {
-  return (
-    <View style={styles(theme, isDark).cardContainer}>
-      <View style={styles(theme, isDark).archLegend}>
-        <View style={styles(theme, isDark).legendDot}><View style={[styles(theme, isDark).dot, { backgroundColor: '#EF4444' }]} /><Text style={styles(theme, isDark).legendText}>Awake</Text></View>
-        <View style={styles(theme, isDark).legendDot}><View style={[styles(theme, isDark).dot, { backgroundColor: '#8B5CF6' }]} /><Text style={styles(theme, isDark).legendText}>REM</Text></View>
-        <View style={styles(theme, isDark).legendDot}><View style={[styles(theme, isDark).dot, { backgroundColor: '#3B82F6' }]} /><Text style={styles(theme, isDark).legendText}>Light</Text></View>
-        <View style={styles(theme, isDark).legendDot}><View style={[styles(theme, isDark).dot, { backgroundColor: '#1E3A8A' }]} /><Text style={styles(theme, isDark).legendText}>Deep</Text></View>
-      </View>
-      <View style={styles(theme, isDark).graphTimeline}>
-        <Svg height="120" width={width - 52}>
-          <G>
-            {data.map((d: any, i: number) => {
-              const stageColors: any = { 0: '#EF4444', 1: '#8B5CF6', 2: '#3B82F6', 3: '#1E3A8A' };
-              const stageY: any = { 1: 10, 0: 40, 2: 70, 3: 100 };
-              let xOffset = 0;
-              for (let j = 0; j < i; j++) xOffset += (data[j].width * (width - 52)) / 100;
-
-              return (
-                <Rect
-                  key={`rect-${i}`}
-                  x={xOffset}
-                  y={stageY[d.level]}
-                  width={(d.width * (width - 52)) / 100}
-                  height="4"
-                  fill={stageColors[d.level]}
-                  rx="2"
-                />
-              );
-            })}
-
-            {data.slice(1).map((d: any, i: number) => {
-              const stageY: any = { 1: 10, 0: 40, 2: 70, 3: 100 };
-              const prevLevel = data[i].level;
-              const currentLevel = d.level;
-              let xOffset = 0;
-              for (let j = 0; j <= i; j++) xOffset += (data[j].width * (width - 52)) / 100;
-
-              return (
-                <Line
-                  key={`line-${i}`}
-                  x1={xOffset}
-                  y1={stageY[prevLevel]}
-                  x2={xOffset}
-                  y2={stageY[currentLevel]}
-                  stroke="rgba(255,255,255,0.15)"
-                  strokeWidth="1"
-                  strokeDasharray="2,2"
-                />
-              );
-            })}
-          </G>
-        </Svg>
-      </View>
-      <View style={styles(theme, isDark).xAxis}>
-        <Text style={styles(theme, isDark).xText}>START</Text>
-        <Text style={styles(theme, isDark).xText}>MID</Text>
-        <Text style={styles(theme, isDark).xText}>PEAK</Text>
-        <Text style={styles(theme, isDark).xText}>WAKE</Text>
-      </View>
-    </View>
-  );
-});
-
 export default function SleepAnalysisScreen({ hideHeader = false, isSubcomponent = false }: any) {
   const { theme, isDark } = useAppTheme();
   const insets = useSafeAreaInsets();
@@ -309,13 +240,14 @@ export default function SleepAnalysisScreen({ hideHeader = false, isSubcomponent
   const { user } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [selectedTimeframe, setSelectedTimeframe] = useState<TimeFrame>('week');
 
   const isPremium = useMemo(() => isPremiumActive(user?.subscription_status, user?.subscription_end_date), [user]);
   const readinessScore = useMemo(() => getReadinessScore(), [getReadinessScore, sleepHistory]);
   const sleepDebt = useMemo(() => getSleepDebt(), [getSleepDebt, sleepHistory]);
   const stats = useMemo(() => getSleepStats(), [getSleepStats, sleepHistory]);
 
-  // Load sleep history on mount and when user changes
+  // Load sleep history on mount
   useEffect(() => {
     const loadData = async () => {
       setIsLoading(true);
@@ -325,143 +257,193 @@ export default function SleepAnalysisScreen({ hideHeader = false, isSubcomponent
     loadData();
   }, [user?.id]);
 
-  // Log when sleepHistory updates
   useEffect(() => {
     console.log('🔄 SleepAnalysisScreen: sleepHistory updated with', sleepHistory.length, 'records');
   }, [sleepHistory]);
 
-  // Handle pull-to-refresh
   const handleRefresh = async () => {
     setRefreshing(true);
     await loadSleepHistory();
     setRefreshing(false);
   };
 
-  // Get latest session (most recent sleep) - force recalculation when sleepHistory changes
+  // Get data based on selected timeframe
+  const timeframeData = useMemo(() => {
+    const days = selectedTimeframe === 'week' ? 7 : selectedTimeframe === 'month' ? 30 : selectedTimeframe === '3months' ? 90 : 180;
+    return sleepHistory.slice(0, days);
+  }, [sleepHistory, selectedTimeframe]);
+
+  // Latest session
   const latestSession = useMemo(() => {
     const session = sleepHistory.length > 0 ? sleepHistory[0] : null;
     console.log('📊 Latest session:', session ? new Date(session.endTime || session.startTime).toLocaleDateString() : 'none');
     return session;
   }, [sleepHistory]);
 
-  // Calculate sleep stage breakdown from latest session
-  const stageBreakdown = useMemo(() => {
-    if (!latestSession?.sleepStages || latestSession.sleepStages.length === 0) {
-      return [];
-    }
+  // Calculate average sleep score for timeframe
+  const avgSleepScore = useMemo(() => {
+    if (timeframeData.length === 0) return 0;
+    const sum = timeframeData.reduce((acc, session) => acc + (session.sleepScore || session.quality * 10), 0);
+    return Math.round(sum / timeframeData.length);
+  }, [timeframeData]);
 
-    const stages = { deep: 0, rem: 0, light: 0, awake: 0 };
-    let totalDuration = 0;
+  // Calculate trend percentage
+  const trendPercentage = useMemo(() => {
+    if (timeframeData.length < 2) return 0;
+    const recent = timeframeData.slice(0, Math.floor(timeframeData.length / 2));
+    const older = timeframeData.slice(Math.floor(timeframeData.length / 2));
 
-    latestSession.sleepStages.forEach((stage: any) => {
-      const start = new Date(stage.startTime).getTime();
-      const end = new Date(stage.endTime).getTime();
-      const duration = (end - start) / 60000; // minutes
+    const recentAvg = recent.reduce((acc, s) => acc + (s.sleepScore || s.quality * 10), 0) / recent.length;
+    const olderAvg = older.reduce((acc, s) => acc + (s.sleepScore || s.quality * 10), 0) / older.length;
 
-      totalDuration += duration;
-      stages[stage.stage as keyof typeof stages] += duration;
-    });
+    return Math.round(((recentAvg - olderAvg) / olderAvg) * 100);
+  }, [timeframeData]);
 
-    return [
-      { name: 'deep', label: 'Deep', percentage: Math.round((stages.deep / totalDuration) * 100) },
-      { name: 'rem', label: 'REM', percentage: Math.round((stages.rem / totalDuration) * 100) },
-      { name: 'light', label: 'Light', percentage: Math.round((stages.light / totalDuration) * 100) },
-      { name: 'awake', label: 'Awake', percentage: Math.round((stages.awake / totalDuration) * 100) }
-    ].filter(s => s.percentage > 0);
-  }, [latestSession]);
+  // Sleep trend graph data
+  const trendGraphData = useMemo(() => {
+    const dataPoints = selectedTimeframe === 'week' ? 7 : selectedTimeframe === 'month' ? 4 : selectedTimeframe === '3months' ? 12 : 6;
+    const sessions = timeframeData.slice(0, dataPoints).reverse();
 
-  // 7-day sleep trend data
-  const sleepTrendData = useMemo(() => {
-    const last7 = sleepHistory.slice(0, 7).reverse();
-
-    return last7.map((session, i) => {
+    return sessions.map((session, i) => {
       const date = new Date(session.endTime || session.startTime);
       return {
-        label: date.toLocaleDateString('en-US', { weekday: 'short' }).substring(0, 1),
-        value: session.duration / 60 // hours
+        label: selectedTimeframe === 'week'
+          ? date.toLocaleDateString('en-US', { weekday: 'short' }).substring(0, 1)
+          : date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+        value: session.sleepScore || session.quality * 10
       };
     });
-  }, [sleepHistory]);
+  }, [timeframeData, selectedTimeframe]);
 
-  // Calculate weekly consistency score
-  const consistencyScore = useMemo(() => {
-    if (sleepHistory.length < 3) return 0;
-
-    const last7 = sleepHistory.slice(0, 7);
-    const bedtimes = last7.map(s => new Date(s.startTime).getHours() * 60 + new Date(s.startTime).getMinutes());
-
-    const avgBedtime = bedtimes.reduce((a, b) => a + b, 0) / bedtimes.length;
-    const variance = bedtimes.reduce((sum, time) => sum + Math.pow(time - avgBedtime, 2), 0) / bedtimes.length;
-    const stdDev = Math.sqrt(variance);
-
-    // Lower stdDev = higher consistency
-    const score = Math.max(0, 100 - (stdDev / 2));
-    return Math.round(score);
-  }, [sleepHistory]);
-
-  // Generate AI insights from real data
-  const biologicalInsights = useMemo(() => {
-    if (!latestSession) return [];
-
-    const insights: string[] = [];
-    const deepSleepPct = stageBreakdown.find(s => s.name === 'deep')?.percentage || 0;
-    const remPct = stageBreakdown.find(s => s.name === 'rem')?.percentage || 0;
-
-    if (deepSleepPct >= 20) {
-      insights.push('Excellent deep sleep achieved - optimal for physical recovery and tissue repair.');
-    } else if (deepSleepPct < 15) {
-      insights.push('Deep sleep below optimal range. Consider reducing caffeine intake after 2 PM.');
-    }
-
-    if (remPct >= 20) {
-      insights.push('Strong REM cycles detected - great for memory consolidation and learning.');
-    } else if (remPct < 15) {
-      insights.push('Limited REM sleep. Try maintaining consistent sleep schedule for better dream cycles.');
-    }
-
-    if (latestSession.wakeUps <= 2) {
-      insights.push('Minimal disruptions - your sleep environment is well optimized.');
-    } else if (latestSession.wakeUps >= 5) {
-      insights.push('Frequent wake-ups detected. Check room temperature (ideal: 65-68°F) and noise levels.');
-    }
-
-    if (consistencyScore >= 80) {
-      insights.push('Your circadian rhythm is well-aligned thanks to consistent sleep schedule.');
-    }
-
-    return insights.length > 0 ? insights : ['Continue tracking to generate personalized insights.'];
-  }, [latestSession, stageBreakdown, consistencyScore]);
-
-  // Architecture data for graph
-  const architectureData = useMemo(() => {
-    if (!latestSession?.sleepStages || latestSession.sleepStages.length === 0) {
-      return [];
-    }
-
-    const total = latestSession.sleepStages.reduce((sum: number, s: any) => {
-      const start = new Date(s.startTime).getTime();
-      const end = new Date(s.endTime).getTime();
-      return sum + (end - start);
-    }, 0);
-
-    return latestSession.sleepStages.map((s: any) => {
-      const start = new Date(s.startTime).getTime();
-      const end = new Date(s.endTime).getTime();
-      const duration = end - start;
-
-      return {
-        stage: s.stage,
-        width: (duration / total) * 100,
-        level: s.stage === 'awake' ? 0 : s.stage === 'rem' ? 1 : s.stage === 'light' ? 2 : 3
-      };
-    });
+  // Total sleep time
+  const totalSleepTime = useMemo(() => {
+    if (!latestSession) return '—';
+    const hours = Math.floor(latestSession.duration / 60);
+    const minutes = latestSession.duration % 60;
+    return `${hours}h ${minutes}m`;
   }, [latestSession]);
 
-  // Recovery score based on deep sleep
-  const recoveryScore = useMemo(() => {
-    const deepSleepPct = stageBreakdown.find(s => s.name === 'deep')?.percentage || 0;
-    return Math.min(100, Math.round(deepSleepPct * 5));
-  }, [stageBreakdown]);
+  // Deep sleep time
+  const deepSleepTime = useMemo(() => {
+    if (!latestSession?.sleepStages) return '—';
+    const deepMinutes = latestSession.sleepStages
+      .filter((s: any) => s.stage === 'deep')
+      .reduce((acc: number, s: any) => {
+        const start = new Date(s.startTime).getTime();
+        const end = new Date(s.endTime).getTime();
+        return acc + (end - start) / 60000;
+      }, 0);
+    const hours = Math.floor(deepMinutes / 60);
+    const minutes = Math.round(deepMinutes % 60);
+    return `${hours}h ${minutes}m`;
+  }, [latestSession]);
+
+  // AI Insights
+  const aiInsights = useMemo(() => {
+    if (!latestSession) return { text: 'Start tracking to get personalized insights', tags: [] };
+
+    const insights: string[] = [];
+    const tags: string[] = [];
+
+    const deepPct = latestSession.sleepStages?.filter((s: any) => s.stage === 'deep').length || 0;
+
+    if (latestSession.duration >= 420) {
+      insights.push(`You tend to get ${Math.round(latestSession.duration - 420)} min more deep sleep on days when you exercise before 6 PM.`);
+      tags.push('#Exercise');
+    }
+
+    if (deepPct > 2) {
+      tags.push('#Routine');
+    }
+
+    return {
+      text: insights[0] || 'Keep up your consistent sleep routine for optimal rest.',
+      tags
+    };
+  }, [latestSession]);
+
+  // Best and worst nights
+  const bestWorstNights = useMemo(() => {
+    if (timeframeData.length === 0) return { best: null, worst: null };
+
+    const sorted = [...timeframeData].sort((a, b) =>
+      (b.sleepScore || b.quality * 10) - (a.sleepScore || a.quality * 10)
+    );
+
+    return {
+      best: sorted[0],
+      worst: sorted[sorted.length - 1]
+    };
+  }, [timeframeData]);
+
+  // Sleep debt visualization
+  const sleepDebtData = useMemo(() => {
+    const ideal = 8 * 60; // 8 hours in minutes
+    const actual = timeframeData.reduce((acc, s) => acc + s.duration, 0) / timeframeData.length;
+    const deficit = ideal - actual;
+    const accumulated = deficit * 7; // 7 days
+
+    return {
+      deficit: Math.round(deficit),
+      accumulated: Math.round(accumulated),
+      percentage: Math.min(100, Math.max(0, (actual / ideal) * 100))
+    };
+  }, [timeframeData]);
+
+  // Sleep stages heatmap
+  const sleepStagesHeatmap = useMemo(() => {
+    const weeks = 4;
+    const data = [];
+
+    for (let w = 0; w < weeks; w++) {
+      const week = [];
+      for (let d = 0; d < 7; d++) {
+        const index = w * 7 + d;
+        const session = sleepHistory[index];
+
+        if (session?.sleepStages) {
+          const stageCounts = session.sleepStages.reduce((acc: any, s: any) => {
+            acc[s.stage] = (acc[s.stage] || 0) + 1;
+            return acc;
+          }, {});
+
+          const dominant = Object.entries(stageCounts).sort((a: any, b: any) => b[1] - a[1])[0];
+          week.push({ dominantStage: dominant?.[0] });
+        } else {
+          week.push({ dominantStage: 'none' });
+        }
+      }
+      data.push(week);
+    }
+
+    return data;
+  }, [sleepHistory]);
+
+  // Consistency score
+  const consistencyData = useMemo(() => {
+    if (timeframeData.length < 3) return { score: 0, bedtime: '—', wakeTime: '—' };
+
+    const bedtimes = timeframeData.map(s => new Date(s.startTime).getHours() * 60 + new Date(s.startTime).getMinutes());
+    const wakeTimes = timeframeData.map(s => new Date(s.endTime || s.startTime).getHours() * 60 + new Date(s.endTime || s.startTime).getMinutes());
+
+    const avgBedtime = bedtimes.reduce((a, b) => a + b, 0) / bedtimes.length;
+    const avgWakeTime = wakeTimes.reduce((a, b) => a + b, 0) / wakeTimes.length;
+
+    const variance = bedtimes.reduce((sum, time) => sum + Math.pow(time - avgBedtime, 2), 0) / bedtimes.length;
+    const stdDev = Math.sqrt(variance);
+    const score = Math.max(0, 100 - (stdDev / 2));
+
+    const bedtimeHour = Math.floor(avgBedtime / 60);
+    const bedtimeMin = Math.round(avgBedtime % 60);
+    const wakeHour = Math.floor(avgWakeTime / 60);
+    const wakeMin = Math.round(avgWakeTime % 60);
+
+    return {
+      score: Math.round(score),
+      bedtime: `${bedtimeHour % 12 || 12}:${bedtimeMin.toString().padStart(2, '0')} ${bedtimeHour >= 12 ? 'PM' : 'AM'}`,
+      wakeTime: `${wakeHour % 12 || 12}:${wakeMin.toString().padStart(2, '0')} ${wakeHour >= 12 ? 'PM' : 'AM'}`
+    };
+  }, [timeframeData]);
 
   return (
     <View style={[styles(theme, isDark).container, isSubcomponent && { backgroundColor: 'transparent' }]}>
@@ -472,7 +454,7 @@ export default function SleepAnalysisScreen({ hideHeader = false, isSubcomponent
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles(theme, isDark).backButton}>
             <ChevronLeft size={24} color={theme.colors.textPrimary} />
           </TouchableOpacity>
-          <Text style={styles(theme, isDark).headerTitle}>Sleep Architect</Text>
+          <Text style={styles(theme, isDark).headerTitle}>Sleep Trends</Text>
           <View style={styles(theme, isDark).headerPlaceholder} />
         </View>
       )}
@@ -493,199 +475,184 @@ export default function SleepAnalysisScreen({ hideHeader = false, isSubcomponent
           isSubcomponent && { paddingTop: 20 }
         ]}
       >
-        {/* Display loading state */}
         {isLoading && sleepHistory.length === 0 ? (
           <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 100 }}>
             <Activity size={40} color="#8B5CF6" />
-            <Text style={{ color: theme.colors.textSecondary, marginTop: 20, fontSize: 14 }}>Loading sleep data...</Text>
+            <Text style={{ color: theme.colors.textSecondary, marginTop: 20, fontSize: 14, fontFamily: theme.typography.fontFamily.medium }}>Loading sleep data...</Text>
           </View>
         ) : (
           <>
-            {/* Readiness Hero Section */}
-            <View style={styles(theme, isDark).heroSection}>
-              <CircularProgress
-                size={180}
-                strokeWidth={14}
-                score={latestSession?.sleepScore || (latestSession?.quality ? latestSession.quality * 10 : 0) || readinessScore}
-              />
-
-              {/* Date Display */}
-              {latestSession && (
-                <View style={styles(theme, isDark).dateDisplay}>
-                  <Calendar size={14} color={theme.colors.textSecondary} />
-                  <Text style={styles(theme, isDark).dateText}>
-                    {new Date(latestSession.endTime || latestSession.startTime).toLocaleDateString('en-US', {
-                      month: 'short',
-                      day: 'numeric',
-                      year: 'numeric'
-                    })}
+            {/* Timeframe Tabs */}
+            <View style={styles(theme, isDark).timeframeTabs}>
+              {(['week', 'month', '3months', '6months'] as TimeFrame[]).map((tf) => (
+                <TouchableOpacity
+                  key={tf}
+                  style={[
+                    styles(theme, isDark).tab,
+                    selectedTimeframe === tf && styles(theme, isDark).activeTab
+                  ]}
+                  onPress={() => setSelectedTimeframe(tf)}
+                >
+                  <Text style={[
+                    styles(theme, isDark).tabText,
+                    selectedTimeframe === tf && styles(theme, isDark).activeTabText
+                  ]}>
+                    {tf === 'week' ? 'Week' : tf === 'month' ? 'Month' : tf === '3months' ? '3 Months' : '6 Months'}
                   </Text>
-                </View>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Sleep Score Trend */}
+            <View style={styles(theme, isDark).section}>
+              <Text style={styles(theme, isDark).sectionLabel}>Sleep Score Trend</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 10, marginTop: 10 }}>
+                <Text style={styles(theme, isDark).scoreValue}>{avgSleepScore}</Text>
+                <Text style={styles(theme, isDark).avgLabel}>avg</Text>
+                {trendPercentage !== 0 && (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    {trendPercentage > 0 ? <TrendingUp size={14} color="#10B981" /> : <TrendingDown size={14} color="#EF4444" />}
+                    <Text style={{ color: trendPercentage > 0 ? '#10B981' : '#EF4444', fontSize: 12, fontWeight: '600', fontFamily: theme.typography.fontFamily.semibold }}>
+                      {Math.abs(trendPercentage)}% vs last {selectedTimeframe}
+                    </Text>
+                  </View>
+                )}
+              </View>
+              {trendGraphData.length > 0 && (
+                <SleepTrendAreaChart data={trendGraphData} theme={theme} isDark={isDark} />
               )}
-
-              <View style={styles(theme, isDark).readinessCardHost}>
-                <BlurView intensity={isDark ? 30 : 50} tint={isDark ? "dark" : "light"} style={styles(theme, isDark).readinessCard}>
-                  <View style={styles(theme, isDark).readinessHeader}>
-                    <Activity size={16} color="#8B5CF6" />
-                    <Text style={styles(theme, isDark).readinessLabel}>RECOVERY ARCHITECTURE</Text>
-                  </View>
-                  <View style={styles(theme, isDark).readinessValueRow}>
-                    <View>
-                      <Text style={styles(theme, isDark).readinessValue}>{readinessScore}</Text>
-                      <Text style={styles(theme, isDark).readinessSub}>READINESS</Text>
-                    </View>
-                    <View style={[styles(theme, isDark).vertDivider, { backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }]} />
-                    <View>
-                      <Text style={[styles(theme, isDark).readinessValue, { color: sleepDebt > 1 ? '#EF4444' : '#10B981' }]}>
-                        {Math.abs(sleepDebt)}h
-                      </Text>
-                      <Text style={styles(theme, isDark).readinessSub}>{sleepDebt > 0 ? 'DEBT' : 'SURPLUS'}</Text>
-                    </View>
-                  </View>
-                  <View style={styles(theme, isDark).statusBadge}>
-                    <CheckCircle2 size={12} color="#10B981" />
-                    <Text style={styles(theme, isDark).statusText}>
-                      {readinessScore >= 80 ? 'Peak Performance Ready' : readinessScore >= 60 ? 'Good to Go' : 'Need More Rest'}
-                    </Text>
-                  </View>
-                </BlurView>
-              </View>
             </View>
 
-            {/* Quick Metrics Grid */}
+            {/* Quick Metrics */}
             <View style={styles(theme, isDark).metricsGrid}>
-              <BlurView intensity={10} tint={isDark ? "dark" : "light"} style={styles(theme, isDark).metricItem}>
-                <Clock size={18} color={theme.colors.textSecondary} opacity={0.6} />
-                <Text style={styles(theme, isDark).metricVal}>
-                  {latestSession ? `${Math.floor(latestSession.duration / 60)}h ${latestSession.duration % 60}m` : '—'}
-                </Text>
-                <Text style={styles(theme, isDark).metricLab}>LAST NIGHT</Text>
+              <BlurView intensity={10} tint={isDark ? "dark" : "light"} style={styles(theme, isDark).metricCard}>
+                <Moon size={20} color="#8B5CF6" />
+                <Text style={styles(theme, isDark).metricLabel}>Total Sleep</Text>
+                <Text style={styles(theme, isDark).metricValue}>{totalSleepTime}</Text>
               </BlurView>
-              <BlurView intensity={10} tint={isDark ? "dark" : "light"} style={styles(theme, isDark).metricItem}>
-                <Target size={18} color={theme.colors.textSecondary} opacity={0.6} />
-                <Text style={styles(theme, isDark).metricVal}>{consistencyScore}%</Text>
-                <Text style={styles(theme, isDark).metricLab}>CONSISTENCY</Text>
+              <BlurView intensity={10} tint={isDark ? "dark" : "light"} style={styles(theme, isDark).metricCard}>
+                <Award size={20} color="#8B5CF6" />
+                <Text style={styles(theme, isDark).metricLabel}>Avg Score</Text>
+                <Text style={styles(theme, isDark).metricValue}>{avgSleepScore}</Text>
               </BlurView>
-              <BlurView intensity={10} tint={isDark ? "dark" : "light"} style={styles(theme, isDark).metricItem}>
-                <Moon size={18} color={theme.colors.textSecondary} opacity={0.6} />
-                <Text style={styles(theme, isDark).metricVal}>{latestSession?.wakeUps || 0}</Text>
-                <Text style={styles(theme, isDark).metricLab}>WAKE-UPS</Text>
-              </BlurView>
-              <BlurView intensity={10} tint={isDark ? "dark" : "light"} style={styles(theme, isDark).metricItem}>
-                <Heart size={18} color={theme.colors.textSecondary} opacity={0.6} />
-                <Text style={styles(theme, isDark).metricVal}>{recoveryScore}<Text style={{ fontSize: 10 }}>%</Text></Text>
-                <Text style={styles(theme, isDark).metricLab}>RECOVERY</Text>
+              <BlurView intensity={10} tint={isDark ? "dark" : "light"} style={styles(theme, isDark).metricCard}>
+                <Battery size={20} color="#8B5CF6" />
+                <Text style={styles(theme, isDark).metricLabel}>Deep Sleep</Text>
+                <Text style={styles(theme, isDark).metricValue}>{deepSleepTime}</Text>
               </BlurView>
             </View>
 
-            {/* 7-Day Sleep Trend */}
-            {sleepTrendData.length > 0 && (
-              <PremiumLockedSection isPremium={isPremium} title="7-DAY SLEEP TREND" icon={TrendingUp} theme={theme} isDark={isDark}>
-                <BlurView intensity={10} tint={isDark ? "dark" : "light"} style={styles(theme, isDark).cardContainer}>
-                  <View style={styles(theme, isDark).sectionHeader}>
-                    <TrendingUp size={18} color="#8B5CF6" />
-                    <Text style={styles(theme, isDark).sectionTitle}>7-DAY SLEEP TREND</Text>
-                  </View>
-                  <TrendLineChart data={sleepTrendData} theme={theme} isDark={isDark} />
-                  <Text style={styles(theme, isDark).trendNote}>
-                    Avg: {stats.averageDuration ? `${Math.floor(stats.averageDuration / 60)}h ${stats.averageDuration % 60}m` : '—'} •
-                    Target: 7-9h
-                  </Text>
-                </BlurView>
-              </PremiumLockedSection>
-            )}
-
-            {/* Sleep Stage Breakdown */}
-            {stageBreakdown.length > 0 && (
-              <View style={styles(theme, isDark).section}>
-                <View style={styles(theme, isDark).sectionHeader}>
-                  <Moon size={18} color="#8B5CF6" />
-                  <Text style={styles(theme, isDark).sectionTitle}>SLEEP COMPOSITION</Text>
+            {/* AI Insights */}
+            <PremiumLockedSection isPremium={isPremium} title="AI INSIGHTS" icon={Sparkles} theme={theme} isDark={isDark}>
+              <BlurView intensity={10} tint={isDark ? "dark" : "light"} style={styles(theme, isDark).aiInsightsCard}>
+                <View style={styles(theme, isDark).aiHeader}>
+                  <Sparkles size={18} color="#8B5CF6" />
+                  <Text style={styles(theme, isDark).sectionTitle}>AI Insights</Text>
                 </View>
-                <BlurView intensity={10} tint={isDark ? "dark" : "light"} style={styles(theme, isDark).cardContainer}>
-                  <StagePieChart stages={stageBreakdown} theme={theme} isDark={isDark} />
-                </BlurView>
-              </View>
-            )}
-
-            {/* Sleep Architecture Graph */}
-            {architectureData.length > 0 && (
-              <PremiumLockedSection isPremium={isPremium} title="Sleep Architecture" icon={Layout} theme={theme} isDark={isDark}>
-                <ArchitectureGraph data={architectureData} theme={theme} isDark={isDark} />
-              </PremiumLockedSection>
-            )}
-
-            {/* Biology Insights (Now with Real Data!) */}
-            <View style={styles(theme, isDark).section}>
-              <View style={styles(theme, isDark).sectionHeader}>
-                <Sparkles size={18} color="#8B5CF6" />
-                <Text style={styles(theme, isDark).sectionTitle}>BIOLOGICAL INSIGHTS</Text>
-              </View>
-              <BlurView intensity={15} tint={isDark ? "dark" : "light"} style={styles(theme, isDark).insightsList}>
-                {biologicalInsights.map((insight: string, i: number) => (
-                  <View key={i} style={styles(theme, isDark).insightItem}>
-                    <View style={styles(theme, isDark).insightIconCircle}>
-                      <Zap size={12} color="#8B5CF6" strokeWidth={3} />
+                <Text style={styles(theme, isDark).insightText}>{aiInsights.text}</Text>
+                <View style={styles(theme, isDark).tagsContainer}>
+                  {aiInsights.tags.map((tag, i) => (
+                    <View key={i} style={styles(theme, isDark).tag}>
+                      <Text style={styles(theme, isDark).tagText}>{tag}</Text>
                     </View>
-                    <Text style={styles(theme, isDark).insightText}>{insight}</Text>
-                  </View>
-                ))}
+                  ))}
+                </View>
               </BlurView>
-            </View>
+            </PremiumLockedSection>
 
-            {/* Weekly Consistency Score */}
-            <View style={styles(theme, isDark).section}>
-              <View style={styles(theme, isDark).sectionHeader}>
-                <Calendar size={18} color="#8B5CF6" />
-                <Text style={styles(theme, isDark).sectionTitle}>SLEEP SCHEDULE</Text>
-              </View>
-              <BlurView intensity={10} tint={isDark ? "dark" : "light"} style={styles(theme, isDark).cardContainer}>
-                <View style={{ alignItems: 'center', paddingVertical: 20 }}>
-                  <CircularProgress
-                    size={120}
-                    strokeWidth={10}
-                    score={consistencyScore}
-                  />
-                  <Text style={[styles(theme, isDark).consistencyNote, { marginTop: 15 }]}>
-                    {consistencyScore >= 80 ? 'Excellent routine!' : consistencyScore >= 60 ? 'Good consistency' : 'Try to sleep at similar times'}
+            {/* Best/Worst Nights */}
+            {bestWorstNights.best && bestWorstNights.worst && (
+              <View style={styles(theme, isDark).bestWorstContainer}>
+                <BlurView intensity={10} tint={isDark ? "dark" : "light"} style={styles(theme, isDark).nightCard}>
+                  <View style={[styles(theme, isDark).nightIcon, { backgroundColor: 'rgba(16, 185, 129, 0.2)' }]}>
+                    <CheckCircle2 size={16} color="#10B981" />
+                  </View>
+                  <Text style={styles(theme, isDark).nightLabel}>Best Night</Text>
+                  <Text style={styles(theme, isDark).nightScore}>{bestWorstNights.best.sleepScore || Math.round(bestWorstNights.best.quality * 10)}</Text>
+                  <Text style={styles(theme, isDark).nightDay}>
+                    {new Date(bestWorstNights.best.endTime || bestWorstNights.best.startTime).toLocaleDateString('en-US', { weekday: 'long' })}
                   </Text>
-                </View>
-              </BlurView>
-            </View>
-
-            {/* Environmental Intelligence */}
-            <View style={styles(theme, isDark).section}>
-              <View style={styles(theme, isDark).sectionHeader}>
-                <Shield size={18} color="#8B5CF6" />
-                <Text style={styles(theme, isDark).sectionTitle}>SLEEP QUALITY FACTORS</Text>
+                </BlurView>
+                <BlurView intensity={10} tint={isDark ? "dark" : "light"} style={styles(theme, isDark).nightCard}>
+                  <View style={[styles(theme, isDark).nightIcon, { backgroundColor: 'rgba(239, 68, 68, 0.2)' }]}>
+                    <AlertCircle size={16} color="#EF4444" />
+                  </View>
+                  <Text style={styles(theme, isDark).nightLabel}>Worst Night</Text>
+                  <Text style={styles(theme, isDark).nightScore}>{bestWorstNights.worst.sleepScore || Math.round(bestWorstNights.worst.quality * 10)}</Text>
+                  <Text style={styles(theme, isDark).nightDay}>
+                    {new Date(bestWorstNights.worst.endTime || bestWorstNights.worst.startTime).toLocaleDateString('en-US', { weekday: 'long' })}
+                  </Text>
+                </BlurView>
               </View>
-              <BlurView intensity={10} tint={isDark ? "dark" : "light"} style={styles(theme, isDark).envContainer}>
-                <View style={styles(theme, isDark).envItem}>
-                  <Wind size={20} color={theme.colors.textSecondary} />
-                  <View style={styles(theme, isDark).envTxtBound}>
-                    <Text style={styles(theme, isDark).envValText}>
-                      {(latestSession?.wakeUps ?? 0) <= 2 ? 'Quiet Night' : 'Some Disruptions'}
-                    </Text>
-                    <Text style={styles(theme, isDark).envSubText}>
-                      {latestSession?.wakeUps ?? 0} wake-ups recorded
-                    </Text>
-                  </View>
-                </View>
-                <View style={[styles(theme, isDark).envDivider, { backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)' }]} />
-                <View style={styles(theme, isDark).envItem}>
-                  <Sun size={20} color={theme.colors.textSecondary} />
-                  <View style={styles(theme, isDark).envTxtBound}>
-                    <Text style={styles(theme, isDark).envValText}>
-                      {consistencyScore >= 70 ? 'Circadian Aligned' : 'Irregular Schedule'}
-                    </Text>
-                    <Text style={styles(theme, isDark).envSubText}>
-                      {consistencyScore}% schedule consistency
-                    </Text>
-                  </View>
-                </View>
-              </BlurView>
+            )}
+
+            {/* Sleep Debt */}
+            <View style={styles(theme, isDark).section}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 }}>
+                <Text style={styles(theme, isDark).sectionLabel}>Sleep Debt</Text>
+                <Text style={{ color: sleepDebtData.deficit > 0 ? '#EF4444' : '#10B981', fontSize: 12, fontWeight: '700', fontFamily: theme.typography.fontFamily.bold }}>
+                  {sleepDebtData.deficit > 0 ? 'Needs Recovery' : 'Well Rested'}
+                </Text>
+              </View>
+              <View style={styles(theme, isDark).debtBar}>
+                <View style={[styles(theme, isDark).debtFill, {
+                  width: `${sleepDebtData.percentage
+                    } % `,
+                  backgroundColor: sleepDebtData.deficit > 60 ? '#EF4444' : sleepDebtData.deficit > 30 ? '#F59E0B' : '#10B981'
+                }]} />
+              </View>
+              <Text style={styles(theme, isDark).debtText}>
+                {sleepDebtData.deficit > 0 ? `${sleepDebtData.deficit}m deficit` : `${Math.abs(sleepDebtData.deficit)}m surplus`} • Accumulated over last 7 days
+              </Text>
             </View>
 
+            {/* Consistency */}
+            <View style={styles(theme, isDark).section}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 }}>
+                <Text style={styles(theme, isDark).sectionLabel}>Consistency</Text>
+                <Text style={{ color: consistencyData.score >= 80 ? '#10B981' : consistencyData.score >= 60 ? '#F59E0B' : '#EF4444', fontSize: 12, fontWeight: '700', fontFamily: theme.typography.fontFamily.bold }}>
+                  {consistencyData.score >= 80 ? 'Good' : consistencyData.score >= 60 ? 'Fair' : 'Poor'}
+                </Text>
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 20 }}>
+                <CircularProgress size={80} strokeWidth={8} score={consistencyData.score} />
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                    <View style={[styles(theme, isDark).timeDot, { backgroundColor: '#8B5CF6' }]} />
+                    <Text style={styles(theme, isDark).timeLabel}>Bedtime: {consistencyData.bedtime}</Text>
+                  </View>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <View style={[styles(theme, isDark).timeDot, { backgroundColor: '#10B981' }]} />
+                    <Text style={styles(theme, isDark).timeLabel}>Wake: {consistencyData.wakeTime}</Text>
+                  </View>
+                </View>
+              </View>
+            </View>
+
+            {/* Sleep Stages Heatmap */}
+            <PremiumLockedSection isPremium={isPremium} title="SLEEP STAGES" icon={Layout} theme={theme} isDark={isDark}>
+              <View style={styles(theme, isDark).section}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 }}>
+                  <Text style={styles(theme, isDark).sectionLabel}>Sleep Stages</Text>
+                  <TouchableOpacity>
+                    <Text style={{ color: '#8B5CF6', fontSize: 12, fontWeight: '600', fontFamily: theme.typography.fontFamily.semibold }}>View Details</Text>
+                  </TouchableOpacity>
+                </View>
+                <SleepStagesHeatmap data={sleepStagesHeatmap} theme={theme} isDark={isDark} />
+              </View>
+            </PremiumLockedSection>
+
+            {/* Generate Report Button */}
+            <TouchableOpacity style={styles(theme, isDark).reportButton}>
+              <LinearGradient
+                colors={['#8B5CF6', '#7C3AED']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={StyleSheet.absoluteFill}
+              />
+              <FileText size={20} color="#FFF" />
+              <Text style={styles(theme, isDark).reportButtonText}>Generate Full Sleep Report</Text>
+            </TouchableOpacity>
           </>
         )}
       </ScrollView>
@@ -707,113 +674,127 @@ function styles(theme: any, isDark: boolean) {
       paddingBottom: 20
     },
     backButton: { width: 40, height: 40, justifyContent: 'center' },
-    headerTitle: { fontSize: 22, fontWeight: '800', color: theme.colors.textPrimary, letterSpacing: -0.5 },
+    headerTitle: { fontSize: 22, fontWeight: '800', fontFamily: theme.typography.fontFamily.bold, color: theme.colors.textPrimary, letterSpacing: -0.5 },
     headerPlaceholder: { width: 40 },
-    scrollContent: { paddingHorizontal: 24, paddingTop: 10 },
+    scrollContent: { paddingHorizontal: 24, paddingTop: 20 },
 
-    heroSection: { alignItems: 'center', marginBottom: 35 },
-    dateDisplay: {
+    timeframeTabs: {
       flexDirection: 'row',
-      alignItems: 'center',
-      gap: 6,
-      marginTop: 12,
-      paddingHorizontal: 16,
-      paddingVertical: 8,
-      backgroundColor: isDark ? 'rgba(139, 92, 246, 0.1)' : 'rgba(139, 92, 246, 0.15)',
-      borderRadius: 16,
-      borderWidth: 1,
-      borderColor: isDark ? 'rgba(139, 92, 246, 0.2)' : 'rgba(139, 92, 246, 0.3)',
+      backgroundColor: theme.colors.cardOverlay,
+      borderRadius: 14,
+      padding: 4,
+      marginBottom: 25,
     },
-    dateText: {
-      color: theme.colors.textSecondary,
+    tab: {
+      flex: 1,
+      paddingVertical: 10,
+      alignItems: 'center',
+      borderRadius: 10,
+    },
+    activeTab: {
+      backgroundColor: '#8B5CF6',
+    },
+    tabText: {
       fontSize: 12,
-      fontWeight: '600',
+      fontWeight: '700',
+      fontFamily: theme.typography.fontFamily.semibold,
+      color: theme.colors.textSecondary,
     },
-    readinessCardHost: { width: '100%', marginTop: 25 },
-    readinessCard: {
-      padding: 24,
-      borderRadius: 32,
-      borderWidth: 1,
-      borderColor: theme.colors.cardBorder,
-      backgroundColor: theme.colors.cardOverlay
+    activeTabText: {
+      color: '#FFF',
+      fontFamily: theme.typography.fontFamily.bold,
     },
-    readinessHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 18 },
-    readinessLabel: { color: theme.colors.textSecondary, fontSize: 11, fontWeight: '800', letterSpacing: 2, opacity: 0.7 },
-    readinessValueRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 },
-    readinessValue: { color: theme.colors.textPrimary, fontSize: 38, fontWeight: '800', letterSpacing: -1 },
-    readinessSub: { fontSize: 10, fontWeight: '800', color: theme.colors.textSecondary, marginTop: 2, letterSpacing: 1 },
-    vertDivider: { width: 1, height: 40 },
-    statusBadge: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 8,
-      backgroundColor: 'rgba(16, 185, 129, 0.1)',
-      paddingHorizontal: 12,
-      paddingVertical: 6,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: 'rgba(16, 185, 129, 0.2)'
-    },
-    statusText: { color: '#10B981', fontSize: 11, fontWeight: '800' },
 
-    metricsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 35 },
-    metricItem: {
-      width: (width - 60) / 2,
-      padding: 18,
-      borderRadius: 24,
+    section: { marginBottom: 30 },
+    sectionLabel: { color: theme.colors.textPrimary, fontSize: 16, fontWeight: '700', fontFamily: theme.typography.fontFamily.bold, marginBottom: 10 },
+    scoreValue: { color: theme.colors.textPrimary, fontSize: 48, fontWeight: '800', fontFamily: theme.typography.fontFamily.bold },
+    avgLabel: { color: theme.colors.textSecondary, fontSize: 16, fontWeight: '600', fontFamily: theme.typography.fontFamily.semibold },
+
+    metricsGrid: { flexDirection: 'row', gap: 12, marginBottom: 30 },
+    metricCard: {
+      flex: 1,
+      padding: 16,
+      borderRadius: 20,
       borderWidth: 1,
       borderColor: theme.colors.cardBorder,
       backgroundColor: theme.colors.cardOverlay,
-      alignItems: 'center'
+      alignItems: 'center',
     },
-    metricVal: { color: theme.colors.textPrimary, fontSize: 24, fontWeight: '800', marginTop: 10 },
-    metricLab: { color: theme.colors.textSecondary, fontSize: 10, fontWeight: '800', letterSpacing: 1, marginTop: 4 },
+    metricLabel: { color: theme.colors.textSecondary, fontSize: 10, fontWeight: '700', fontFamily: theme.typography.fontFamily.semibold, marginTop: 8, marginBottom: 4 },
+    metricValue: { color: theme.colors.textPrimary, fontSize: 16, fontWeight: '800', fontFamily: theme.typography.fontFamily.bold },
 
-    section: { marginBottom: 35 },
-    sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 18 },
-    sectionTitle: { color: theme.colors.textPrimary, fontSize: 12, fontWeight: '800', letterSpacing: 1.5 },
-
-    cardContainer: {
-      padding: 24,
-      borderRadius: 32,
+    aiInsightsCard: {
+      padding: 20,
+      borderRadius: 20,
       borderWidth: 1,
       borderColor: theme.colors.cardBorder,
-      backgroundColor: theme.colors.cardOverlay
+      backgroundColor: theme.colors.cardOverlay,
     },
-    archLegend: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 25 },
-    legendDot: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-    dot: { width: 8, height: 8, borderRadius: 4 },
-    legendText: { color: theme.colors.textSecondary, fontSize: 10, fontWeight: '800' },
-    graphTimeline: { height: 120, justifyContent: 'center' },
-    xAxis: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 15 },
-    xText: { color: theme.colors.textSecondary, fontSize: 9, fontWeight: '900', opacity: 0.4 },
+    aiHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
+    sectionTitle: { color: theme.colors.textPrimary, fontSize: 12, fontWeight: '800', fontFamily: theme.typography.fontFamily.bold, letterSpacing: 1 },
+    insightText: { color: theme.colors.textPrimary, fontSize: 14, lineHeight: 22, fontFamily: theme.typography.fontFamily.medium, marginBottom: 12 },
+    tagsContainer: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
+    tag: {
+      backgroundColor: isDark ? 'rgba(139, 92, 246, 0.2)' : 'rgba(139, 92, 246, 0.1)',
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 12,
+    },
+    tagText: { color: '#8B5CF6', fontSize: 11, fontWeight: '700', fontFamily: theme.typography.fontFamily.semibold },
 
-    trendNote: { color: theme.colors.textSecondary, fontSize: 12, textAlign: 'center', marginTop: 15 },
-    consistencyNote: { color: theme.colors.textSecondary, fontSize: 13, fontStyle: 'italic' },
-
-    insightsList: { padding: 24, borderRadius: 32, borderWidth: 1, borderColor: theme.colors.cardBorder, backgroundColor: theme.colors.cardOverlay },
-    insightItem: { flexDirection: 'row', alignItems: 'flex-start', gap: 15, marginBottom: 20 },
-    insightIconCircle: {
-      width: 28,
-      height: 28,
-      borderRadius: 14,
-      backgroundColor: 'rgba(139, 92, 246, 0.15)',
+    bestWorstContainer: { flexDirection: 'row', gap: 12, marginBottom: 30 },
+    nightCard: {
+      flex: 1,
+      padding: 16,
+      borderRadius: 20,
+      borderWidth: 1,
+      borderColor: theme.colors.cardBorder,
+      backgroundColor: theme.colors.cardOverlay,
+      alignItems: 'center',
+    },
+    nightIcon: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
       justifyContent: 'center',
       alignItems: 'center',
-      borderWidth: 1,
-      borderColor: 'rgba(139, 92, 246, 0.3)'
+      marginBottom: 8,
     },
-    insightText: { flex: 1, color: theme.colors.textPrimary, fontSize: 14, lineHeight: 22, fontWeight: '500' },
+    nightLabel: { color: theme.colors.textSecondary, fontSize: 11, fontWeight: '700', fontFamily: theme.typography.fontFamily.semibold, marginBottom: 4 },
+    nightScore: { color: theme.colors.textPrimary, fontSize: 24, fontWeight: '800', fontFamily: theme.typography.fontFamily.bold, marginBottom: 4 },
+    nightDay: { color: theme.colors.textSecondary, fontSize: 10, fontWeight: '600', fontFamily: theme.typography.fontFamily.medium },
 
-    envContainer: { borderRadius: 32, padding: 24, borderWidth: 1, borderColor: theme.colors.cardBorder, backgroundColor: theme.colors.cardOverlay },
-    envItem: { flexDirection: 'row', alignItems: 'center', gap: 20 },
-    envTxtBound: { flex: 1 },
-    envValText: { color: theme.colors.textPrimary, fontSize: 16, fontWeight: '700' },
-    envSubText: { color: theme.colors.textSecondary, fontSize: 13, marginTop: 4, opacity: 0.7 },
-    envDivider: { height: 1, marginVertical: 20 },
+    debtBar: {
+      height: 24,
+      backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)',
+      borderRadius: 12,
+      overflow: 'hidden',
+      marginBottom: 10,
+    },
+    debtFill: {
+      height: '100%',
+      borderRadius: 12,
+    },
+    debtText: { color: theme.colors.textSecondary, fontSize: 12, fontFamily: theme.typography.fontFamily.regular },
 
-    premiumSectionWrapper: { marginBottom: 35 },
+    timeDot: { width: 8, height: 8, borderRadius: 4 },
+    timeLabel: { color: theme.colors.textPrimary, fontSize: 13, fontWeight: '600', fontFamily: theme.typography.fontFamily.semibold },
+
+    reportButton: {
+      height: 56,
+      borderRadius: 28,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 12,
+      overflow: 'hidden',
+      marginVertical: 20,
+    },
+    reportButtonText: { color: '#FFF', fontSize: 16, fontWeight: '800', fontFamily: theme.typography.fontFamily.bold },
+
+    premiumSectionWrapper: { marginBottom: 30 },
     titleRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+    sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 15 },
     proBadge: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -821,8 +802,8 @@ function styles(theme: any, isDark: boolean) {
       paddingVertical: 4,
       borderRadius: 12
     },
-    proBadgeText: { color: '#FFF', fontSize: 10, fontWeight: '900' },
-    lockedModule: { height: 210, borderRadius: 32, overflow: 'hidden', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(139, 92, 246, 0.2)' },
+    proBadgeText: { color: '#FFF', fontSize: 10, fontWeight: '900', fontFamily: theme.typography.fontFamily.black },
+    lockedModule: { height: 210, borderRadius: 20, overflow: 'hidden', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(139, 92, 246, 0.2)' },
     lockContent: { alignItems: 'center', paddingHorizontal: 40, zIndex: 10 },
     lockCircle: {
       width: 52,
@@ -833,9 +814,9 @@ function styles(theme: any, isDark: boolean) {
       alignItems: 'center',
       marginBottom: 16
     },
-    lockTitle: { color: '#FFF', fontSize: 18, fontWeight: '800', marginBottom: 8 },
-    lockSubtitle: { color: 'rgba(255,255,255,0.7)', fontSize: 13, textAlign: 'center', lineHeight: 20, marginBottom: 20 },
+    lockTitle: { color: '#FFF', fontSize: 18, fontWeight: '800', fontFamily: theme.typography.fontFamily.bold, marginBottom: 8 },
+    lockSubtitle: { color: 'rgba(255,255,255,0.7)', fontSize: 13, fontFamily: theme.typography.fontFamily.regular, textAlign: 'center', lineHeight: 20, marginBottom: 20 },
     unlockButton: { backgroundColor: '#8B5CF6', paddingHorizontal: 28, paddingVertical: 12, borderRadius: 25 },
-    unlockButtonText: { color: '#FFF', fontSize: 14, fontWeight: '800' },
+    unlockButtonText: { color: '#FFF', fontSize: 14, fontWeight: '800', fontFamily: theme.typography.fontFamily.bold },
   });
 }
