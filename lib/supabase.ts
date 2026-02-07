@@ -3,17 +3,20 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient } from '@supabase/supabase-js';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@env';
 
-// Fallback to hardcoded values if .env fails to load in production builds
-const supabaseUrl = SUPABASE_URL || 'https://wdcgvzeolhpfkuozickj.supabase.co';
-const supabaseAnonKey = SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndkY2d2emVvbGhwZmt1b3ppY2tqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM5NDU1MjUsImV4cCI6MjA2OTUyMTUyNX0.ajRMS_q7hoFQgnjXeKMEZoTFYm_jHsKW-xUxXUNBdWk';
+// Get Supabase config from environment variables
+const supabaseUrl = SUPABASE_URL;
+const supabaseAnonKey = SUPABASE_ANON_KEY;
 
 // Validate before creating client
 if (!supabaseUrl || !supabaseAnonKey) {
   console.error('❌ CRITICAL: Supabase configuration is missing!');
-  throw new Error('Supabase URL and Anon Key are required. Check your build configuration.');
+  console.error('Please ensure SUPABASE_URL and SUPABASE_ANON_KEY are set in your .env file');
+  throw new Error('Supabase URL and Anon Key are required. Check your .env configuration.');
 }
 
-console.log('✅ Supabase configured:', supabaseUrl.substring(0, 30) + '...');
+if (__DEV__) {
+  console.log('✅ Supabase configured:', supabaseUrl.substring(0, 30) + '...');
+}
 
 // Supabase client configuration
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
@@ -49,11 +52,16 @@ export interface SleepRecord {
   user_id: string;
   start_time: string;
   end_time: string | null;
+  sleep_date: string | null;
+  duration: number | null;
   sleep_quality: number | null;
+  sleep_score: number | null;
+  sleep_stages: any[] | null;
   sleep_sounds_enabled: boolean;
   smart_alarm_enabled: boolean;
   wake_ups: number | null;
   notes: string | null;
+  tags: string[] | null;
   created_at: string;
   updated_at: string;
 }
