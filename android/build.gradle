@@ -6,6 +6,7 @@ buildscript {
     minSdkVersion = findProperty('android.minSdkVersion') ?: '24'
     compileSdkVersion = findProperty('android.compileSdkVersion') ?: '36'
     targetSdkVersion = findProperty('android.targetSdkVersion') ?: '36'
+    ndkVersion = findProperty('android.ndkVersion') ?: '27.1.12297006'
   }
   repositories {
     google()
