@@ -82,16 +82,15 @@ def enableMinifyInReleaseBuilds = (findProperty('android.enableMinifyInReleaseBu
 def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
 
 android {
-    ndkVersion rootProject.ext.ndkVersion
-
-    buildToolsVersion rootProject.ext.buildToolsVersion
-    compileSdk rootProject.ext.compileSdkVersion
+    ndkVersion "27.1.12297006"
+    buildToolsVersion "36.0.0"
+    compileSdk 36
 
     namespace 'com.sleeptracker.app'
     defaultConfig {
         applicationId 'com.sleeptracker.app'
-        minSdkVersion rootProject.ext.minSdkVersion
-        targetSdkVersion rootProject.ext.targetSdkVersion
+        minSdkVersion 24
+        targetSdkVersion 36
         versionCode (findProperty('android.versionCode') ?: '1').toInteger()
         versionName (findProperty('android.versionName') ?: '1.0.0')
 
