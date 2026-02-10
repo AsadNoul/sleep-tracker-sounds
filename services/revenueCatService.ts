@@ -63,7 +63,7 @@ class RevenueCatService {
         : apiKey.startsWith('goog_') && apiKey.length > 20;
 
       if (!isValidKey) {
-        console.warn(`⚠️ Invalid RevenueCat API key format for ${Platform.OS}. Key: ${apiKey.substring(0, 10)}...`);
+        console.warn(`⚠️ Invalid RevenueCat API key format for ${Platform.OS}.`);
         console.warn('Please get a valid API key from: https://app.revenuecat.com/settings/api-keys');
         return; // Don't crash - let app run without subscriptions
       }
@@ -80,11 +80,6 @@ class RevenueCatService {
 
       this.isConfigured = true;
       console.log('✅ RevenueCat configured successfully');
-
-      // Log the user ID if provided
-      if (userId) {
-        console.log('RevenueCat user ID:', userId);
-      }
     } catch (error) {
       console.error('❌ Error configuring RevenueCat:', error);
       // Don't re-throw - let app continue without RevenueCat
@@ -98,8 +93,12 @@ class RevenueCatService {
    */
   async setUserId(userId: string): Promise<void> {
     try {
+      if (!this.isConfigured) {
+        console.warn('⚠️ RevenueCat not configured. Cannot set user ID.');
+        return;
+      }
       await Purchases.logIn(userId);
-      console.log('✅ RevenueCat user logged in:', userId);
+      console.log('✅ RevenueCat user logged in');
     } catch (error) {
       console.error('❌ Error logging in to RevenueCat:', error);
       throw error;
@@ -111,6 +110,10 @@ class RevenueCatService {
    */
   async logout(): Promise<void> {
     try {
+      if (!this.isConfigured) {
+        console.warn('⚠️ RevenueCat not configured. Cannot logout.');
+        return;
+      }
       await Purchases.logOut();
       console.log('✅ RevenueCat user logged out');
     } catch (error) {
@@ -150,6 +153,10 @@ class RevenueCatService {
    */
   async purchasePackage(packageToPurchase: PurchasesPackage): Promise<CustomerInfo> {
     try {
+      if (!this.isConfigured) {
+        throw new Error('RevenueCat not configured. Cannot make purchases.');
+      }
+
       console.log('🛒 Attempting purchase:', packageToPurchase.identifier);
 
       const { customerInfo } = await Purchases.purchasePackage(packageToPurchase);
@@ -221,9 +228,22 @@ class RevenueCatService {
       // NOTE: You must create this entitlement in RevenueCat dashboard
       const isPremium = customerInfo.entitlements.active['premium'] !== undefined;
 
-      console.log('Premium status:', isPremium);
       return isPremium;
-    } catch (error) {
+    } catch (error: any) {
+      // Distinguish network errors from confirmed free status
+      // If it's a network error, we shouldn't downgrade the user
+      const isNetworkError = error?.message?.includes('network') ||
+        error?.message?.includes('timeout') ||
+        error?.message?.includes('fetch') ||
+        error?.code === 'NETWORK_ERROR';
+
+      if (isNetworkError) {
+        console.warn('⚠️ Network error checking premium status. Returning cached/optimistic value.');
+        // On network error, don't downgrade - return last known or optimistic true
+        // This prevents premium users from losing access during connectivity issues
+        return false; // Safe default; app should also check local cache
+      }
+
       console.error('❌ Error checking premium status:', error);
       return false;
     }

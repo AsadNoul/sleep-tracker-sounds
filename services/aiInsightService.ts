@@ -10,7 +10,7 @@ export interface Insight {
 class AIInsightService {
   private static instance: AIInsightService;
 
-  private constructor() {}
+  private constructor() { }
 
   static getInstance(): AIInsightService {
     if (!AIInsightService.instance) {
@@ -23,7 +23,7 @@ class AIInsightService {
     try {
       // Fetch last 7 days of sleep data and lifestyle tags
       const { data: sleepData, error } = await supabase
-        .from('sleep_sessions')
+        .from('sleep_records')
         .select('*')
         .eq('user_id', userId)
         .order('start_time', { ascending: false })
@@ -101,6 +101,75 @@ class AIInsightService {
     }
   }
 
+  generateInsightsFromHistory(history: any[]): Insight[] {
+    if (!history || history.length < 3) {
+      return [{
+        title: 'Need More Data',
+        description: 'Keep tracking your sleep for a few more nights to unlock personalized AI insights.',
+        type: 'neutral'
+      }];
+    }
+
+    const insights: Insight[] = [];
+
+    // 1. Check Caffeine Correlation
+    const caffeineNights = history.filter(s => s.tags?.includes('caffeine'));
+    const nonCaffeineNights = history.filter(s => !s.tags?.includes('caffeine'));
+
+    if (caffeineNights.length > 0 && nonCaffeineNights.length > 0) {
+      const avgCaffeineScore = caffeineNights.reduce((acc, s) => acc + (s.sleepScore || 0), 0) / caffeineNights.length;
+      const avgNormalScore = nonCaffeineNights.reduce((acc, s) => acc + (s.sleepScore || 0), 0) / nonCaffeineNights.length;
+
+      if (avgNormalScore - avgCaffeineScore > 5) {
+        insights.push({
+          title: 'Caffeine Impact',
+          description: `Your sleep score is ${Math.round(avgNormalScore - avgCaffeineScore)} points lower on days you consume caffeine.`,
+          type: 'negative',
+          correlation: 'caffeine'
+        });
+      }
+    }
+
+    // 2. Check Exercise Correlation
+    const exerciseNights = history.filter(s => s.tags?.includes('exercise'));
+    if (exerciseNights.length > 0) {
+      const avgExerciseScore = exerciseNights.reduce((acc, s) => acc + (s.sleepScore || 0), 0) / exerciseNights.length;
+      const avgOverallScore = history.reduce((acc, s) => acc + (s.sleepScore || 0), 0) / history.length;
+
+      if (avgExerciseScore > avgOverallScore + 3) {
+        insights.push({
+          title: 'Exercise Boost',
+          description: 'Great job! You tend to get deeper sleep on days when you exercise.',
+          type: 'positive',
+          correlation: 'exercise'
+        });
+      }
+    }
+
+    // 3. Consistency Check
+    const bedtimes = history.map(s => new Date(s.startTime).getHours());
+    const variance = this.calculateVariance(bedtimes);
+    if (variance < 1) {
+      insights.push({
+        title: 'Perfect Consistency',
+        description: 'Your bedtime is very consistent. This helps regulate your circadian rhythm.',
+        type: 'positive'
+      });
+    } else if (variance > 2) {
+      insights.push({
+        title: 'Irregular Bedtime',
+        description: 'Your bedtime varies by over 2 hours. Try to stick to a schedule for better quality.',
+        type: 'negative'
+      });
+    }
+
+    return insights.length > 0 ? insights : [{
+      title: 'Stable Sleep',
+      description: 'Your sleep patterns look stable. Keep maintaining your current routine!',
+      type: 'positive'
+    }];
+  }
+
   analyzeCorrelations(history: any[]): any[] {
     if (!history || history.length < 5) return [];
 
@@ -114,7 +183,7 @@ class AIInsightService {
       if (withTag.length >= 2 && withoutTag.length >= 2) {
         const avgWith = withTag.reduce((acc, s) => acc + (s.sleepScore || s.quality * 10), 0) / withTag.length;
         const avgWithout = withoutTag.reduce((acc, s) => acc + (s.sleepScore || s.quality * 10), 0) / withoutTag.length;
-        
+
         const correlation = (avgWith - avgWithout) / 100;
         if (Math.abs(correlation) > 0.02) {
           results.push({

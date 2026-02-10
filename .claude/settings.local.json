@@ -23,7 +23,23 @@
       "Bash(gradlew.bat clean:*)",
       "Bash(cmd //c gradlew.bat clean --stacktrace)",
       "Bash(./gradlew clean:*)",
-      "Bash(npx eas:*)"
+      "Bash(npx eas:*)",
+      "Bash(dir:*)",
+      "Bash(for file in *.mp3)",
+      "Bash(do cp \"$file\" \"../../temp-music-repo/\")",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(git checkout:*)",
+      "Bash(git ls-tree:*)",
+      "Bash(git fsck:*)",
+      "Bash(for blob in 1f840b6a 43ac48a4 5ccc3d75 7d40f1cf b054fbfe df50f1ba 1f75246b 298d1456 8f4d2319 9429b0b3 afa5b355 06e29485 26c6ed1b 9b4230aa abca4312 ddfa0cd2 1b57b5fb 2eff3cda 39c7d98d 5ff71249 67d79c3e 80fbe46b a107e0b6 ba3f64e2 e3976868 fdd7b73d)",
+      "Bash(do echo \"=== Checking $blob ===\")",
+      "Bash(do git show $blob)",
+      "Bash(echo:*)",
+      "Bash(powershell -Command:*)",
+      "Bash(node fix-encoding.js:*)",
+      "Bash(del fix-encoding.js)"
     ]
   }
 }

@@ -1,11 +1,11 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Dimensions,
+  useWindowDimensions,
   Platform,
   Image,
   StatusBar,
@@ -50,11 +50,9 @@ import { formatDuration, format12HourTime } from '../utils/dateFormatting';
 import { Modal, TextInput } from 'react-native';
 import alarmService from '../services/alarmService';
 
-const { width, height } = Dimensions.get('window');
-
 const isIOS = Platform.OS === 'ios';
 
-const GlassView = ({ style, children, intensity = 20, tint = "dark" }: any) => {
+const GlassView = ({ style, children, intensity = 20, tint = "dark" }: { style?: any; children: React.ReactNode; intensity?: number; tint?: 'dark' | 'light' | 'default' }) => {
   if (Platform.OS === 'android') {
     return (
       <View style={[style, { backgroundColor: 'rgba(17, 25, 40, 0.7)' }]}>
@@ -73,10 +71,11 @@ export default function HomeScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<any>>();
   const { theme, isDark } = useAppTheme();
   const { user } = useAuth();
-  const { getSleepStats, isLoading, sleepHistory, getCurrentStreak, getGoodNightStreak, getSleepDebt, getReadinessScore, getSmartBedtime, loadSleepHistory } = useSleep();
+  const { getSleepStats, isLoading, sleepHistory, isTracking, getCurrentStreak, getGoodNightStreak, getSleepDebt, getReadinessScore, getSmartBedtime, loadSleepHistory } = useSleep();
   const insets = useSafeAreaInsets();
   const bottomMargin = useSafeBottomMargin();
-  const themedStyles = useMemo(() => styles(theme), [theme]);
+  const { width, height } = useWindowDimensions();
+  const themedStyles = useMemo(() => styles(theme, width), [theme, width]);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [isSearchVisible, setIsSearchVisible] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -89,6 +88,112 @@ export default function HomeScreen() {
   const sleepDebt = useMemo(() => getSleepDebt(), [sleepHistory]);
   const readinessScore = useMemo(() => getReadinessScore(), [sleepHistory]);
   const smartInsights = useMemo(() => generateSmartInsights(sleepHistory), [sleepHistory]);
+
+  // Compute real weekly stats from sleep history
+  const weeklyStats = useMemo(() => {
+    const now = new Date();
+    const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const twoWeeksAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
+
+    const thisWeek = sleepHistory.filter(s => new Date(s.startTime) >= oneWeekAgo);
+    const lastWeek = sleepHistory.filter(s => {
+      const d = new Date(s.startTime);
+      return d >= twoWeeksAgo && d < oneWeekAgo;
+    });
+
+    const avgDuration = thisWeek.length > 0
+      ? Math.round(thisWeek.reduce((sum, s) => sum + s.duration, 0) / thisWeek.length)
+      : 0;
+    const avgQuality = thisWeek.length > 0
+      ? Math.round((thisWeek.reduce((sum, s) => sum + s.quality, 0) / thisWeek.length) * 10)
+      : 0;
+    const avgBedtimeMs = thisWeek.length > 0
+      ? thisWeek.reduce((sum, s) => {
+          const st = new Date(s.startTime);
+          // Normalize to minutes from midnight (handle past-midnight)
+          let mins = st.getHours() * 60 + st.getMinutes();
+          if (mins < 360) mins += 1440; // treat 0-6 AM as "late night" (add 24h)
+          return sum + mins;
+        }, 0) / thisWeek.length
+      : 0;
+
+    const lastWeekAvgQuality = lastWeek.length > 0
+      ? Math.round((lastWeek.reduce((sum, s) => sum + s.quality, 0) / lastWeek.length) * 10)
+      : 0;
+    const qualityChange = lastWeekAvgQuality > 0
+      ? avgQuality - lastWeekAvgQuality
+      : 0;
+
+    // Format bedtime
+    let bedtimeStr = '--:--';
+    if (avgBedtimeMs > 0) {
+      let totalMins = Math.round(avgBedtimeMs);
+      if (totalMins >= 1440) totalMins -= 1440;
+      const h = Math.floor(totalMins / 60);
+      const m = totalMins % 60;
+      const ampm = h >= 12 ? 'PM' : 'AM';
+      const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+      bedtimeStr = `${h12}:${m.toString().padStart(2, '0')} ${ampm}`;
+    }
+
+    // Format duration
+    const durationH = Math.floor(avgDuration / 60);
+    const durationM = avgDuration % 60;
+    const durationStr = avgDuration > 0 ? `${durationH}h ${durationM.toString().padStart(2, '0')}m` : '0h 00m';
+
+    // Daily chart data (last 7 days, score 0-100)
+    const chartData: number[] = [];
+    for (let i = 6; i >= 0; i--) {
+      const dayStart = new Date(now);
+      dayStart.setDate(dayStart.getDate() - i);
+      dayStart.setHours(0, 0, 0, 0);
+      const dayEnd = new Date(dayStart);
+      dayEnd.setHours(23, 59, 59, 999);
+      const daySessions = sleepHistory.filter(s => {
+        const d = new Date(s.endTime || s.startTime);
+        return d >= dayStart && d <= dayEnd;
+      });
+      if (daySessions.length > 0) {
+        const best = daySessions.reduce((max, s) => Math.max(max, s.sleepScore || s.quality * 10), 0);
+        chartData.push(best);
+      } else {
+        chartData.push(0);
+      }
+    }
+
+    return { avgDuration: durationStr, avgQuality, bedtime: bedtimeStr, qualityChange, chartData, sessionCount: thisWeek.length };
+  }, [sleepHistory]);
+
+  // Compute real readiness sparkline from recent sleep scores
+  const readinessSparkData = useMemo(() => {
+    const recentSessions = sleepHistory.slice(0, 7).reverse();
+    if (recentSessions.length === 0) return [0, 0, 0, 0, 0, 0, readinessScore];
+    const data = recentSessions.map(s => s.sleepScore || s.quality * 10);
+    // Pad to 7 points if needed
+    while (data.length < 7) data.unshift(0);
+    return data.slice(-7);
+  }, [sleepHistory, readinessScore]);
+
+  // Search functionality - filter navigable screens/features
+  const searchResults = useMemo(() => {
+    if (!searchQuery.trim()) return [];
+    const q = searchQuery.toLowerCase();
+    const items = [
+      { label: 'Sleep Sounds', screen: 'Sounds', keywords: ['sound', 'music', 'rain', 'ocean', 'white noise', 'nature', 'meditation', 'deep sleep', 'calm'] },
+      { label: 'Alarms', screen: 'Alarms', keywords: ['alarm', 'wake', 'morning', 'smart alarm'] },
+      { label: 'Sleep Analysis', screen: 'SleepAnalysis', keywords: ['analysis', 'stats', 'report', 'quality', 'score', 'trend', 'chart', 'weekly'] },
+      { label: 'Bedtime Routine', screen: 'BedtimeRoutine', keywords: ['bedtime', 'routine', 'wind down', 'evening', 'anxiety relief', 'morning routine'] },
+      { label: 'Dream Journal', screen: 'DreamJournal', keywords: ['dream', 'journal', 'diary', 'log', 'note'] },
+      { label: 'Caffeine Calculator', screen: 'CaffeineCalculator', keywords: ['caffeine', 'coffee', 'tea', 'energy'] },
+      { label: 'Achievements', screen: 'Achievements', keywords: ['achievement', 'badge', 'trophy', 'streak', 'goal'] },
+      { label: 'Settings', screen: 'Settings', keywords: ['setting', 'preference', 'theme', 'notification', 'reminder', 'account'] },
+      { label: 'Start Sleep', screen: 'SleepSession', keywords: ['sleep', 'start', 'track', 'record', 'session', 'log sleep'] },
+    ];
+    return items.filter(item =>
+      item.label.toLowerCase().includes(q) ||
+      item.keywords.some(k => k.includes(q))
+    );
+  }, [searchQuery]);
 
   // Update time once per minute to reduce re-renders
   useEffect(() => {
@@ -108,7 +213,20 @@ export default function HomeScreen() {
   const sleepScore = useMemo(() => {
     if (sleepStats.totalSessions === 0) return 0;
     const lastSession = sleepHistory[0];
-    if (lastSession && lastSession.sleepScore) return lastSession.sleepScore;
+
+    // Check if last session is within 24 hours
+    if (lastSession) {
+      const sessionTime = lastSession.endTime || lastSession.startTime;
+      const hoursSinceSession = (new Date().getTime() - new Date(sessionTime).getTime()) / (1000 * 60 * 60);
+
+      // If session is older than 24 hours, show 0 (stale data)
+      if (hoursSinceSession > 24) {
+        return 0;
+      }
+
+      // Show actual score if fresh data
+      if (lastSession.sleepScore) return lastSession.sleepScore;
+    }
 
     const qualityScore = sleepStats.averageQuality * 10;
     const idealDuration = 480;
@@ -116,11 +234,20 @@ export default function HomeScreen() {
     return Math.round((qualityScore * 0.6) + (durationScore * 0.4));
   }, [sleepStats, sleepHistory]);
 
-  const scoreQuality = useMemo(() => getSleepScoreColor(displayMode === 'daytime' ? readinessScore : sleepScore), [sleepScore, readinessScore, displayMode]);
-  const lastNightQuality = useMemo(() => getSleepQualityColor(sleepStats.lastNightScore), [sleepStats.lastNightScore]);
+  const scoreQuality = useMemo(() => {
+    // If currently tracking, show in-progress state
+    if (isTracking) {
+      return { color: '#F59E0B', label: 'Tracking...', emoji: '⏱️' };
+    }
+    return getSleepScoreColor(displayMode === 'daytime' ? readinessScore : sleepScore);
+  }, [sleepScore, readinessScore, displayMode, isTracking]);
+  const lastNightQuality = useMemo(
+    () => getSleepQualityColor(sleepStats.lastNightQuality),
+    [sleepStats.lastNightQuality]
+  );
 
   // Dynamic Background Colors
-  const bgColors = useMemo(() => {
+  const bgColors = useMemo((): [string, string, ...string[]] => {
     switch (displayMode) {
       case 'morning': return ['#0F172A', '#1E1B4B', '#312E81']; // Transition from night to morning
       case 'daytime': return ['#0F172A', '#1E293B', '#334155']; // Clean slate daytime
@@ -267,9 +394,27 @@ export default function HomeScreen() {
                     </TouchableOpacity>
                   ))}
                 </View>
+              ) : searchResults.length > 0 ? (
+                <View style={themedStyles.searchSuggestions}>
+                  <Text style={themedStyles.suggestionTitle}>Results</Text>
+                  {searchResults.map((item) => (
+                    <TouchableOpacity
+                      key={item.screen}
+                      style={themedStyles.suggestionItem}
+                      onPress={() => {
+                        setIsSearchVisible(false);
+                        setSearchQuery('');
+                        navigation.navigate(item.screen as never);
+                      }}
+                    >
+                      <ChevronRight size={16} color="#8B5CF6" />
+                      <Text style={themedStyles.suggestionText}>{item.label}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
               ) : (
                 <View style={themedStyles.searchNoResults}>
-                  <Text style={themedStyles.noResultsText}>Searching for "{searchQuery}"...</Text>
+                  <Text style={themedStyles.noResultsText}>No results for "{searchQuery}"</Text>
                 </View>
               )}
             </ScrollView>
@@ -294,8 +439,7 @@ export default function HomeScreen() {
               <View style={themedStyles.cardHeader}>
                 <View style={themedStyles.statusBadge}>
                   <Text style={themedStyles.statusText}>
-                    {displayMode === 'morning' ? 'Last Night Summary' :
-                      displayMode === 'daytime' ? 'Readiness Score' : 'Next Sleep Session'}
+                    {isTracking ? '🌙 Sleep in Progress' : (sleepScore > 0 ? 'Last Night Summary' : 'Ready to Track')}
                   </Text>
                 </View>
                 <Text style={themedStyles.currentDate}>
@@ -307,7 +451,7 @@ export default function HomeScreen() {
                 {/* Visual Glow behind progress */}
                 <View style={[themedStyles.scoreGlow, { backgroundColor: scoreQuality.color, opacity: 0.15 }]} />
                 <CircularProgress
-                  score={displayMode === 'daytime' ? readinessScore : sleepScore}
+                  score={isTracking ? 0 : (displayMode === 'daytime' ? readinessScore : sleepScore)}
                   size={Math.max(140, Math.min(width * 0.45, 180))}
                   strokeWidth={12}
                   showText={false}
@@ -315,15 +459,15 @@ export default function HomeScreen() {
                 />
                 <View style={themedStyles.scoreInnerContent}>
                   <Text style={[themedStyles.scoreValue, {
-                    color: displayMode === 'daytime' ? (readinessScore >= 75 ? '#10B981' : '#F59E0B') : scoreQuality.color
+                    color: isTracking ? '#F59E0B' : (displayMode === 'daytime' ? (readinessScore >= 75 ? '#10B981' : '#F59E0B') : scoreQuality.color)
                   }]}>
-                    {displayMode === 'daytime' ? readinessScore : sleepScore}
+                    {isTracking ? '⏱️' : (displayMode === 'daytime' ? readinessScore : sleepScore)}
                   </Text>
                   <Text style={themedStyles.scoreLabel}>
-                    {displayMode === 'daytime' ? 'READINESS' : 'SLEEP SCORE'}
+                    {isTracking ? 'TRACKING' : (sleepScore === 0 ? 'NO DATA' : (displayMode === 'daytime' ? 'READINESS' : 'SLEEP SCORE'))}
                   </Text>
                   <Text style={[themedStyles.scoreQualityLabel, { color: scoreQuality.color }]}>
-                    {displayMode === 'daytime' ? (readinessScore >= 85 ? '👑 Peak' : '⚡ Good') : `${scoreQuality.emoji} ${scoreQuality.label}`}
+                    {isTracking ? 'In Progress' : (sleepScore === 0 ? 'Start tracking' : (displayMode === 'daytime' ? (readinessScore >= 85 ? '👑 Peak' : '⚡ Good') : `${scoreQuality.emoji} ${scoreQuality.label}`))}
                   </Text>
                 </View>
               </View>
@@ -358,22 +502,20 @@ export default function HomeScreen() {
 
               <TouchableOpacity
                 style={themedStyles.startSessionButton}
-                onPress={() => navigation.navigate(displayMode === 'morning' ? 'SleepAnalysis' : 'SleepSession')}
+                onPress={() => navigation.navigate(isTracking ? 'SleepSession' : (sleepScore > 0 ? 'SleepAnalysis' : 'SleepSession'))}
               >
                 <LinearGradient
                   colors={
-                    displayMode === 'morning' ? ['#10B981', '#059669'] :
-                      displayMode === 'daytime' ? ['#F59E0B', '#D97706'] :
-                        ['#8B5CF6', '#6366F1']
+                    isTracking ? ['#EF4444', '#DC2626'] : (sleepScore > 0 ? ['#10B981', '#059669'] : ['#8B5CF6', '#6366F1'])
                   }
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 0 }}
                   style={themedStyles.buttonGradient}
                 />
                 <View style={themedStyles.buttonContent}>
-                  {displayMode === 'morning' ? <TrendingUp size={18} color="#FFFFFF" /> : <Play size={18} color="#FFFFFF" fill="#FFFFFF" />}
+                  {isTracking ? <Moon size={18} color="#FFFFFF" /> : (sleepScore > 0 ? <TrendingUp size={18} color="#FFFFFF" /> : <Play size={18} color="#FFFFFF" fill="#FFFFFF" />)}
                   <Text style={themedStyles.startSessionText}>
-                    {displayMode === 'morning' ? 'View Analysis' : 'Start Session'}
+                    {isTracking ? 'End Sleep' : (sleepScore > 0 ? 'View Analysis' : 'Start Sleep')}
                   </Text>
                 </View>
               </TouchableOpacity>
@@ -391,8 +533,8 @@ export default function HomeScreen() {
             </View>
             <Text style={themedStyles.vitalValue}>{readinessScore}%</Text>
             <View style={themedStyles.sparkLineContainer}>
-              {[60, 75, 80, 70, 85, 90, readinessScore].map((v, i) => (
-                <View key={i} style={[themedStyles.sparkBar, { height: (v / 100) * 16, backgroundColor: v >= 80 ? '#10B981' : 'rgba(16, 185, 129, 0.3)' }]} />
+              {readinessSparkData.map((v, i) => (
+                <View key={i} style={[themedStyles.sparkBar, { height: Math.max(2, (v / 100) * 16), backgroundColor: v >= 80 ? '#10B981' : v > 0 ? 'rgba(16, 185, 129, 0.3)' : 'rgba(16, 185, 129, 0.1)' }]} />
               ))}
             </View>
           </GlassView>
@@ -413,9 +555,9 @@ export default function HomeScreen() {
           <TouchableOpacity
             activeOpacity={0.8}
             onPress={() => navigation.navigate('Alarms')}
-            style={{ width: (width - 52) / 2 }}
+            style={{ flex: 1, minWidth: '45%' }}
           >
-            <GlassView intensity={20} tint="dark" style={[themedStyles.vitalWidgetGrid, { width: '100%', marginBottom: 0 }]}>
+            <GlassView intensity={20} tint="dark" style={themedStyles.vitalWidgetGrid}>
               <View style={themedStyles.vitalIconRow}>
                 <Bell size={16} color="#8B5CF6" />
                 <Text style={themedStyles.vitalLabel}>Next Alarm</Text>
@@ -432,12 +574,12 @@ export default function HomeScreen() {
               <Text style={themedStyles.vitalLabel}>Streak</Text>
             </View>
             <Text style={themedStyles.vitalValue}>{currentStreak} Days</Text>
-            <Text style={themedStyles.vitalSubtext}>🔥 Burning bright</Text>
+            <Text style={themedStyles.vitalSubtext}>{currentStreak >= 7 ? '🔥 Burning bright' : currentStreak >= 3 ? '✨ Building up' : currentStreak > 0 ? '🌱 Getting started' : '💤 Start tracking'}</Text>
           </GlassView>
         </View>
 
         {/* Control Center - Quick Actions */}
-        <View style={themedStyles.sectionHeader}>
+        <View style={[themedStyles.sectionHeader, { marginTop: 16 }]}>
           <Text style={themedStyles.sectionTitle}>🛠️ Control Center</Text>
         </View>
         <View style={themedStyles.quickActionsGrid}>
@@ -446,11 +588,11 @@ export default function HomeScreen() {
             onPress={() => navigation.navigate('Sounds')}
           >
             <LinearGradient
-              colors={['rgba(139, 92, 246, 0.2)', 'rgba(139, 92, 246, 0.05)']}
+              colors={['rgba(139, 92, 246, 0.28)', 'rgba(139, 92, 246, 0.10)']}
               style={themedStyles.actionContent}
             >
-              <View style={[themedStyles.actionIconWrapper, { backgroundColor: 'rgba(139, 92, 246, 0.15)' }]}>
-                <Moon size={32} color="#8B5CF6" strokeWidth={2} />
+              <View style={[themedStyles.actionIconWrapper, { backgroundColor: 'rgba(139, 92, 246, 0.22)' }]}>
+                <Moon size={32} color="#8B5CF6" strokeWidth={2.5} />
               </View>
               <Text style={themedStyles.actionLabel}>Sounds</Text>
             </LinearGradient>
@@ -461,11 +603,11 @@ export default function HomeScreen() {
             onPress={() => navigation.navigate('Alarms')}
           >
             <LinearGradient
-              colors={['rgba(16, 185, 129, 0.2)', 'rgba(16, 185, 129, 0.05)']}
+              colors={['rgba(16, 185, 129, 0.28)', 'rgba(16, 185, 129, 0.10)']}
               style={themedStyles.actionContent}
             >
-              <View style={[themedStyles.actionIconWrapper, { backgroundColor: 'rgba(16, 185, 129, 0.15)' }]}>
-                <Bell size={32} color="#10B981" strokeWidth={2} />
+              <View style={[themedStyles.actionIconWrapper, { backgroundColor: 'rgba(16, 185, 129, 0.22)' }]}>
+                <Bell size={32} color="#10B981" strokeWidth={2.5} />
               </View>
               <Text style={themedStyles.actionLabel}>Alarms</Text>
             </LinearGradient>
@@ -476,11 +618,11 @@ export default function HomeScreen() {
             onPress={() => navigation.navigate('SleepSession')}
           >
             <LinearGradient
-              colors={['rgba(245, 158, 11, 0.2)', 'rgba(245, 158, 11, 0.05)']}
+              colors={['rgba(245, 158, 11, 0.28)', 'rgba(245, 158, 11, 0.10)']}
               style={themedStyles.actionContent}
             >
-              <View style={[themedStyles.actionIconWrapper, { backgroundColor: 'rgba(245, 158, 11, 0.15)' }]}>
-                <Activity size={32} color="#F59E0B" strokeWidth={2} />
+              <View style={[themedStyles.actionIconWrapper, { backgroundColor: 'rgba(245, 158, 11, 0.22)' }]}>
+                <Activity size={32} color="#F59E0B" strokeWidth={2.5} />
               </View>
               <Text style={themedStyles.actionLabel}>Log Sleep</Text>
             </LinearGradient>
@@ -491,11 +633,11 @@ export default function HomeScreen() {
             onPress={() => navigation.navigate('Settings')}
           >
             <LinearGradient
-              colors={['rgba(107, 114, 128, 0.2)', 'rgba(107, 114, 128, 0.05)']}
+              colors={['rgba(107, 114, 128, 0.28)', 'rgba(107, 114, 128, 0.10)']}
               style={themedStyles.actionContent}
             >
-              <View style={[themedStyles.actionIconWrapper, { backgroundColor: 'rgba(107, 114, 128, 0.15)' }]}>
-                <Layout size={32} color="#9CA3AF" strokeWidth={2} />
+              <View style={[themedStyles.actionIconWrapper, { backgroundColor: 'rgba(107, 114, 128, 0.22)' }]}>
+                <Layout size={32} color="#9CA3AF" strokeWidth={2.5} />
               </View>
               <Text style={themedStyles.actionLabel}>Settings</Text>
             </LinearGradient>
@@ -503,7 +645,7 @@ export default function HomeScreen() {
         </View>
 
         {/* Enhanced Sleep Improvement Dashboard */}
-        <View style={themedStyles.sectionHeader}>
+        <View style={[themedStyles.sectionHeader, { marginTop: 8 }]}>
           <Text style={themedStyles.sectionTitle}>⭐ Sleep Improvement</Text>
           <TouchableOpacity onPress={() => navigation.navigate('SleepAnalysis')}>
             <Text style={themedStyles.seeAllText}>Detailed View</Text>
@@ -522,38 +664,55 @@ export default function HomeScreen() {
               </View>
               <View style={{ flex: 1, marginLeft: 16 }}>
                 <Text style={themedStyles.analysisTitle}>Weekly Performance</Text>
-                <Text style={themedStyles.analysisSubtitle}>Quality is up 12% vs last week</Text>
+                <Text style={themedStyles.analysisSubtitle}>
+                  {weeklyStats.sessionCount === 0
+                    ? 'No data this week'
+                    : weeklyStats.qualityChange !== 0
+                      ? `Quality is ${weeklyStats.qualityChange > 0 ? 'up' : 'down'} ${Math.abs(weeklyStats.qualityChange)}% vs last week`
+                      : `${weeklyStats.sessionCount} session${weeklyStats.sessionCount === 1 ? '' : 's'} this week`}
+                </Text>
               </View>
-              <View style={themedStyles.trendBadge}>
-                <TrendingUp size={12} color="#10B981" />
-                <Text style={themedStyles.trendText}>+12%</Text>
-              </View>
+              {weeklyStats.qualityChange !== 0 && (
+                <View style={themedStyles.trendBadge}>
+                  <TrendingUp size={12} color={weeklyStats.qualityChange > 0 ? '#10B981' : '#EF4444'} />
+                  <Text style={[themedStyles.trendText, { color: weeklyStats.qualityChange > 0 ? '#10B981' : '#EF4444' }]}>
+                    {weeklyStats.qualityChange > 0 ? '+' : ''}{weeklyStats.qualityChange}%
+                  </Text>
+                </View>
+              )}
             </View>
 
             <View style={themedStyles.improvementStatsRow}>
               <View style={themedStyles.improvementStatItem}>
-                <Text style={themedStyles.improvementStatValue}>7h 45m</Text>
+                <Text style={themedStyles.improvementStatValue}>{weeklyStats.avgDuration}</Text>
                 <Text style={themedStyles.improvementStatLabel}>Avg Duration</Text>
               </View>
               <View style={themedStyles.improvementStatDivider} />
               <View style={themedStyles.improvementStatItem}>
-                <Text style={themedStyles.improvementStatValue}>88%</Text>
+                <Text style={themedStyles.improvementStatValue}>{weeklyStats.avgQuality}%</Text>
                 <Text style={themedStyles.improvementStatLabel}>Avg Quality</Text>
               </View>
               <View style={themedStyles.improvementStatDivider} />
               <View style={themedStyles.improvementStatItem}>
-                <Text style={themedStyles.improvementStatValue}>11:15 PM</Text>
+                <Text style={themedStyles.improvementStatValue}>{weeklyStats.bedtime}</Text>
                 <Text style={themedStyles.improvementStatLabel}>Bedtime</Text>
               </View>
             </View>
 
             <View style={themedStyles.miniChartContainer}>
-              {[45, 60, 55, 75, 85, 80, 90].map((h, i) => (
-                <View key={i} style={themedStyles.miniChartColumn}>
-                  <View style={[themedStyles.miniChartBar, { height: h, backgroundColor: i === 6 ? '#8B5CF6' : 'rgba(139, 92, 246, 0.3)' }]} />
-                  <Text style={themedStyles.miniChartLabel}>{['M', 'T', 'W', 'T', 'F', 'S', 'S'][i]}</Text>
-                </View>
-              ))}
+              {weeklyStats.chartData.map((h, i) => {
+                const dayLabels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+                const now = new Date();
+                const dayIndex = (now.getDay() + 7 - (6 - i)) % 7;
+                // Map 0=Sun to labels
+                const labels = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+                return (
+                  <View key={i} style={themedStyles.miniChartColumn}>
+                    <View style={[themedStyles.miniChartBar, { height: Math.max(4, h), backgroundColor: i === 6 ? '#8B5CF6' : h > 0 ? 'rgba(139, 92, 246, 0.3)' : 'rgba(139, 92, 246, 0.1)' }]} />
+                    <Text style={themedStyles.miniChartLabel}>{labels[dayIndex]}</Text>
+                  </View>
+                );
+              })}
             </View>
           </GlassView>
         </TouchableOpacity>
@@ -577,7 +736,7 @@ export default function HomeScreen() {
         </TouchableOpacity>
 
         {/* Achievements */}
-        <View style={themedStyles.sectionHeader}>
+        <View style={[themedStyles.sectionHeader, { marginTop: 8 }]}>
           <Text style={themedStyles.sectionTitle}>🏆 Achievements</Text>
           <TouchableOpacity onPress={() => navigation.navigate('Achievements')}>
             <Text style={themedStyles.seeAllText}>All</Text>
@@ -639,7 +798,7 @@ export default function HomeScreen() {
   );
 }
 
-const styles = (theme: any) => StyleSheet.create({
+const styles = (theme: any, width: number) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#0F0F1E',
@@ -863,13 +1022,14 @@ const styles = (theme: any) => StyleSheet.create({
     flexWrap: 'wrap',
     justifyContent: 'space-between',
     gap: 12,
-    marginBottom: 24,
+    marginBottom: 32,
   },
   vitalWidgetGrid: {
     backgroundColor: 'rgba(255, 255, 255, 0.05)',
     borderRadius: 24,
     padding: 16,
-    width: (width - 52) / 2,
+    flex: 1,
+    minWidth: '45%',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.1)',
   },
@@ -1006,6 +1166,8 @@ const styles = (theme: any) => StyleSheet.create({
     marginBottom: 24,
     borderRadius: 24,
     overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   improvementContent: {
     padding: 20,
@@ -1112,6 +1274,8 @@ const styles = (theme: any) => StyleSheet.create({
     borderRadius: 24,
     overflow: 'hidden',
     marginBottom: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   tipGradient: {
     flexDirection: 'row',

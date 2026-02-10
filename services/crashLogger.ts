@@ -216,17 +216,14 @@ export const setupGlobalErrorHandlers = () => {
             console.error('Failed to report crash from global handler:', reportError);
           });
 
-        // IMPORTANT: Don't call original handler if it's fatal
-        // This prevents potential infinite loops
-        if (!isFatal && originalErrorHandler) {
+        // ALWAYS call the original handler so React Native can perform its
+        // own crash cleanup (show red box in dev, proper shutdown in prod)
+        if (originalErrorHandler) {
           try {
             originalErrorHandler(error, isFatal);
           } catch (handlerError) {
             console.error('Original error handler failed:', handlerError);
           }
-        } else if (isFatal) {
-          // For fatal errors, just log - don't re-throw
-          console.error('Fatal error detected. App may need restart.');
         }
       });
 

@@ -4,8 +4,12 @@
 
 export const isPremiumActive = (
   subscriptionStatus: string | null | undefined,
-  subscriptionEndDate: string | null | undefined
+  subscriptionEndDate: string | null | undefined,
+  userRole?: string | null
 ): boolean => {
+  // Admin users always have premium access
+  if (userRole === 'admin') return true;
+
   // No subscription status means not premium
   if (!subscriptionStatus) return false;
 

@@ -24,7 +24,7 @@ const BenefitItem = ({ icon: Icon, text, theme }: { icon: LucideIcon; text: stri
 
 const GuestModeWarning: React.FC = () => {
   const { theme, isDark } = useAppTheme();
-  const { user } = useAuth();
+  const { user, hasCompletedOnboarding } = useAuth();
   const navigation = useNavigation();
   const [showModal, setShowModal] = useState(false);
 
@@ -33,14 +33,14 @@ const GuestModeWarning: React.FC = () => {
   );
 
   useEffect(() => {
-    // Show modal once when component mounts for guest/unauthenticated users
-    if (!isAuthenticated) {
+    // Show modal once when component mounts for guest users
+    // BUT only if they've already completed onboarding (otherwise wait until they finish it)
+    if (!isAuthenticated && hasCompletedOnboarding) {
       setShowModal(true);
     }
-    // We intentionally only run on mount (eslint-disable-line react-hooks/exhaustive-deps)
-  }, []);
+  }, [isAuthenticated, hasCompletedOnboarding]);
 
-  if (isAuthenticated) return null;
+  if (isAuthenticated || !hasCompletedOnboarding) return null;
 
   const handleCreateAccount = () => {
     setShowModal(false);

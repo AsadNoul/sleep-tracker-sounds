@@ -26,11 +26,14 @@
       },
       "config": {
         "usesNonExemptEncryption": false
+      },
+      "runtimeVersion": {
+        "policy": "appVersion"
       }
     },
     "android": {
       "package": "com.sleeptracker.app",
-      "versionCode": 2,
+      "versionCode": 31,
       "permissions": [
         "VIBRATE",
         "WAKE_LOCK",
@@ -78,7 +81,8 @@
             "DEFAULT"
           ]
         }
-      ]
+      ],
+      "runtimeVersion": "1.0.0"
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -96,8 +100,21 @@
       "expo-web-browser",
       "expo-notifications",
       "expo-file-system",
-      "expo-av"
+      "expo-av",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "compileSdkVersion": 36,
+            "targetSdkVersion": 36,
+            "buildToolsVersion": "36.0.0"
+          }
+        }
+      ]
     ],
-    "owner": "assdalinaul"
+    "owner": "assdalinaul",
+    "updates": {
+      "url": "https://u.expo.dev/8e333ff4-ed31-4913-bbd3-9d94d783e98c"
+    }
   }
 }

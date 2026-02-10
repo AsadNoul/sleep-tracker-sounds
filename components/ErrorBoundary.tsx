@@ -291,3 +291,119 @@ const styles = (theme: any) => StyleSheet.create({
 
 // Export directly - no theme wrapper needed (uses hardcoded darkTheme for safety)
 export default ErrorBoundary;
+
+
+/**
+ * Screen-level Error Boundary
+ * Lighter weight — catches errors in individual screens without taking
+ * down the entire app. Shows a compact retry UI instead of full-page error.
+ */
+interface ScreenErrorBoundaryProps {
+  children: ReactNode;
+  screenName?: string;
+}
+
+interface ScreenErrorState {
+  hasError: boolean;
+  error: Error | null;
+}
+
+export class ScreenErrorBoundary extends React.Component<ScreenErrorBoundaryProps, ScreenErrorState> {
+  constructor(props: ScreenErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: { componentStack: string }) {
+    console.error(`[ScreenErrorBoundary] ${this.props.screenName || 'Unknown'} crashed:`, error.message);
+    try {
+      crashLogger.reportCrash(error, 'high', errorInfo.componentStack).catch(() => {});
+    } catch (_) {}
+  }
+
+  handleRetry = () => {
+    this.setState({ hasError: false, error: null });
+  };
+
+  render() {
+    if (this.state.hasError) {
+      const theme = darkTheme;
+      return (
+        <View style={{
+          flex: 1,
+          backgroundColor: theme.colors.background,
+          justifyContent: 'center',
+          alignItems: 'center',
+          padding: 32,
+        }}>
+          <AlertCircle size={48} color={theme.colors.danger || '#E57373'} />
+          <Text style={{
+            fontSize: 18,
+            fontWeight: '600',
+            color: theme.colors.textPrimary,
+            textAlign: 'center',
+            marginTop: 16,
+            marginBottom: 8,
+          }}>
+            Something went wrong
+          </Text>
+          <Text style={{
+            fontSize: 14,
+            color: theme.colors.textSecondary,
+            textAlign: 'center',
+            marginBottom: 24,
+            lineHeight: 20,
+          }}>
+            {this.props.screenName
+              ? `The ${this.props.screenName} screen encountered an error.`
+              : 'This screen encountered an error.'}
+            {'\n'}Tap below to try again.
+          </Text>
+          <TouchableOpacity
+            onPress={this.handleRetry}
+            activeOpacity={0.8}
+            style={{
+              backgroundColor: 'rgba(0, 255, 209, 0.1)',
+              borderRadius: 12,
+              paddingVertical: 14,
+              paddingHorizontal: 32,
+              borderWidth: 2,
+              borderColor: theme.colors.accent,
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 8,
+            }}
+          >
+            <RefreshCw size={18} color={theme.colors.accent} />
+            <Text style={{ fontSize: 15, fontWeight: '600', color: theme.colors.accent }}>
+              Try Again
+            </Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
+/**
+ * HOC to wrap any screen component with a ScreenErrorBoundary.
+ * Usage: const SafeHomeScreen = withScreenErrorBoundary(HomeScreen, 'Home');
+ */
+export function withScreenErrorBoundary<P extends object>(
+  WrappedComponent: React.ComponentType<P>,
+  screenName: string
+) {
+  return function ScreenWithErrorBoundary(props: P) {
+    return (
+      <ScreenErrorBoundary screenName={screenName}>
+        <WrappedComponent {...props} />
+      </ScreenErrorBoundary>
+    );
+  };
+}

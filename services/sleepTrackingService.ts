@@ -90,12 +90,6 @@ class SleepTrackingService {
     return 'deep';
   }
 
-  getActivityLevel(): number {
-    if (this.movementData.length < 10) return 0;
-    const last10Seconds = this.movementData.slice(-10);
-    return last10Seconds.reduce((acc, d) => acc + d.intensity, 0) / last10Seconds.length;
-  }
-
   /**
    * Basic Sleep Stage Classification Algorithm
    * Based on movement intensity over time windows

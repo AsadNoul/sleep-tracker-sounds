@@ -32,6 +32,19 @@ export interface SleepSession {
   snoringDetected?: boolean;
   snoringDuration?: number;
   apneaRisk?: 'low' | 'moderate' | 'high';
+  efficiency?: number;
+  movementScore?: number;
+  movementEvents?: number;
+  avgSpo2?: number;          // biometric - requires external sensor
+  respiratoryRate?: number;  // biometric - requires external sensor
+  ambientNoise?: number;      // environment - from microphone
+  lightLevel?: number;        // environment - from light sensor
+  chronotype?: string;        // circadian - calculated from bedtime patterns
+
+  // ✨ NEW: Calculated metrics from enhanced features
+  deepSleepQuality?: number;     // 0-100 score - calculated from sleep stages
+  snoringIntensity?: string;     // 'None' | 'Low' | 'Moderate' | 'High'
+  disruptionScore?: string;      // 'Low' | 'Moderate' | 'High'
 }
 
 interface SleepContextType {
@@ -60,6 +73,8 @@ interface SleepContextType {
   getSleepDebt: () => number;
   getReadinessScore: () => number;
   getSmartBedtime: (wakeTime: Date) => Date;
+  getSessionForDate: (date: Date) => Promise<SleepSession | null>;
+  getSessionRecordings: (sessionId: string) => Promise<any[]>;
 }
 
 const SleepContext = createContext<SleepContextType | undefined>(undefined);
@@ -78,6 +93,10 @@ export function SleepProvider({ children }: { children: ReactNode }) {
   const [alarmTime, setAlarmTime] = useState<Date | null>(null);
   const smartAlarmInterval = useRef<NodeJS.Timeout | null>(null);
   const autoStopTimeout = useRef<NodeJS.Timeout | null>(null);
+  const isSavingRef = useRef(false); // Prevent concurrent saves
+  const loadDebounceRef = useRef<NodeJS.Timeout | null>(null);
+  const lastLoadedUserRef = useRef<string | null>(null);
+  const realtimeChannelRef = useRef<any>(null);
 
   // Monitor network connectivity
   useEffect(() => {
@@ -213,11 +232,66 @@ export function SleepProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Load sleep data on mount and when user changes
+  // Load sleep data on mount and when user changes (debounced to prevent rapid re-fetches)
   useEffect(() => {
-    loadSleepHistory();
-    loadCurrentSession();
+    // Skip if same user already loaded
+    if (lastLoadedUserRef.current === (user?.id || null) && sleepHistory.length > 0) {
+      return;
+    }
+
+    if (loadDebounceRef.current) clearTimeout(loadDebounceRef.current);
+    loadDebounceRef.current = setTimeout(() => {
+      lastLoadedUserRef.current = user?.id || null;
+      loadSleepHistory();
+      loadCurrentSession();
+    }, 300); // 300ms debounce
+
+    return () => {
+      if (loadDebounceRef.current) clearTimeout(loadDebounceRef.current);
+    };
   }, [user?.id]);
+
+  // Real-time subscription for sleep_records changes (other devices, sync, etc.)
+  useEffect(() => {
+    if (!user || user.id === 'guest' || !session) {
+      // Clean up subscription for guest/logged-out users
+      if (realtimeChannelRef.current) {
+        supabase.removeChannel(realtimeChannelRef.current);
+        realtimeChannelRef.current = null;
+      }
+      return;
+    }
+
+    const channel = supabase
+      .channel('sleep_records_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*', // INSERT, UPDATE, DELETE
+          schema: 'public',
+          table: 'sleep_records',
+          filter: `user_id=eq.${user.id}`,
+        },
+        (payload) => {
+          console.log('🔄 Real-time sleep_records change:', payload.eventType);
+          // Debounce the reload to avoid rapid repeated fetches
+          if (loadDebounceRef.current) clearTimeout(loadDebounceRef.current);
+          loadDebounceRef.current = setTimeout(() => {
+            loadSleepHistory();
+          }, 1000);
+        }
+      )
+      .subscribe();
+
+    realtimeChannelRef.current = channel;
+
+    return () => {
+      if (realtimeChannelRef.current) {
+        supabase.removeChannel(realtimeChannelRef.current);
+        realtimeChannelRef.current = null;
+      }
+    };
+  }, [user?.id, session]);
 
   const getDeviceId = async (): Promise<string> => {
     try {
@@ -289,6 +363,18 @@ export function SleepProvider({ children }: { children: ReactNode }) {
             userRating: record.user_rating,
             sleepStages: record.sleep_stages,
             tags: record.tags || [],
+            efficiency: record.efficiency,
+            movementScore: record.movement_score,
+            movementEvents: record.movement_events,
+            avgSpo2: record.avg_spo2,
+            respiratoryRate: record.respiratory_rate,
+            ambientNoise: record.ambient_noise,
+            lightLevel: record.light_level,
+            chronotype: record.chronotype,
+            // Calculated metrics from enhanced features
+            deepSleepQuality: record.deep_sleep_quality,
+            snoringIntensity: record.snoring_intensity,
+            disruptionScore: record.disruption_score,
           }));
 
           setSleepHistory(history);
@@ -450,10 +536,13 @@ export function SleepProvider({ children }: { children: ReactNode }) {
         console.log('🤖 AI Insights generated:', insights.length);
       }
 
-      // Add to local history
-      const updatedHistory = [completedSession, ...sleepHistory];
-      setSleepHistory(updatedHistory);
-      await AsyncStorage.setItem('@sleep_history', JSON.stringify(updatedHistory));
+      // Add to local history (optimistic, only for guest users without Supabase)
+      // For authenticated users, loadSleepHistory will fetch the canonical data
+      if (!user || user.id === 'guest') {
+        const updatedHistory = [completedSession, ...sleepHistory];
+        setSleepHistory(updatedHistory);
+        await AsyncStorage.setItem('@sleep_history', JSON.stringify(updatedHistory));
+      }
 
       // Clear current session
       setCurrentSession(null);
@@ -461,7 +550,8 @@ export function SleepProvider({ children }: { children: ReactNode }) {
       setAlarmTime(null);
       await AsyncStorage.removeItem('@current_sleep_session');
 
-      // Reload sleep history from Supabase to ensure data is fresh
+      // Reload sleep history from Supabase — this is the single source of truth
+      // (Real-time subscription will also trigger a reload, but this ensures immediate update)
       if (user && user.id !== 'guest') {
         await loadSleepHistory();
       }
@@ -490,6 +580,13 @@ export function SleepProvider({ children }: { children: ReactNode }) {
   };
 
   const saveSleepSession = async (session: SleepSession) => {
+    // Prevent concurrent saves (double-tap, race condition)
+    if (isSavingRef.current) {
+      console.log('⚠️ Save already in progress, skipping duplicate call');
+      return;
+    }
+    isSavingRef.current = true;
+
     try {
       // Check if user is authenticated (not guest)
       if (user && user.id !== 'guest' && session) {
@@ -519,6 +616,19 @@ export function SleepProvider({ children }: { children: ReactNode }) {
           smart_alarm_enabled: session.smartAlarmEnabled,
           notes: session.notes || '',
           tags: session.tags || [],
+          efficiency: session.efficiency || null,
+          movement_score: session.movementScore || null,
+          movement_events: session.movementEvents || null,
+          // Real-time metrics from new features
+          avg_spo2: session.avgSpo2 || null,
+          respiratory_rate: session.respiratoryRate || null,
+          ambient_noise: session.ambientNoise || null,
+          light_level: session.lightLevel || null,
+          chronotype: session.chronotype || null,
+          // Calculated metrics from enhanced features
+          deep_sleep_quality: session.deepSleepQuality || null,
+          snoring_intensity: session.snoringIntensity || null,
+          disruption_score: session.disruptionScore || null,
         };
 
         if (isOnline) {
@@ -541,6 +651,15 @@ export function SleepProvider({ children }: { children: ReactNode }) {
             savedSessions.push(session.id);
             await AsyncStorage.setItem(savedSessionsKey, JSON.stringify(savedSessions));
             setSyncStatus('success');
+            
+            // Check for milestones (async, don't wait)
+            if (user && user.id !== 'guest') {
+              const { default: welcomeService } = await import('../services/welcomeService');
+              welcomeService.checkAndSendMilestones(user.id).catch(err =>
+                console.error('Failed to check milestones:', err)
+              );
+            }
+            
             // Reset status after 2 seconds
             setTimeout(() => setSyncStatus('idle'), 2000);
           }
@@ -560,6 +679,8 @@ export function SleepProvider({ children }: { children: ReactNode }) {
       console.error('Error saving sleep session:', error);
       setSyncStatus('error');
       setSyncError(error instanceof Error ? error.message : 'Failed to save sleep session');
+    } finally {
+      isSavingRef.current = false; // Release save lock
     }
   };
 
@@ -761,6 +882,84 @@ export function SleepProvider({ children }: { children: ReactNode }) {
     return bedtime;
   };
 
+  const getSessionForDate = async (date: Date): Promise<SleepSession | null> => {
+    try {
+      if (!user || user.id === 'guest') {
+        // Local search only for guest
+        const startOfDay = new Date(date);
+        startOfDay.setHours(0, 0, 0, 0);
+        const endOfDay = new Date(date);
+        endOfDay.setHours(23, 59, 59, 999);
+
+        const match = sleepHistory.find(s => {
+          const time = s.endTime || s.startTime;
+          return time >= startOfDay && time <= endOfDay;
+        });
+        return match || null;
+      }
+
+      // Calculate the start and end of the requested day in LOCAL timezone
+      // Create new Date objects to avoid mutating the input
+      const startStr = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 0, 0, 0, 0);
+      const endStr = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59, 999);
+
+      // Query database for sessions ending on this day
+      const { data, error } = await supabase
+        .from('sleep_records')
+        .select('*')
+        .eq('user_id', user.id)
+        .gte('end_time', startStr.toISOString())
+        .lte('end_time', endStr.toISOString())
+        .order('duration', { ascending: false }) // Prioritize longest session (main sleep)
+        .limit(1);
+
+      if (error) {
+        console.error('Error fetching session for date:', error);
+        return null;
+      }
+
+      if (data && data.length > 0) {
+        const record = data[0];
+        return {
+          id: record.id,
+          startTime: new Date(record.start_time),
+          endTime: new Date(record.end_time),
+          duration: record.duration || 0,
+          quality: record.sleep_quality || 0,
+          wakeUps: record.wake_ups || 0,
+          sleepSoundsEnabled: record.sleep_sounds_enabled || false,
+          smartAlarmEnabled: record.smart_alarm_enabled || false,
+          notes: record.notes || '',
+          sleepScore: record.sleep_score,
+          userRating: record.user_rating,
+          sleepStages: record.sleep_stages,
+          tags: record.tags || [],
+          efficiency: record.efficiency,
+          movementScore: record.movement_score,
+          movementEvents: record.movement_events,
+          avgSpo2: record.avg_spo2,
+          respiratoryRate: record.respiratory_rate,
+          ambientNoise: record.ambient_noise,
+          lightLevel: record.light_level,
+          chronotype: record.chronotype,
+          // Calculated metrics from enhanced features
+          deepSleepQuality: record.deep_sleep_quality,
+          snoringIntensity: record.snoring_intensity,
+          disruptionScore: record.disruption_score,
+        };
+      }
+
+      return null;
+    } catch (err) {
+      console.error('Error in getSessionForDate:', err);
+      return null;
+    }
+  };
+
+  const getSessionRecordings = async (sessionId: string) => {
+    return await sleepRecorderService.getSessionRecordings(sessionId);
+  };
+
   const value = useMemo(() => ({
     currentSession,
     sleepHistory,
@@ -778,6 +977,8 @@ export function SleepProvider({ children }: { children: ReactNode }) {
     getSleepDebt,
     getReadinessScore,
     getSmartBedtime,
+    getSessionForDate,
+    getSessionRecordings,
   }), [
     currentSession,
     sleepHistory,

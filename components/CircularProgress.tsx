@@ -2,32 +2,45 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import Svg, { Circle, Defs, LinearGradient, Stop } from 'react-native-svg';
 import { useAppTheme } from '../hooks/useAppTheme';
+import { getSleepScoreColor } from '../utils/sleepQualityColors';
 
 interface CircularProgressProps {
   score: number;
   size?: number;
   strokeWidth?: number;
+  showText?: boolean;
+  color?: string;
 }
 
 export default React.memo(function CircularProgress({
   score,
   size = 140,
-  strokeWidth = 12
+  strokeWidth = 12,
+  showText = true,
+  color
 }: CircularProgressProps) {
   const { theme } = useAppTheme();
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
-  const progress = (score / 10) * circumference;
+  const progress = (Math.min(Math.max(score, 0), 100) / 100) * circumference;
+
+  const scoreQuality = getSleepScoreColor(score);
+
+  // Use custom color or quality color
+  const strokeColor = color || "url(#grad)";
+  const gradientColors = scoreQuality.gradient;
 
   return (
-    <View style={styles(theme).container}>
-      <Svg width={size} height={size} style={styles(theme).svg}>
-        <Defs>
-          <LinearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
-            <Stop offset="0%" stopColor="#8B5CF6" />
-            <Stop offset="100%" stopColor="#6366F1" />
-          </LinearGradient>
-        </Defs>
+    <View style={styles(theme, scoreQuality.color, size).container}>
+      <Svg width={size} height={size} style={styles(theme, scoreQuality.color, size).svg}>
+        {!color && (
+          <Defs>
+            <LinearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <Stop offset="0%" stopColor={gradientColors[0]} />
+              <Stop offset="100%" stopColor={gradientColors[1]} />
+            </LinearGradient>
+          </Defs>
+        )}
         {/* Background circle */}
         <Circle
           cx={size / 2}
@@ -42,7 +55,7 @@ export default React.memo(function CircularProgress({
           cx={size / 2}
           cy={size / 2}
           r={radius}
-          stroke="url(#grad)"
+          stroke={strokeColor}
           strokeWidth={strokeWidth}
           fill="transparent"
           strokeDasharray={`${progress} ${circumference}`}
@@ -51,22 +64,24 @@ export default React.memo(function CircularProgress({
           origin={`${size / 2}, ${size / 2}`}
         />
       </Svg>
-      <View style={styles(theme).scoreContainer}>
-        <Text style={styles(theme).scoreText}>{score.toFixed(1)}</Text>
-        <Text style={styles(theme).scoreLabel}>Sleep Score</Text>
-      </View>
+      {showText && (
+        <View style={styles(theme, scoreQuality.color, size).scoreContainer}>
+          <Text style={styles(theme, scoreQuality.color, size).scoreText}>{Math.round(score)}</Text>
+          <Text style={styles(theme, scoreQuality.color, size).scoreLabel}>{scoreQuality.label}</Text>
+        </View>
+      )}
     </View>
   );
-}
+});
 
-const styles = (theme: any) => StyleSheet.create({
+const styles = (theme: any, activeColor: string, size: number) => StyleSheet.create({
   container: {
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#8B5CF6',
+    shadowColor: activeColor,
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.5,
-    shadowRadius: 15,
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
   },
   svg: {
     transform: [{ rotate: '0deg' }],
@@ -77,19 +92,19 @@ const styles = (theme: any) => StyleSheet.create({
     justifyContent: 'center',
   },
   scoreText: {
-    fontSize: 42,
+    fontSize: Math.round(size * 0.3),
     fontWeight: '900',
     color: '#FFFFFF',
-    textShadowColor: 'rgba(139, 92, 246, 0.5)',
+    textShadowColor: activeColor + '80',
     textShadowOffset: { width: 0, height: 4 },
     textShadowRadius: 10,
   },
   scoreLabel: {
-    fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.6)',
-    marginTop: 2,
-    fontWeight: '700',
+    fontSize: Math.max(6, Math.round(size * 0.08)),
+    color: 'rgba(255, 255, 255, 0.5)',
+    marginTop: -2,
+    fontWeight: '800',
     textTransform: 'uppercase',
-    letterSpacing: 1,
+    letterSpacing: 2,
   },
 });

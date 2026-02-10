@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { Animated, StyleSheet, Text, TouchableOpacity } from 'react-native';
+import { Animated, StyleSheet, Text, TouchableOpacity, View, Platform } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { CheckCircle2, XCircle, AlertTriangle, Info, X } from 'lucide-react-native';
 import { useAppTheme } from '../hooks/useAppTheme';
@@ -107,13 +107,23 @@ export default function Toast({
       ]}
     >
       <TouchableOpacity activeOpacity={0.9} onPress={hideToast}>
-        <BlurView intensity={80} tint="dark" style={styles(theme).toastContent}>
-          {renderIcon()}
-          <Text style={styles(theme).message}>{message}</Text>
-          <TouchableOpacity onPress={hideToast} style={styles(theme).closeButton}>
-            <X size={20} color={theme.colors.textSecondary} />
-          </TouchableOpacity>
-        </BlurView>
+        {Platform.OS === 'ios' ? (
+          <BlurView intensity={80} tint="dark" style={styles(theme).toastContent}>
+            {renderIcon()}
+            <Text style={styles(theme).message}>{message}</Text>
+            <TouchableOpacity onPress={hideToast} style={styles(theme).closeButton}>
+              <X size={20} color={theme.colors.textSecondary} />
+            </TouchableOpacity>
+          </BlurView>
+        ) : (
+          <View style={styles(theme).toastContent}>
+            {renderIcon()}
+            <Text style={styles(theme).message}>{message}</Text>
+            <TouchableOpacity onPress={hideToast} style={styles(theme).closeButton}>
+              <X size={20} color={theme.colors.textSecondary} />
+            </TouchableOpacity>
+          </View>
+        )}
       </TouchableOpacity>
     </Animated.View>
   );

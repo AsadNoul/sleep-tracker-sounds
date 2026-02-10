@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   TextInput,
   Dimensions,
+  useWindowDimensions,
   Modal,
   InteractionManager,
   Animated,
@@ -68,8 +69,6 @@ import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeBottomMargin } from '../hooks/useSafeBottomMargin';
-
-const { width, height: screenHeight } = Dimensions.get('window');
 
 const GITHUB_BASE_URL = 'https://raw.githubusercontent.com/AsadNoul/sleep-tracker-sounds/main';
 
@@ -153,6 +152,7 @@ export default function SoundsScreen() {
   const insets = useSafeAreaInsets();
   const bottomMargin = useSafeBottomMargin();
   const navigation = useNavigation<any>();
+  const { width, height: screenHeight } = useWindowDimensions();
   const {
     isPlaying,
     currentSound,
@@ -165,6 +165,8 @@ export default function SoundsScreen() {
     activeMix,
     removeSoundFromMix,
   } = useAudio();
+
+  const themedStyles = useMemo(() => createStyles(theme, width), [theme, width]);
 
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
@@ -205,8 +207,6 @@ export default function SoundsScreen() {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
   };
-
-  const themedStyles = createStyles(theme);
 
   return (
     <View style={themedStyles.container}>
@@ -405,7 +405,7 @@ export default function SoundsScreen() {
   );
 }
 
-const createStyles = (theme: any) => StyleSheet.create({
+const createStyles = (theme: any, width: number) => StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0A0A14' },
   header: {
     flexDirection: 'row',

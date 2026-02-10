@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, Dimensions, Platform } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { useAppTheme } from '../hooks/useAppTheme';
 
@@ -19,12 +19,14 @@ interface SleepChartProps {
   type: 'quality' | 'duration';
 }
 
-export default function SleepChart({ data, title, type }: SleepChartProps) {
+export default function SleepChart({ data = [], title = "Sleep Quality", type = 'quality' }: SleepChartProps) {
   const { theme, isDark } = useAppTheme();
 
   // Calculate max value for scaling
-  const maxValue = Math.max(...data.map(d => type === 'quality' ? d.quality : d.duration));
-  const normalizedMax = type === 'quality' ? 100 : Math.ceil(maxValue / 60) * 60; // Round to nearest hour
+  const maxValue = data.length > 0 
+    ? Math.max(...data.map(d => type === 'quality' ? d.quality : d.duration))
+    : 0;
+  const normalizedMax = type === 'quality' ? 100 : Math.ceil(maxValue / 60) * 60 || 60; // Round to nearest hour
 
   const renderBar = (item: SleepData, index: number) => {
     const value = type === 'quality' ? item.quality : item.duration;
@@ -72,48 +74,93 @@ export default function SleepChart({ data, title, type }: SleepChartProps) {
   };
 
   return (
-    <BlurView intensity={20} tint="dark" style={styles(theme).container}>
-      <View style={styles(theme).header}>
-        <Text style={styles(theme).title}>{title}</Text>
-        <Text style={styles(theme).average}>Avg: {getAverageValue()}</Text>
-      </View>
-
-      <View style={styles(theme).chartContainer}>
-        {/* Y-axis labels */}
-        <View style={styles(theme).yAxis}>
-          <Text style={styles(theme).yAxisLabel}>{type === 'quality' ? '100%' : '12h'}</Text>
-          <Text style={styles(theme).yAxisLabel}>{type === 'quality' ? '50%' : '6h'}</Text>
-          <Text style={styles(theme).yAxisLabel}>{type === 'quality' ? '0%' : '0h'}</Text>
+    Platform.OS === 'ios' ? (
+      <BlurView intensity={20} tint="dark" style={styles(theme).container}>
+        <View style={styles(theme).header}>
+          <Text style={styles(theme).title}>{title}</Text>
+          <Text style={styles(theme).average}>Avg: {getAverageValue()}</Text>
         </View>
 
-        {/* Bars */}
-        <View style={styles(theme).barsContainer}>
-          {data.length > 0 ? (
-            data.map((item, index) => renderBar(item, index))
-          ) : (
-            <View style={styles(theme).noDataContainer}>
-              <Text style={styles(theme).noDataText}>No data available</Text>
-            </View>
-          )}
-        </View>
-      </View>
+        <View style={styles(theme).chartContainer}>
+          {/* Y-axis labels */}
+          <View style={styles(theme).yAxis}>
+            <Text style={styles(theme).yAxisLabel}>{type === 'quality' ? '100%' : '12h'}</Text>
+            <Text style={styles(theme).yAxisLabel}>{type === 'quality' ? '50%' : '6h'}</Text>
+            <Text style={styles(theme).yAxisLabel}>{type === 'quality' ? '0%' : '0h'}</Text>
+          </View>
 
-      {/* Legend */}
-      <View style={styles(theme).legend}>
-        <View style={styles(theme).legendItem}>
-          <View style={[styles(theme).legendColor, { backgroundColor: theme.colors.accent }]} />
-          <Text style={styles(theme).legendText}>Good</Text>
+          {/* Bars */}
+          <View style={styles(theme).barsContainer}>
+            {data.length > 0 ? (
+              data.map((item, index) => renderBar(item, index))
+            ) : (
+              <View style={styles(theme).noDataContainer}>
+                <Text style={styles(theme).noDataText}>No data available</Text>
+              </View>
+            )}
+          </View>
         </View>
-        <View style={styles(theme).legendItem}>
-          <View style={[styles(theme).legendColor, { backgroundColor: theme.colors.premium }]} />
-          <Text style={styles(theme).legendText}>Fair</Text>
+
+        {/* Legend */}
+        <View style={styles(theme).legend}>
+          <View style={styles(theme).legendItem}>
+            <View style={[styles(theme).legendColor, { backgroundColor: theme.colors.accent }]} />
+            <Text style={styles(theme).legendText}>Good</Text>
+          </View>
+          <View style={styles(theme).legendItem}>
+            <View style={[styles(theme).legendColor, { backgroundColor: theme.colors.premium }]} />
+            <Text style={styles(theme).legendText}>Fair</Text>
+          </View>
+          <View style={styles(theme).legendItem}>
+            <View style={[styles(theme).legendColor, { backgroundColor: theme.colors.danger }]} />
+            <Text style={styles(theme).legendText}>Poor</Text>
+          </View>
         </View>
-        <View style={styles(theme).legendItem}>
-          <View style={[styles(theme).legendColor, { backgroundColor: theme.colors.danger }]} />
-          <Text style={styles(theme).legendText}>Poor</Text>
+      </BlurView>
+    ) : (
+      <View style={styles(theme).container}>
+        <View style={styles(theme).header}>
+          <Text style={styles(theme).title}>{title}</Text>
+          <Text style={styles(theme).average}>Avg: {getAverageValue()}</Text>
+        </View>
+
+        <View style={styles(theme).chartContainer}>
+          {/* Y-axis labels */}
+          <View style={styles(theme).yAxis}>
+            <Text style={styles(theme).yAxisLabel}>{type === 'quality' ? '100%' : '12h'}</Text>
+            <Text style={styles(theme).yAxisLabel}>{type === 'quality' ? '50%' : '6h'}</Text>
+            <Text style={styles(theme).yAxisLabel}>{type === 'quality' ? '0%' : '0h'}</Text>
+          </View>
+
+          {/* Bars */}
+          <View style={styles(theme).barsContainer}>
+            {data.length > 0 ? (
+              data.map((item, index) => renderBar(item, index))
+            ) : (
+              <View style={styles(theme).noDataContainer}>
+                <Text style={styles(theme).noDataText}>No data available</Text>
+              </View>
+            )}
+          </View>
+        </View>
+
+        {/* Legend */}
+        <View style={styles(theme).legend}>
+          <View style={styles(theme).legendItem}>
+            <View style={[styles(theme).legendColor, { backgroundColor: theme.colors.accent }]} />
+            <Text style={styles(theme).legendText}>Good</Text>
+          </View>
+          <View style={styles(theme).legendItem}>
+            <View style={[styles(theme).legendColor, { backgroundColor: theme.colors.premium }]} />
+            <Text style={styles(theme).legendText}>Fair</Text>
+          </View>
+          <View style={styles(theme).legendItem}>
+            <View style={[styles(theme).legendColor, { backgroundColor: theme.colors.danger }]} />
+            <Text style={styles(theme).legendText}>Poor</Text>
+          </View>
         </View>
       </View>
-    </BlurView>
+    )
   );
 }
 

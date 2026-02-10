@@ -1,5 +1,5 @@
 import { useAppTheme } from '../hooks/useAppTheme';
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,10 +9,12 @@ import {
   TextInput,
   Alert,
   Dimensions,
+  useWindowDimensions,
   Platform,
   StatusBar,
   RefreshControl,
   LayoutAnimation,
+  UIManager,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -75,17 +77,19 @@ import { Audio } from 'expo-av';
 import * as FileSystem from 'expo-file-system/legacy';
 import SleepAnalysisScreen from './SleepAnalysisScreen';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const CHART_WIDTH = SCREEN_WIDTH - 80;
-const CHART_HEIGHT = 120;
-
 export default function JournalScreen() {
+  const { width: SCREEN_WIDTH } = useWindowDimensions();
+  const CHART_WIDTH = SCREEN_WIDTH - 80;
+  const CHART_HEIGHT = 120;
   const { theme, isDark } = useAppTheme();
   const insets = useSafeAreaInsets();
   const bottomMargin = useSafeBottomMargin();
   const navigation = useNavigation<any>();
   const { sleepHistory, getSleepStats, loadSleepHistory } = useSleep();
   const { user } = useAuth();
+
+  const themedStyles = useMemo(() => createStyles(theme, SCREEN_WIDTH, CHART_HEIGHT), [theme, SCREEN_WIDTH, CHART_HEIGHT]);
+  const styles = useCallback((_theme: any) => themedStyles, [themedStyles]);
 
   const [activeTab, setActiveTab] = useState<'entries' | 'stats'>('entries');
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -104,6 +108,12 @@ export default function JournalScreen() {
 
   const stats = getSleepStats();
 
+  useEffect(() => {
+    if (Platform.OS === 'android') {
+      UIManager.setLayoutAnimationEnabledExperimental?.(true);
+    }
+  }, []);
+
   // Dynamic Display Mode & Backgrounds
   const displayMode = useMemo(() => {
     const hour = new Date().getHours();
@@ -112,7 +122,7 @@ export default function JournalScreen() {
     return 'evening';
   }, []);
 
-  const bgColors = useMemo(() => {
+  const bgColors = useMemo((): [string, string, ...string[]] => {
     switch (displayMode) {
       case 'morning': return ['#0F172A', '#1E1B4B', '#312E81'];
       case 'daytime': return ['#0F172A', '#1E293B', '#334155'];
@@ -555,7 +565,7 @@ export default function JournalScreen() {
 
   return (
     <View style={styles(theme).container}>
-      <LinearGradient colors={bgColors as any} style={StyleSheet.absoluteFillObject} />
+      <LinearGradient colors={bgColors} style={StyleSheet.absoluteFillObject} />
       <StatusBar barStyle="light-content" />
 
       <View style={styles(theme).header}>
@@ -572,6 +582,21 @@ export default function JournalScreen() {
         >
           <Calendar size={22} color="#FFFFFF" strokeWidth={2.5} />
         </TouchableOpacity>
+
+        {showDatePicker && (
+          <DateTimePicker
+            value={selectedDate}
+            mode="date"
+            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+            maximumDate={new Date()}
+            onChange={(event, date) => {
+              setShowDatePicker(false);
+              if (date) {
+                setSelectedDate(date);
+              }
+            }}
+          />
+        )}
       </View>
 
       {/* Persistent Tab Switcher */}
@@ -956,7 +981,7 @@ export default function JournalScreen() {
   );
 }
 
-function styles(theme: any) {
+function createStyles(theme: any, SCREEN_WIDTH: number, CHART_HEIGHT: number) {
   return StyleSheet.create({
     container: {
       flex: 1,

@@ -3,7 +3,7 @@ CREATE TABLE IF NOT EXISTS sleep_recordings (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   session_id TEXT NOT NULL,
-  event_type TEXT NOT NULL CHECK (event_type IN ('snoring', 'sleep_talk', 'noise', 'movement')),
+  event_type TEXT NOT NULL CHECK (event_type IN ('snoring', 'sleep_talk', 'noise', 'movement', 'dreaming', 'voice_note')),
   timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   duration_seconds INTEGER,
   audio_file_url TEXT,
@@ -23,15 +23,19 @@ CREATE INDEX IF NOT EXISTS idx_sleep_recordings_event_type ON sleep_recordings(e
 ALTER TABLE sleep_recordings ENABLE ROW LEVEL SECURITY;
 
 -- Create RLS policies
+DROP POLICY IF EXISTS "Users can view own recordings" ON sleep_recordings;
 CREATE POLICY "Users can view own recordings" ON sleep_recordings
   FOR SELECT USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can insert own recordings" ON sleep_recordings;
 CREATE POLICY "Users can insert own recordings" ON sleep_recordings
   FOR INSERT WITH CHECK (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can update own recordings" ON sleep_recordings;
 CREATE POLICY "Users can update own recordings" ON sleep_recordings
   FOR UPDATE USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can delete own recordings" ON sleep_recordings;
 CREATE POLICY "Users can delete own recordings" ON sleep_recordings
   FOR DELETE USING (auth.uid() = user_id);
 

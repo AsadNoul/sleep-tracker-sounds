@@ -27,3 +27,5 @@ export const useAppTheme = () => {
     setThemeMode,
   };
 };
+
+export default useAppTheme;

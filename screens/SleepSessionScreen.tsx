@@ -1,5 +1,5 @@
 import { useAppTheme } from '../hooks/useAppTheme';
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -112,9 +112,8 @@ export default function SleepSessionScreen() {
   const route = useRoute<any>();
   const { user } = useAuth();
   const { currentSession, isTracking, startSleepSession, endSleepSession } = useSleep();
-  const { isPlaying, currentSound, volume, playSound, pauseSound, stopSound, setVolume } = useAudio();
+  const { isPlaying, currentSound, volume, playSound, pauseSound, stopSound, setVolume, isMixing, stopMixing } = useAudio();
   const themedStyles = useMemo(() => styles(theme), [theme]);
-  const [currentTime, setCurrentTime] = useState(new Date());
 
   // Initialize states from navigation params if available
   const [sleepSoundsEnabled, setSleepSoundsEnabled] = useState(route.params?.initialSounds ?? false);
@@ -162,26 +161,37 @@ export default function SleepSessionScreen() {
 
   // Recording states
   const [recordingStatus, setRecordingStatus] = useState<any>(null);
+  const elapsedTimeRef = useRef('0:00:00');
+  const clockRef = useRef(new Date());
+  const [, forceUpdate] = useState(0);
 
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, []);
-
-  // Update recording status during tracking
+  // Combined timer: update elapsed time + recording status every second (single interval)
   useEffect(() => {
     if (!isTracking) return;
 
-    const statusInterval = setInterval(() => {
+    const timer = setInterval(() => {
+      // Update clock
+      clockRef.current = new Date();
+
+      // Update elapsed time via ref to avoid full re-render
+      if (currentSession) {
+        const elapsed = Date.now() - new Date(currentSession.startTime).getTime();
+        const hours = Math.floor(elapsed / (1000 * 60 * 60));
+        const minutes = Math.floor((elapsed % (1000 * 60 * 60)) / (1000 * 60));
+        const seconds = Math.floor((elapsed % (1000 * 60)) / 1000);
+        elapsedTimeRef.current = `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+      }
+
+      // Update recording status
       const status = sleepRecorderService.getStatus();
       setRecordingStatus(status);
+
+      // Trigger minimal re-render for clock display
+      forceUpdate(c => c + 1);
     }, 1000);
 
-    return () => clearInterval(statusInterval);
-  }, [isTracking]);
+    return () => clearInterval(timer);
+  }, [isTracking, currentSession?.startTime]);
 
   // Auto-dimming logic
   useEffect(() => {
@@ -200,13 +210,7 @@ export default function SleepSessionScreen() {
 
   const getElapsedTime = () => {
     if (!currentSession || !isTracking) return '0:00:00';
-
-    const elapsed = currentTime.getTime() - new Date(currentSession.startTime).getTime();
-    const hours = Math.floor(elapsed / (1000 * 60 * 60));
-    const minutes = Math.floor((elapsed % (1000 * 60 * 60)) / (1000 * 60));
-    const seconds = Math.floor((elapsed % (1000 * 60)) / 1000);
-
-    return `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+    return elapsedTimeRef.current;
   };
 
   const handleStartSleep = async () => {
@@ -359,9 +363,12 @@ export default function SleepSessionScreen() {
         return;
       }
 
-      // Stop music before ending session
+      // Stop all music before ending session (both single and mixed sounds)
       if (isPlaying) {
         await stopSound();
+      }
+      if (isMixing) {
+        await stopMixing();
       }
 
       // Cancel alarm
@@ -438,8 +445,20 @@ export default function SleepSessionScreen() {
               if (isPlaying) {
                 await stopSound();
               }
-              // Stop recorder if active
+              // Save recording events before stopping recorder
               if (sleepRecorderService.getStatus().isRecording) {
+                try {
+                  if (user && user.id !== 'guest' && currentSession?.id) {
+                    await sleepRecorderService.saveEventsToDatabase(
+                      user.id,
+                      currentSession.id,
+                      new Date(currentSession.startTime)
+                    );
+                    console.log('✅ Recording events saved before exit');
+                  }
+                } catch (saveErr) {
+                  console.warn('⚠️ Could not save recording events:', saveErr);
+                }
                 await sleepRecorderService.stopRecording();
               }
               navigation.goBack();
@@ -558,7 +577,7 @@ export default function SleepSessionScreen() {
           <StatusBar hidden />
           <View style={themedStyles.dimmedContent}>
             <Text style={themedStyles.dimmedTime}>
-              {format12HourTime(currentTime)}
+              {format12HourTime(clockRef.current)}
             </Text>
             <View style={themedStyles.dimmedStats}>
               <Moon size={20} color={theme.colors.textSecondary} style={{ marginRight: 8 }} />

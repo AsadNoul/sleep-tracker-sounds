@@ -21,6 +21,7 @@ export interface AlarmConfig {
 
 class NotificationService {
   private static instance: NotificationService;
+  private permissionGranted: boolean | null = null;
 
   private constructor() {}
 
@@ -31,9 +32,12 @@ class NotificationService {
     return NotificationService.instance;
   }
 
-  // Request notification permissions
+  // Request notification permissions (with caching)
   async requestPermissions(): Promise<boolean> {
     try {
+      // Return cached result if already granted
+      if (this.permissionGranted === true) return true;
+
       const { status: existingStatus } = await Notifications.getPermissionsAsync();
       let finalStatus = existingStatus;
 
@@ -44,8 +48,11 @@ class NotificationService {
 
       if (finalStatus !== 'granted') {
         console.log('Notification permissions not granted');
+        this.permissionGranted = false;
         return false;
       }
+
+      this.permissionGranted = true;
 
       // Configure notification channel for Android
       if (Platform.OS === 'android') {
@@ -116,11 +123,12 @@ class NotificationService {
           title: '⏰ Wake Up!',
           body: 'Time to wake up and end your sleep session',
           sound: 'default',
-          priority: Notifications.AndroidNotificationPriority.MAX,
-          vibrate: [0, 250, 250, 250],
+          ...(Platform.OS === 'android' ? {
+            priority: Notifications.AndroidNotificationPriority.MAX,
+          } : {}),
           data: { type: 'alarm', sessionId: config.sessionId },
         },
-        trigger: trigger as any,
+        trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: trigger },
       });
 
       // Store alarm ID for later cancellation
@@ -181,11 +189,11 @@ class NotificationService {
           data: { type: 'bedtime_reminder' },
         },
         trigger: {
-          type: 'calendar',
+          type: Notifications.SchedulableTriggerInputTypes.CALENDAR,
           hour: reminderTime.getHours(),
           minute: reminderTime.getMinutes(),
-          repeats: true, // Repeats daily automatically in user's timezone
-        } as any,
+          repeats: true,
+        },
       });
 
       await AsyncStorage.setItem('@bedtime_reminder_id', notificationId);
@@ -231,15 +239,16 @@ class NotificationService {
           title: '⏰ Smart Wake Up',
           body: 'Waking you during light sleep for better rest',
           sound: 'default',
-          priority: Notifications.AndroidNotificationPriority.MAX,
-          vibrate: [0, 250, 250, 250],
+          ...(Platform.OS === 'android' ? {
+            priority: Notifications.AndroidNotificationPriority.MAX,
+          } : {}),
           data: {
             type: 'smart_alarm',
             sessionId: config.sessionId,
             targetTime: targetTime.toISOString()
           },
         },
-        trigger: smartWindowStart as any,
+        trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: smartWindowStart },
       });
 
       await AsyncStorage.setItem('@alarm_notification_id', notificationId);
@@ -337,8 +346,9 @@ class NotificationService {
           title: '🧪 Test Notification',
           body: 'This is a test notification from your Sleep Tracker app!',
           sound: 'default',
-          priority: Notifications.AndroidNotificationPriority.HIGH,
-          vibrate: [0, 250, 250, 250],
+          ...(Platform.OS === 'android' ? {
+            priority: Notifications.AndroidNotificationPriority.HIGH,
+          } : {}),
           data: { type: 'test' },
         },
         trigger: null, // Send immediately
@@ -367,11 +377,12 @@ class NotificationService {
           title: '⏰ Test Alarm!',
           body: `This test alarm was scheduled ${delayInSeconds} seconds ago`,
           sound: 'default',
-          priority: Notifications.AndroidNotificationPriority.MAX,
-          vibrate: [0, 250, 250, 250],
+          ...(Platform.OS === 'android' ? {
+            priority: Notifications.AndroidNotificationPriority.MAX,
+          } : {}),
           data: { type: 'test_alarm' },
         },
-        trigger: trigger as any,
+        trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: trigger },
       });
 
       console.log(`✅ Test alarm scheduled for ${delayInSeconds} seconds from now`);

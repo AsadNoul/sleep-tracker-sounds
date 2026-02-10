@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 import { LucideIcon, Moon } from 'lucide-react-native';
 import { BlurView } from 'expo-blur';
 import { useAppTheme } from '../hooks/useAppTheme';
@@ -22,20 +22,37 @@ export default function EmptyState({
   const { theme, isDark } = useAppTheme();
   return (
     <View style={styles(theme).container}>
-      <BlurView intensity={20} tint="dark" style={styles(theme).content}>
-        <View style={styles(theme).iconContainer}>
-          <Icon size={80} color={theme.colors.accent} />
+      {Platform.OS === 'ios' ? (
+        <BlurView intensity={20} tint="dark" style={styles(theme).content}>
+          <View style={styles(theme).iconContainer}>
+            <Icon size={80} color={theme.colors.accent} />
+          </View>
+
+          <Text style={styles(theme).title}>{title}</Text>
+          <Text style={styles(theme).description}>{description}</Text>
+
+          {actionLabel && onAction && (
+            <TouchableOpacity style={styles(theme).actionButton} onPress={onAction}>
+              <Text style={styles(theme).actionButtonText}>{actionLabel}</Text>
+            </TouchableOpacity>
+          )}
+        </BlurView>
+      ) : (
+        <View style={styles(theme).content}>
+          <View style={styles(theme).iconContainer}>
+            <Icon size={80} color={theme.colors.accent} />
+          </View>
+
+          <Text style={styles(theme).title}>{title}</Text>
+          <Text style={styles(theme).description}>{description}</Text>
+
+          {actionLabel && onAction && (
+            <TouchableOpacity style={styles(theme).actionButton} onPress={onAction}>
+              <Text style={styles(theme).actionButtonText}>{actionLabel}</Text>
+            </TouchableOpacity>
+          )}
         </View>
-
-        <Text style={styles(theme).title}>{title}</Text>
-        <Text style={styles(theme).description}>{description}</Text>
-
-        {actionLabel && onAction && (
-          <TouchableOpacity style={styles(theme).actionButton} onPress={onAction}>
-            <Text style={styles(theme).actionButtonText}>{actionLabel}</Text>
-          </TouchableOpacity>
-        )}
-      </BlurView>
+      )}
     </View>
   );
 }

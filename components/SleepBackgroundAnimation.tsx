@@ -120,6 +120,6 @@ const styles = StyleSheet.create({
   },
   overlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.3)', // Subtle dark overlay
+    backgroundColor: 'rgba(5, 5, 10, 0.75)', // Darker and more blue-tinted for luxury feel
   },
 });

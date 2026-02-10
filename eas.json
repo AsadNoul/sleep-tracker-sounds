@@ -23,9 +23,7 @@
     },
     "production": {
       "autoIncrement": true,
-      "cache": {
-        "disabled": true
-      },
+      "prebuildCommand": "npx expo prebuild --clean",
       "android": {
         "buildType": "app-bundle"
       },

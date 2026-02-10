@@ -21,7 +21,7 @@ import { OfflineModeProvider } from './contexts/OfflineModeContext';
 import NetworkStatus from './components/NetworkStatus';
 import GuestModeWarning from './components/GuestModeWarning';
 import OfflineBanner from './components/OfflineBanner';
-import ErrorBoundary from './components/ErrorBoundary';
+import ErrorBoundary, { withScreenErrorBoundary } from './components/ErrorBoundary';
 import revenueCatService from './services/revenueCatService';
 import { crashLogger, setupGlobalErrorHandlers } from './services/crashLogger';
 import alarmService from './services/alarmService';
@@ -55,6 +55,7 @@ import PartnerModeScreen from './screens/PartnerModeScreen';
 import SleepInterruptionsScreen from './screens/SleepInterruptionsScreen';
 import CaffeineCalculatorScreen from './screens/CaffeineCalculatorScreen';
 import AchievementsScreen from './screens/AchievementsScreen';
+import AdminScreen from './screens/AdminScreen';
 
 // Auth & Onboarding screens
 import WelcomeScreen from './screens/WelcomeScreen';
@@ -66,6 +67,17 @@ import SplashScreen from './screens/SplashScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
+
+// Wrap crash-prone screens with per-screen error boundaries
+// So a single screen crash doesn't take down the whole app
+const SafeHomeScreen = withScreenErrorBoundary(HomeScreen, 'Home');
+const SafeSleepSessionScreen = withScreenErrorBoundary(SleepSessionScreen, 'Sleep Session');
+const SafeJournalScreen = withScreenErrorBoundary(JournalScreen, 'Journal');
+const SafeSoundsScreen = withScreenErrorBoundary(SoundsScreen, 'Sounds');
+const SafeMindfulnessScreen = withScreenErrorBoundary(MindfulnessScreen, 'Mindfulness');
+const SafeSettingsScreen = withScreenErrorBoundary(SettingsScreen, 'Settings');
+const SafeSleepAnalysisScreen = withScreenErrorBoundary(SleepAnalysisScreen, 'Sleep Analysis');
+const SafeSubscriptionScreen = withScreenErrorBoundary(SubscriptionScreen, 'Subscription');
 
 // Helper function to calculate safe tab bar height
 const getTabBarHeight = (insetsBottom: number): number => {
@@ -161,11 +173,11 @@ function MainNavigator() {
         },
       })}
     >
-      <Tab.Screen name="Home" component={HomeScreen} />
-      <Tab.Screen name="Journal" component={JournalScreen} />
-      <Tab.Screen name="Sounds" component={SoundsScreen} />
-      <Tab.Screen name="Mindfulness" component={MindfulnessScreen} />
-      <Tab.Screen name="Settings" component={SettingsScreen} />
+      <Tab.Screen name="Home" component={SafeHomeScreen} />
+      <Tab.Screen name="Journal" component={SafeJournalScreen} />
+      <Tab.Screen name="Sounds" component={SafeSoundsScreen} />
+      <Tab.Screen name="Mindfulness" component={SafeMindfulnessScreen} />
+      <Tab.Screen name="Settings" component={SafeSettingsScreen} />
     </Tab.Navigator>
   );
 }
@@ -208,9 +220,9 @@ function AppNavigator() {
           <>
             <Stack.Screen name="Onboarding" component={OnboardingScreen} />
             <Stack.Screen name="Main" component={MainNavigator} />
-            <Stack.Screen name="SleepSession" component={SleepSessionScreen} />
+            <Stack.Screen name="SleepSession" component={SafeSleepSessionScreen} />
             <Stack.Screen name="SessionPlayer" component={SessionPlayerScreen} />
-            <Stack.Screen name="Subscription" component={SubscriptionScreen} />
+            <Stack.Screen name="Subscription" component={SafeSubscriptionScreen} />
             <Stack.Screen name="HelpSupport" component={HelpSupportScreen} />
             <Stack.Screen name="PrivacySettings" component={PrivacySettingsScreen} />
             <Stack.Screen name="Profile" component={ProfileScreen} />
@@ -218,7 +230,7 @@ function AppNavigator() {
             <Stack.Screen name="BedtimeRoutine" component={BedtimeRoutineScreen} />
             <Stack.Screen name="DreamJournal" component={DreamJournalScreen} />
             <Stack.Screen name="RoomEnvironment" component={RoomEnvironmentScreen} />
-            <Stack.Screen name="SleepAnalysis" component={SleepAnalysisScreen} />
+            <Stack.Screen name="SleepAnalysis" component={SafeSleepAnalysisScreen} />
             <Stack.Screen name="FeatureRequest" component={FeatureRequestScreen} />
             <Stack.Screen name="SleepStages" component={SleepStagesScreen} />
             <Stack.Screen name="SnoreDetection" component={SnoreDetectionScreen} />
@@ -228,6 +240,7 @@ function AppNavigator() {
             <Stack.Screen name="SleepInterruptions" component={SleepInterruptionsScreen} />
             <Stack.Screen name="CaffeineCalculator" component={CaffeineCalculatorScreen} />
             <Stack.Screen name="Achievements" component={AchievementsScreen} />
+            <Stack.Screen name="Admin" component={AdminScreen} />
           </>
         ) : (
           // Logged in and finished onboarding
@@ -240,9 +253,9 @@ function AppNavigator() {
                 <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
               </>
             )}
-            <Stack.Screen name="SleepSession" component={SleepSessionScreen} />
+            <Stack.Screen name="SleepSession" component={SafeSleepSessionScreen} />
             <Stack.Screen name="SessionPlayer" component={SessionPlayerScreen} />
-            <Stack.Screen name="Subscription" component={SubscriptionScreen} />
+            <Stack.Screen name="Subscription" component={SafeSubscriptionScreen} />
             <Stack.Screen name="HelpSupport" component={HelpSupportScreen} />
             <Stack.Screen name="PrivacySettings" component={PrivacySettingsScreen} />
             <Stack.Screen name="Profile" component={ProfileScreen} />
@@ -250,7 +263,7 @@ function AppNavigator() {
             <Stack.Screen name="BedtimeRoutine" component={BedtimeRoutineScreen} />
             <Stack.Screen name="DreamJournal" component={DreamJournalScreen} />
             <Stack.Screen name="RoomEnvironment" component={RoomEnvironmentScreen} />
-            <Stack.Screen name="SleepAnalysis" component={SleepAnalysisScreen} />
+            <Stack.Screen name="SleepAnalysis" component={SafeSleepAnalysisScreen} />
             <Stack.Screen name="FeatureRequest" component={FeatureRequestScreen} />
             <Stack.Screen name="Alarms" component={AlarmsScreen} />
             <Stack.Screen name="SleepStages" component={SleepStagesScreen} />
@@ -261,6 +274,7 @@ function AppNavigator() {
             <Stack.Screen name="SleepInterruptions" component={SleepInterruptionsScreen} />
             <Stack.Screen name="CaffeineCalculator" component={CaffeineCalculatorScreen} />
             <Stack.Screen name="Achievements" component={AchievementsScreen} />
+            <Stack.Screen name="Admin" component={AdminScreen} />
           </>
         )}
       </Stack.Navigator>

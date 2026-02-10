@@ -48,14 +48,50 @@ Welcome to Sleep Architect. Your privacy is important to us.
 ## 1. Data Collection
 We collect sleep data locally on your device. If you use cloud sync, this data is encrypted and stored securely in our database.
 
-## 2. Audio Data
+We collect the following types of data:
+- Sleep session data (duration, quality, timestamps)
+- Device identifiers (for analytics and push notifications)
+- Email address (if you create an account)
+- Usage analytics (to improve app functionality)
+
+## 2. Device IDs and Third-Party Services
+We use device identifiers for:
+- Analytics and app functionality (Supabase)
+- Push notifications (Expo Notifications)
+- Subscription management (RevenueCat)
+- Authentication (Google Sign-In)
+
+These identifiers help us provide core app features like syncing your data across devices and sending you sleep reminders.
+
+## 3. Audio Data
 Sleep Architect does NOT record or store any audio data from your room. All analysis is performed on-device if applicable.
 
-## 3. Usage Data
+## 4. Usage Data
 We may collect anonymous usage statistics to improve the application.
 
-## 4. Third Parties
-We do not sell your personal data to third parties.
+## 5. Third Parties
+We do not sell your personal data to third parties. We share data with service providers only as necessary to operate the app:
+- Supabase (database and authentication)
+- RevenueCat (subscription management)
+- Expo (push notifications)
+- Google (authentication)
+
+## 6. Your Rights - Data Deletion
+You have the right to request deletion of your account and all associated data at any time.
+
+To delete your account:
+1. Go to Settings → Data & Privacy
+2. Tap "Delete Account"
+3. Confirm the deletion
+
+This will permanently remove:
+- Your account
+- All sleep sessions and journal entries
+- Analytics data
+- Device identifiers
+- All personal information
+
+This action cannot be undone. If you need help, contact us at asadalibscs20@gmail.com
   `;
 
   const termsOfService = `

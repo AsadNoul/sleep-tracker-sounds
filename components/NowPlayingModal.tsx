@@ -6,6 +6,7 @@ import {
   Modal,
   TouchableOpacity,
   Dimensions,
+  Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
@@ -68,7 +69,8 @@ export default function NowPlayingModal({
       onRequestClose={onClose}
     >
       <View style={themedStyles.modalOverlay}>
-        <BlurView intensity={100} tint="dark" style={themedStyles.modalBlur}>
+        {Platform.OS === 'ios' ? (
+          <BlurView intensity={100} tint="dark" style={themedStyles.modalBlur}>
           <LinearGradient
             colors={['rgba(15, 15, 30, 0.8)', 'rgba(22, 22, 50, 0.9)', '#0F0F1E']}
             style={StyleSheet.absoluteFill}
@@ -194,6 +196,139 @@ export default function NowPlayingModal({
                 <Headphones size={18} color={theme.colors.premium} />
                 <Text style={themedStyles.infoText}>Optimized for Spatial Audio</Text>
               </View>
+          </BlurView>
+        ) : (
+          <View style={themedStyles.modalBlur}>
+            <LinearGradient
+              colors={['rgba(15, 15, 30, 0.8)', 'rgba(22, 22, 50, 0.9)', '#0F0F1E']}
+              style={StyleSheet.absoluteFill}
+            />
+            
+            <View style={themedStyles.modalContent}>
+              {/* Header with Close Button */}
+              <View style={themedStyles.header}>
+                <TouchableOpacity onPress={onClose} style={themedStyles.closeButton}>
+                  <ChevronDown size={28} color={theme.colors.textPrimary} />
+                </TouchableOpacity>
+                <View style={themedStyles.headerTextContainer}>
+                  <Text style={themedStyles.headerTitle}>Now Playing</Text>
+                  <Text style={themedStyles.headerSubtitle}>Sleep Architect Suite</Text>
+                </View>
+                <View style={themedStyles.closeButton} />
+              </View>
+
+              {/* Album Art / Sound Icon */}
+              <View style={themedStyles.artworkContainer}>
+                <View style={themedStyles.artworkGlow} />
+                <LinearGradient
+                  colors={['#D4AF37', '#F9E29C', '#D4AF37']}
+                  style={themedStyles.artworkBorder}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                >
+                  <View style={themedStyles.artworkInner}>
+                    <LinearGradient
+                      colors={['#1A1A3A', '#0F0F1E']}
+                      style={StyleSheet.absoluteFill}
+                    />
+                    <SoundIcon size={100} color={theme.colors.premium} />
+                  </View>
+                </LinearGradient>
+              </View>
+
+              {/* Track Info */}
+              <View style={themedStyles.trackInfo}>
+                <Text style={themedStyles.trackName}>{currentSoundName || 'Celestial Drift'}</Text>
+                <Text style={themedStyles.trackArtist}>Sleep Architect • Ambient Collection</Text>
+              </View>
+
+              {/* Playback Status */}
+              <View style={themedStyles.statusContainer}>
+                {isPlaying ? (
+                  <View style={themedStyles.playingIndicator}>
+                    <View style={themedStyles.waveBar} />
+                    <View style={[themedStyles.waveBar, { height: 24 }]} />
+                    <View style={[themedStyles.waveBar, { height: 16 }]} />
+                    <View style={[themedStyles.waveBar, { height: 20 }]} />
+                  </View>
+                ) : (
+                  <View style={themedStyles.pausedIndicator}>
+                    <Pause size={20} color={theme.colors.textSecondary} />
+                  </View>
+                )}
+              </View>
+
+              {/* Volume Control */}
+              <View style={themedStyles.volumeSection}>
+                <View style={themedStyles.volumeHeader}>
+                  <Volume1 size={20} color={theme.colors.textSecondary} />
+                  <Text style={themedStyles.volumeLabel}>Volume</Text>
+                  <Volume2 size={20} color={theme.colors.textSecondary} />
+                </View>
+                <View style={themedStyles.volumeControl}>
+                  <Slider
+                    style={themedStyles.volumeSlider}
+                    value={volume}
+                    onValueChange={setVolume}
+                    minimumValue={0}
+                    maximumValue={1}
+                    minimumTrackTintColor={theme.colors.premium}
+                    maximumTrackTintColor="rgba(255,255,255,0.1)"
+                    thumbTintColor={theme.colors.premium}
+                  />
+                </View>
+                <Text style={themedStyles.volumePercent}>{Math.round(volume * 100)}%</Text>
+              </View>
+
+              {/* Playback Controls - Positioned lower */}
+              <View style={themedStyles.controls}>
+                <TouchableOpacity style={themedStyles.controlButton} onPress={handleStop}>
+                  <View style={themedStyles.secondaryButtonInner}>
+                    <CircleStop size={28} color={theme.colors.textSecondary} />
+                  </View>
+                  <Text style={themedStyles.controlLabel}>Stop</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity style={themedStyles.mainControlButton} onPress={handlePlayPause}>
+                  <LinearGradient
+                    colors={['#D4AF37', '#F9E29C']}
+                    style={themedStyles.mainControlGradient}
+                  >
+                    {isPlaying ? (
+                      <Pause size={40} color="#000" fill="#000" />
+                    ) : (
+                      <Play size={40} color="#000" fill="#000" />
+                    )}
+                  </LinearGradient>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={themedStyles.controlButton}
+                  onPress={() => setVolume(volume === 0 ? 0.5 : 0)}
+                >
+                  <View style={themedStyles.secondaryButtonInner}>
+                    {volume === 0 ? (
+                      <VolumeX size={28} color={theme.colors.textSecondary} />
+                    ) : (
+                      <Volume2 size={28} color={theme.colors.textSecondary} />
+                    )}
+                  </View>
+                  <Text style={themedStyles.controlLabel}>{volume === 0 ? 'Unmute' : 'Mute'}</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Additional Info */}
+              <View style={themedStyles.infoCard}>
+                {/* Android fallback without BlurView */}
+                <View style={StyleSheet.absoluteFill} />
+                <View style={themedStyles.infoRow}>
+                  <Headphones size={18} color={theme.colors.premium} />
+                  <Text style={themedStyles.infoText}>Optimized for Spatial Audio</Text>
+                </View>
+              </View>
+            </View>
+          </View>
+        )}
             </View>
           </View>
         </BlurView>

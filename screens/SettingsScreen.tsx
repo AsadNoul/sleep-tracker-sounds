@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+﻿import React, { useState, useEffect, useRef } from 'react';
 import {
     View,
     Text,
@@ -57,6 +57,22 @@ import { useAppTheme } from '../hooks/useAppTheme';
 import GuestBanner from '../components/GuestBanner';
 import notificationService from '../services/notificationService';
 
+// Android-safe BlurView wrapper
+const GlassCard = ({ style, children, intensity = 20, tint = "dark" }: { style?: any; children: React.ReactNode; intensity?: number; tint?: 'dark' | 'light' | 'default' }) => {
+  if (Platform.OS === 'android') {
+    return (
+      <View style={[style, { backgroundColor: 'rgba(17, 25, 40, 0.75)' }]}>
+        {children}
+      </View>
+    );
+  }
+  return (
+    <GlassCard intensity={intensity} tint={tint} style={style}>
+      {children}
+    </GlassCard>
+  );
+};
+
 type RootStackParamList = {
     Main: undefined;
     SleepSession: undefined;
@@ -96,7 +112,7 @@ export default function SettingsScreen() {
     const bottomMargin = useSafeBottomMargin();
     const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
     const { themeMode, setThemeMode } = useTheme();
-    const { signOut, user, saveUserSettings } = useAuth();
+    const { signOut, deleteAccount, user, saveUserSettings } = useAuth();
     const [notifications, setNotifications] = useState(true);
     const [sleepReminder, setSleepReminder] = useState(false);
     const [onboardingProfile, setOnboardingProfile] = useState<OnboardingProfile | null>(null);
@@ -399,16 +415,21 @@ export default function SettingsScreen() {
     };
 
     const handleDeleteAccount = () => {
+        if (user?.id === 'guest') {
+            Alert.alert('Guest Mode', 'You are in guest mode. Create an account to access data deletion features.');
+            return;
+        }
+
         showConfirm({
             title: 'Delete Account',
-            message: 'This will permanently delete your account and all associated data. This action cannot be undone. Are you absolutely sure?',
+            message: 'This will permanently delete your account and all associated data including sleep sessions, journal entries, and settings. This action cannot be undone. Are you absolutely sure?',
             isDestructive: true,
             onConfirm: async () => {
                 try {
-                    await AsyncStorage.clear();
-                    await signOut();
-                } catch (error) {
-                    Alert.alert('Error', 'Failed to delete account. Please try again.');
+                    await deleteAccount();
+                    Alert.alert('Success', 'Your account has been deleted successfully.');
+                } catch (error: any) {
+                    Alert.alert('Error', error.message || 'Failed to delete account. Please try again or contact support.');
                 }
             },
         });
@@ -446,7 +467,7 @@ export default function SettingsScreen() {
                         <Animated.View style={[styles.fluidCircle1, { transform: [{ translateX: translateX1 }, { translateY: translateY1 }] }]} />
                         <Animated.View style={[styles.fluidCircle2, { transform: [{ translateX: translateX2 }, { translateY: translateY2 }] }]} />
                     </View>
-                    <BlurView intensity={30} tint="dark" style={styles.sleepProfileContent}>
+                    <GlassCard intensity={30} tint="dark" style={styles.sleepProfileContent}>
                         <View style={styles.sleepProfileTop}>
                             <User size={32} color={theme.colors.accent} />
                             <View style={styles.sleepProfileTopText}>
@@ -460,7 +481,7 @@ export default function SettingsScreen() {
                                 <ChevronRight size={18} color="#000" />
                             </View>
                         </View>
-                    </BlurView>
+                    </GlassCard>
                 </TouchableOpacity>
             );
         }
@@ -493,7 +514,7 @@ export default function SettingsScreen() {
                     />
                 </View>
 
-                <BlurView intensity={30} tint="dark" style={styles.sleepProfileContent}>
+                <GlassCard intensity={30} tint="dark" style={styles.sleepProfileContent}>
                     <View style={styles.sleepProfileTop}>
                         <Moon size={32} color={theme.colors.accent} />
                         <View style={styles.sleepProfileTopText}>
@@ -553,7 +574,7 @@ export default function SettingsScreen() {
                             </View>
                         </View>
                     )}
-                </BlurView>
+                </GlassCard>
             </View>
         );
     };
@@ -594,7 +615,7 @@ export default function SettingsScreen() {
                     {!isLoadingProfile && renderSleepProfileHeader()}
 
                     {/* Account Section */}
-                    <BlurView intensity={20} tint="dark" style={styles.card}>
+                    <GlassCard intensity={20} tint="dark" style={styles.card}>
                         <TouchableOpacity
                             style={styles.collapsibleHeader}
                             onPress={() => setAccountExpanded(!accountExpanded)}
@@ -640,12 +661,26 @@ export default function SettingsScreen() {
                                     </View>
                                     <ChevronRight size={20} color="#A0AEC0" />
                                 </TouchableOpacity>
+
+                                {/* Admin Dashboard - Only visible to admin */}
+                                {user?.email === 'admin@naulx.com' && (
+                                    <TouchableOpacity
+                                        style={styles.settingItem}
+                                        onPress={() => navigation.navigate('Admin' as never)}
+                                    >
+                                        <View style={styles.settingInfo}>
+                                            <Users size={24} color="#FF6B6B" />
+                                            <Text style={styles.settingLabel}>Admin Dashboard</Text>
+                                        </View>
+                                        <ChevronRight size={20} color="#A0AEC0" />
+                                    </TouchableOpacity>
+                                )}
                             </>
                         )}
-                    </BlurView>
+                    </GlassCard>
 
                     {/* Sleep Tools */}
-                    <BlurView intensity={20} tint="dark" style={styles.card}>
+                    <GlassCard intensity={20} tint="dark" style={styles.card}>
                         <TouchableOpacity
                             style={styles.collapsibleHeader}
                             onPress={() => setSleepToolsExpanded(!sleepToolsExpanded)}
@@ -728,7 +763,8 @@ export default function SettingsScreen() {
                                     <ChevronRight size={20} color="#A0AEC0" />
                                 </TouchableOpacity>
 
-                                <TouchableOpacity
+                                {/* Hide Partner Mode for initial release */}
+                                {/* <TouchableOpacity
                                     style={styles.settingItem}
                                     onPress={navigateToPartnerMode}
                                 >
@@ -737,13 +773,13 @@ export default function SettingsScreen() {
                                         <Text style={styles.settingLabel}>Partner Mode</Text>
                                     </View>
                                     <ChevronRight size={20} color="#A0AEC0" />
-                                </TouchableOpacity>
+                                </TouchableOpacity> */}
                             </>
                         )}
-                    </BlurView>
+                    </GlassCard>
 
                     {/* Health & Lifestyle */}
-                    <BlurView intensity={20} tint="dark" style={styles.card}>
+                    <GlassCard intensity={20} tint="dark" style={styles.card}>
                         <TouchableOpacity
                             style={styles.collapsibleHeader}
                             onPress={() => setHealthLifestyleExpanded(!healthLifestyleExpanded)}
@@ -760,7 +796,8 @@ export default function SettingsScreen() {
 
                         {healthLifestyleExpanded && (
                             <>
-                                <TouchableOpacity
+                                {/* Hide Health Tracking for initial release */}
+                                {/* <TouchableOpacity
                                     style={styles.settingItem}
                                     onPress={navigateToHealthTracking}
                                 >
@@ -769,7 +806,7 @@ export default function SettingsScreen() {
                                         <Text style={styles.settingLabel}>Health Tracking</Text>
                                     </View>
                                     <ChevronRight size={20} color="#A0AEC0" />
-                                </TouchableOpacity>
+                                </TouchableOpacity> */}
 
                                 <TouchableOpacity
                                     style={styles.settingItem}
@@ -783,10 +820,10 @@ export default function SettingsScreen() {
                                 </TouchableOpacity>
                             </>
                         )}
-                    </BlurView>
+                    </GlassCard>
 
                     {/* Relaxation & Content */}
-                    <BlurView intensity={20} tint="dark" style={styles.card}>
+                    <GlassCard intensity={20} tint="dark" style={styles.card}>
                         <TouchableOpacity
                             style={styles.collapsibleHeader}
                             onPress={() => setRelaxationExpanded(!relaxationExpanded)}
@@ -813,10 +850,10 @@ export default function SettingsScreen() {
                                 <ChevronRight size={20} color="#A0AEC0" />
                             </TouchableOpacity>
                         )}
-                    </BlurView>
+                    </GlassCard>
 
                     {/* App Preferences */}
-                    <BlurView intensity={20} tint="dark" style={styles.card}>
+                    <GlassCard intensity={20} tint="dark" style={styles.card}>
                         <TouchableOpacity
                             style={styles.collapsibleHeader}
                             onPress={() => setAppPreferencesExpanded(!appPreferencesExpanded)}
@@ -877,10 +914,10 @@ export default function SettingsScreen() {
                                 </View>
                             </>
                         )}
-                    </BlurView>
+                    </GlassCard>
 
                     {/* Support & Info */}
-                    <BlurView intensity={20} tint="dark" style={styles.card}>
+                    <GlassCard intensity={20} tint="dark" style={styles.card}>
                         <TouchableOpacity
                             style={styles.collapsibleHeader}
                             onPress={() => setSupportExpanded(!supportExpanded)}
@@ -955,10 +992,10 @@ export default function SettingsScreen() {
                                 </TouchableOpacity>
                             </>
                         )}
-                    </BlurView>
+                    </GlassCard>
 
                     {/* Data & Privacy */}
-                    <BlurView intensity={20} tint="dark" style={styles.card}>
+                    <GlassCard intensity={20} tint="dark" style={styles.card}>
                         <TouchableOpacity
                             style={styles.collapsibleHeader}
                             onPress={() => setDataPrivacyExpanded(!dataPrivacyExpanded)}
@@ -998,17 +1035,17 @@ export default function SettingsScreen() {
                                 </TouchableOpacity>
                             </>
                         )}
-                    </BlurView>
+                    </GlassCard>
 
                     {/* Sign Out */}
                     <TouchableOpacity
                         style={styles.signOutButton}
                         onPress={handleSignOut}
                     >
-                        <BlurView intensity={20} tint="dark" style={styles.signOutCard}>
+                        <GlassCard intensity={20} tint="dark" style={styles.signOutCard}>
                             <LogOut size={24} color={theme.colors.danger} />
                             <Text style={styles.signOutText}>Sign Out</Text>
-                        </BlurView>
+                        </GlassCard>
                     </TouchableOpacity>
 
                     <View style={styles.bottomSpacing} />
@@ -1022,7 +1059,7 @@ export default function SettingsScreen() {
                     onRequestClose={() => setConfirmModalVisible(false)}
                 >
                     <View style={styles.modalOverlay}>
-                        <BlurView intensity={90} tint="dark" style={styles.confirmContent}>
+                        <GlassCard intensity={90} tint="dark" style={styles.confirmContent}>
                             <View style={styles.confirmHeader}>
                                 {confirmConfig?.isDestructive ? (
                                     <Trash2 size={40} color={theme.colors.danger} />
@@ -1055,7 +1092,7 @@ export default function SettingsScreen() {
                                     </Text>
                                 </TouchableOpacity>
                             </View>
-                        </BlurView>
+                        </GlassCard>
                     </View>
                 </Modal>
             </LinearGradient>

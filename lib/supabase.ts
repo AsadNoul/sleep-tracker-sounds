@@ -138,12 +138,17 @@ export interface UserMusicFavorite {
 // Helper functions
 export const isPremiumUser = (profile: UserProfile | null): boolean => {
   if (!profile) return false;
+  // Admin users get all premium features by default
+  if (profile.role === 'admin') return true;
   return profile.subscription_status === 'premium_monthly' ||
          profile.subscription_status === 'premium_yearly';
 };
 
 export const canAccessPremiumContent = (profile: UserProfile | null): boolean => {
   if (!profile) return false;
+
+  // Admin users always have access to premium content
+  if (profile.role === 'admin') return true;
 
   // Check if user is premium
   if (!isPremiumUser(profile)) return false;

@@ -1,4 +1,4 @@
-import React, { createContext, useState, useContext, useEffect, ReactNode } from 'react';
+import React, { createContext, useState, useContext, useEffect, ReactNode, useMemo, useRef, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase, UserProfile } from '../lib/supabase';
 import { Session, User as SupabaseUser } from '@supabase/supabase-js';
@@ -10,6 +10,9 @@ import Constants from 'expo-constants';
 import { getErrorMessage } from '../utils/errorMessages';
 import revenueCatService from '../services/revenueCatService';
 import * as Notifications from 'expo-notifications';
+import notificationService from '../services/notificationService';
+import welcomeService from '../services/welcomeService';
+import analyticsService from '../services/analyticsService';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -17,7 +20,10 @@ interface User {
   id: string;
   email: string;
   full_name: string | null;
+  role?: string;
   subscription_status: 'free' | 'premium_monthly' | 'premium_yearly';
+  subscription_end_date?: string;
+  isPremium?: boolean;
 }
 
 interface AuthContextType {
@@ -31,6 +37,7 @@ interface AuthContextType {
   signInWithGoogle: () => Promise<void>;
   signInWithApple: () => Promise<void>;
   signOut: () => Promise<void>;
+  deleteAccount: () => Promise<void>;
   completeOnboarding: () => Promise<void>;
   migrateGuestData: () => Promise<void>;
   reloadProfile: () => Promise<void>;
@@ -57,16 +64,38 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(false);
+  const loadedUserIdRef = useRef<string | null>(null); // Prevent duplicate profile loads
+  const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
+    // Safety timeout — NEVER let isLoading stay true for more than 10 seconds
+    loadingTimeoutRef.current = setTimeout(() => {
+      setIsLoading((prev) => {
+        if (prev) {
+          console.warn('⚠️ Auth loading safety timeout reached (10s). Forcing load complete.');
+          return false;
+        }
+        return prev;
+      });
+    }, 10000);
+
     // Initialize auth session
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       setSession(session);
       if (session?.user) {
-        loadUserProfile(session.user.id);
+        try {
+          await loadUserProfile(session.user.id);
+          loadedUserIdRef.current = session.user.id;
+        } catch (err) {
+          console.error('Failed to load profile during init:', err);
+        }
       } else {
-        checkGuestMode();
+        await checkGuestMode();
       }
+      setIsLoading(false);
+    }).catch((error) => {
+      // CRITICAL: Always clear loading state even if getSession fails
+      console.error('Auth initialization failed:', error);
       setIsLoading(false);
     });
 
@@ -76,8 +105,13 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       if (session?.user) {
-        loadUserProfile(session.user.id);
+        // Skip duplicate profile load if same user was already loaded
+        if (loadedUserIdRef.current !== session.user.id) {
+          loadedUserIdRef.current = session.user.id;
+          loadUserProfile(session.user.id);
+        }
       } else {
+        loadedUserIdRef.current = null;
         setUser(null);
         setProfile(null);
         // Reset onboarding state when user signs out
@@ -85,7 +119,10 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      subscription.unsubscribe();
+      if (loadingTimeoutRef.current) clearTimeout(loadingTimeoutRef.current);
+    };
   }, []);
 
   const isExpoGo = () => {
@@ -107,6 +144,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           email: 'guest@local',
           full_name: 'Guest',
           subscription_status: 'free',
+          role: 'user',
+          isPremium: false,
         };
         setUser(guestUser);
       }
@@ -175,6 +214,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           email: data.email || '',
           full_name: data.full_name,
           subscription_status: data.subscription_status,
+          role: data.role,
+          isPremium: data.role === 'admin' || data.subscription_status === 'premium_monthly' || data.subscription_status === 'premium_yearly',
         });
 
         // Set RevenueCat user ID so webhooks can identify this user
@@ -253,6 +294,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             email: retryData.email || '',
             full_name: retryData.full_name,
             subscription_status: retryData.subscription_status,
+            role: retryData.role,
+            isPremium: retryData.role === 'admin' || retryData.subscription_status === 'premium_monthly' || retryData.subscription_status === 'premium_yearly',
           });
 
           // Register push notification token
@@ -269,6 +312,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
               email: authUser.email || '',
               full_name: authUser.user_metadata?.full_name || null,
               subscription_status: 'free',
+              role: 'user',
+              isPremium: false,
             });
           }
         }
@@ -302,6 +347,16 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
       if (data.user) {
         await loadUserProfile(data.user.id);
+
+        // Track sign in
+        await analyticsService.trackSignin('email');
+
+        // Send welcome back notification
+        await notificationService.sendImmediateNotification(
+          '👋 Welcome Back!',
+          'Ready to continue your sleep journey? Track your sleep tonight.',
+          { type: 'signin' }
+        );
       }
     } catch (error: any) {
       console.error('Error signing in:', error);
@@ -337,6 +392,20 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         }
 
         await loadUserProfile(data.user.id);
+
+        // Track signup
+        await analyticsService.trackSignup('email');
+
+        // Send welcome notification (async, don't wait)
+        welcomeService.sendWelcomeNotification(data.user.id, name).catch(err => 
+          console.error('Failed to send welcome notification:', err)
+        );
+
+        await notificationService.sendImmediateNotification(
+          '🎉 Welcome to Sleep Tracker!',
+          'Start tracking your sleep tonight for personalized insights and better rest.',
+          { type: 'welcome' }
+        );
       }
     } catch (error: any) {
       console.error('Error signing up:', error);
@@ -350,7 +419,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
       // Auto-detect: Use proxy in Expo Go, custom scheme in production
       const inExpoGo = isExpoGo();
-      
+
       // Use Linking.createURL for the most reliable redirect in Expo Go
       // This avoids the "something went wrong" error on the Expo Proxy page
       const redirectUrl = Linking.createURL('auth/callback');
@@ -428,7 +497,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
             if (sessionData?.session) {
               console.log('✅ Session set successfully!');
-              
+
               // Check if this is a new user (metadata or profile check)
               const isNewUser = sessionData.session.user.last_sign_in_at === sessionData.session.user.created_at;
               console.log('👤 Is new user:', isNewUser);
@@ -514,6 +583,49 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     } catch (error: any) {
       console.error('Error with Apple sign in:', error);
       throw new Error(error.message || 'Failed to sign in with Apple');
+    }
+  };
+
+  const deleteAccount = async () => {
+    try {
+      if (!user || user.id === 'guest') {
+        throw new Error('No account to delete');
+      }
+
+      console.log('🗑️ Starting account deletion process...');
+
+      const userId = user.id;
+
+      // Step 1: Delete all user data from tables
+      const deletePromises = [
+        supabase.from('sleep_records').delete().eq('user_id', userId),
+        supabase.from('sleep_insights').delete().eq('user_id', userId),
+        supabase.from('analytics_events').delete().eq('user_id', userId),
+        supabase.from('journal_entries').delete().eq('user_id', userId),
+        supabase.from('user_settings').delete().eq('user_id', userId),
+        supabase.from('user_profiles').delete().eq('id', userId),
+      ];
+
+      await Promise.all(deletePromises);
+      console.log('✅ User data deleted from all tables');
+
+      // Step 2: Clear local storage
+      await AsyncStorage.clear();
+
+      // Step 3: Sign out (this effectively "deletes" the user session)
+      // Note: Actual auth user deletion requires Supabase Admin API
+      // For now, we just sign them out after clearing all their data
+      await supabase.auth.signOut();
+
+      // Reset state
+      setUser(null);
+      setProfile(null);
+      setHasCompletedOnboarding(false);
+
+      console.log('✅ Account deleted successfully');
+    } catch (error: any) {
+      console.error('❌ Error deleting account:', error);
+      throw new Error(error.message || 'Failed to delete account');
     }
   };
 
@@ -691,7 +803,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     }
   };
 
-  const value = {
+  const value = useMemo(() => ({
     user,
     profile,
     session,
@@ -702,11 +814,12 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     signInWithGoogle,
     signInWithApple,
     signOut,
+    deleteAccount,
     completeOnboarding,
     migrateGuestData,
     reloadProfile,
     saveUserSettings,
-  };
+  }), [user, profile, session, isLoading, hasCompletedOnboarding]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
