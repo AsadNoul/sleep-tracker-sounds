@@ -2,6 +2,7 @@ import { supabase } from '../lib/supabase';
 import { AppState, AppStateStatus, Platform } from 'react-native';
 import logger from '../utils/logger';
 
+// Mixpanel HTTP API (pure JS - no native modules, works in Expo Go)
 const MIXPANEL_TOKEN = 'cdece4b2549e31e3cf56aa53ca6da153';
 const MIXPANEL_TRACK_URL = 'https://api.mixpanel.com/track';
 const MIXPANEL_ENGAGE_URL = 'https://api.mixpanel.com/engage';
@@ -21,15 +22,12 @@ class AnalyticsService {
   constructor() {
     this.startAutoFlush();
     this.setupAppStateListener();
-    // Generate anonymous distinct_id for Mixpanel until user identifies
     this.mixpanelDistinctId = 'anon_' + Math.random().toString(36).substring(2, 15);
-    logger.debug('📊 Mixpanel HTTP API ready (pure JS, no native modules)');
+    logger.debug('📊 Analytics ready (Mixpanel HTTP + Supabase)');
   }
 
-  /**
-   * Send events to Mixpanel via HTTP API (pure JS - works in Expo Go)
-   */
-  private async mixpanelTrack(eventName: string, properties?: any) {
+  /** Send event to Mixpanel via HTTP API (pure JS, fire-and-forget) */
+  private mixpanelTrack(eventName: string, properties?: any) {
     try {
       const payload = [{
         event: eventName,
@@ -41,41 +39,34 @@ class AnalyticsService {
           ...properties,
         },
       }];
-
       fetch(MIXPANEL_TRACK_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Accept': 'text/plain' },
         body: JSON.stringify(payload),
-      }).catch(() => {}); // Fire and forget
-    } catch (error) {
-      // Silently fail - analytics should never crash the app
-    }
+      }).catch(() => {});
+    } catch (_) {}
   }
 
-  /**
-   * Set user profile properties via Mixpanel Engage API
-   */
-  private async mixpanelEngage(operation: string, data: any) {
+  /** Set user profile properties via Mixpanel Engage API */
+  private mixpanelEngage(operation: string, data: any) {
     try {
       const payload = [{
         $token: MIXPANEL_TOKEN,
         $distinct_id: this.mixpanelDistinctId || 'anonymous',
         [operation]: data,
       }];
-
       fetch(MIXPANEL_ENGAGE_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Accept': 'text/plain' },
         body: JSON.stringify(payload),
       }).catch(() => {});
-    } catch (error) {
-      // Silently fail
-    }
+    } catch (_) {}
   }
 
   private setupAppStateListener() {
     this.appStateSubscription = AppState.addEventListener('change', (nextState: AppStateStatus) => {
       if (nextState === 'background' || nextState === 'inactive') {
+        // Fire-and-forget but with best effort
         this.flush().catch(() => {});
       }
     });
@@ -83,6 +74,7 @@ class AnalyticsService {
 
   private startAutoFlush() {
     if (this.flushInterval) return;
+    
     this.flushInterval = setInterval(() => {
       this.flush();
     }, this.FLUSH_INTERVAL);
@@ -98,13 +90,14 @@ class AnalyticsService {
     this.eventQueue = [];
 
     try {
+      // Cache user ID to avoid round-trip on every flush
       const now = Date.now();
       if (!this.cachedUserId || now - this.userIdCacheTime > this.USER_ID_CACHE_TTL) {
         const { data: { user } } = await supabase.auth.getUser();
         this.cachedUserId = user?.id || null;
         this.userIdCacheTime = now;
       }
-
+      
       const events = eventsToSend.map(event => ({
         user_id: this.cachedUserId || null,
         event_name: event.name,
@@ -116,6 +109,7 @@ class AnalyticsService {
       logger.debug(`📊 Flushed ${events.length} analytics events`);
     } catch (error) {
       logger.error('Analytics flush error:', error);
+      // Re-queue failed events but respect max queue size
       const spaceLeft = this.MAX_QUEUE_SIZE - this.eventQueue.length;
       if (spaceLeft > 0) {
         this.eventQueue.unshift(...eventsToSend.slice(0, spaceLeft));
@@ -128,16 +122,16 @@ class AnalyticsService {
    */
   async trackEvent(eventName: string, properties?: any): Promise<void> {
     try {
-      // Track to Mixpanel via HTTP API (real-time, pure JS)
+      // Track to Mixpanel via HTTP API (real-time)
       this.mixpanelTrack(eventName, properties || {});
 
-      // Enforce queue size limit
+      // Enforce queue size limit - drop oldest events if full
       if (this.eventQueue.length >= this.MAX_QUEUE_SIZE) {
         this.eventQueue.splice(0, this.eventQueue.length - this.MAX_QUEUE_SIZE + 1);
         logger.debug('📊 Analytics queue full, dropped oldest events');
       }
 
-      // Add to queue for Supabase
+      // Add to queue
       this.eventQueue.push({
         name: eventName,
         properties: properties || {},
@@ -152,42 +146,33 @@ class AnalyticsService {
       }
     } catch (error) {
       logger.error('Analytics tracking error:', error);
+      // Don't throw - analytics should never break the app
     }
   }
 
-  /**
-   * Identify user for tracking
-   */
+  /** Identify user for Mixpanel tracking */
   async identifyUser(userId: string, traits?: any) {
     try {
       this.cachedUserId = userId;
       this.userIdCacheTime = Date.now();
       this.mixpanelDistinctId = userId;
-
-      if (traits) {
-        this.mixpanelEngage('$set', traits);
-      }
-      logger.debug('📊 User identified in Mixpanel:', userId);
+      if (traits) this.mixpanelEngage('$set', traits);
+      logger.debug('📊 User identified:', userId);
     } catch (error) {
       logger.error('User identification error:', error);
     }
   }
 
-  /**
-   * Set user properties
-   */
+  /** Set user properties in Mixpanel */
   async setUserProperties(properties: any) {
     try {
       this.mixpanelEngage('$set', properties);
-      logger.debug('📊 User properties set in Mixpanel');
     } catch (error) {
       logger.error('Set user properties error:', error);
     }
   }
 
-  /**
-   * Increment a numeric user property
-   */
+  /** Increment a numeric user property */
   async incrementUserProperty(property: string, value: number = 1) {
     try {
       this.mixpanelEngage('$add', { [property]: value });
@@ -196,8 +181,20 @@ class AnalyticsService {
     }
   }
 
+  /** Reset user identity (on logout) */
+  async reset() {
+    try {
+      this.cachedUserId = null;
+      this.userIdCacheTime = 0;
+      this.mixpanelDistinctId = 'anon_' + Math.random().toString(36).substring(2, 15);
+      logger.debug('📊 Analytics user reset');
+    } catch (error) {
+      logger.error('Reset error:', error);
+    }
+  }
+
   /**
-   * Force flush all queued events
+   * Force flush all queued events (call on app background/close)
    */
   async forceFlush() {
     await this.flush();
@@ -215,21 +212,7 @@ class AnalyticsService {
       this.appStateSubscription.remove();
       this.appStateSubscription = null;
     }
-    await this.flush();
-  }
-
-  /**
-   * Reset user identity (on logout)
-   */
-  async reset() {
-    try {
-      this.cachedUserId = null;
-      this.userIdCacheTime = 0;
-      this.mixpanelDistinctId = 'anon_' + Math.random().toString(36).substring(2, 15);
-      logger.debug('📊 Mixpanel user reset');
-    } catch (error) {
-      logger.error('Reset error:', error);
-    }
+    await this.flush(); // Final flush (awaited)
   }
 
   // Sleep tracking events

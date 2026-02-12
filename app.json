@@ -13,7 +13,7 @@
       "resizeMode": "contain",
       "backgroundColor": "#0B0B15"
     },
-    "runtimeVersion": "2.1.0",
+    "runtimeVersion": "1.0.0",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.sleeptracker.app",
@@ -98,7 +98,6 @@
       "expo-notifications",
       "expo-file-system",
       "expo-av",
-      "expo-updates",
       [
         "expo-build-properties",
         {

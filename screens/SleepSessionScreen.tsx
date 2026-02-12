@@ -113,7 +113,7 @@ export default function SleepSessionScreen() {
   const { user } = useAuth();
   const { currentSession, isTracking, startSleepSession, endSleepSession } = useSleep();
   const { isPlaying, currentSound, volume, playSound, pauseSound, stopSound, setVolume, isMixing, stopMixing } = useAudio();
-  const themedStyles = useMemo(() => styles(theme, insets), [theme, insets]);
+  const themedStyles = useMemo(() => styles(theme), [theme]);
 
   // Initialize states from navigation params if available
   const [sleepSoundsEnabled, setSleepSoundsEnabled] = useState(route.params?.initialSounds ?? false);
@@ -782,19 +782,21 @@ export default function SleepSessionScreen() {
   return (
     <View style={themedStyles.container}>
       <LinearGradient colors={['#0F0F1E', '#161632', '#0F0F1E']} style={themedStyles.gradient}>
-        <ScrollView
-          style={themedStyles.content}
-          contentContainerStyle={{
-            paddingTop: insets.top + 8,
-            paddingBottom: insets.bottom + 100
-          }}
-          showsVerticalScrollIndicator={false}
-        >
+        <View style={themedStyles.topControls}>
           <TouchableOpacity onPress={exitSleepMode} style={themedStyles.backButton}>
             <ChevronLeft size={28} color={theme.colors.textSecondary} />
             <Text style={themedStyles.backButtonText}>Back</Text>
           </TouchableOpacity>
+        </View>
 
+        <ScrollView
+          style={themedStyles.content}
+          contentContainerStyle={{
+            paddingTop: insets.top + 20,
+            paddingBottom: insets.bottom + 100
+          }}
+          showsVerticalScrollIndicator={false}
+        >
           <View style={themedStyles.header}>
             <Text style={themedStyles.title}>Ready to Sleep?</Text>
             <Text style={themedStyles.subtitle}>Configure your sleep session</Text>
@@ -1116,7 +1118,7 @@ export default function SleepSessionScreen() {
   );
 }
 
-const styles = (theme: any, insets: { top: number; bottom: number; left: number; right: number }) => StyleSheet.create({
+const styles = (theme: any) => StyleSheet.create({
   dimmedContainer: {
     flex: 1,
     backgroundColor: '#000000',
@@ -1174,7 +1176,6 @@ const styles = (theme: any, insets: { top: number; bottom: number; left: number;
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingTop: insets.top + 8,
     marginBottom: 20,
   },
   exitButton: {
@@ -1183,10 +1184,8 @@ const styles = (theme: any, insets: { top: number; bottom: number; left: number;
   backButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 4,
-    marginBottom: 8,
-    alignSelf: 'flex-start',
+    padding: 10,
+    marginLeft: -10,
   },
   backButtonText: {
     fontSize: 16,

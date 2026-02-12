@@ -43,7 +43,8 @@ import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import ConfettiCannon from 'react-native-confetti-cannon';
-import revenueCatService, { PurchasesPackageStub as PurchasesPackage } from '../services/revenueCatService';
+import revenueCatService from '../services/revenueCatService';
+import { PurchasesPackage } from 'react-native-purchases';
 import { useAppTheme } from '../hooks/useAppTheme';
 
 export default function SubscriptionScreen() {

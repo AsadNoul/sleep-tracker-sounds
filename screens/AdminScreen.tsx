@@ -41,10 +41,6 @@ interface UserData {
   created_at: string;
   total_sleep_sessions: number;
   last_active: string | null;
-  country?: string | null;
-  country_code?: string | null;
-  last_ip?: string | null;
-  last_login_at?: string | null;
 }
 
 interface Stats {
@@ -83,7 +79,6 @@ export default function AdminScreen() {
     active_today: 0,
     new_users_today: 0,
   });
-  const [countryStats, setCountryStats] = useState<{ country: string; count: number }[]>([]);
 
   useEffect(() => {
     loadAdminData();
@@ -188,35 +183,28 @@ export default function AdminScreen() {
       // Load users with sleep session counts
       const { data: usersData, error: usersError } = await supabase
         .from('user_profiles')
-        .select('id, email, full_name, subscription_status, subscription_start_date, subscription_end_date, created_at, country, country_code, last_ip, last_login_at')
+        .select('id, email, full_name, subscription_status, subscription_start_date, subscription_end_date, created_at')
         .order('created_at', { ascending: false });
 
       if (usersError) throw usersError;
 
-      // Get sleep session counts for all users in a single query
-      const userIds = (usersData || []).map(u => u.id);
-      const { data: sleepStats } = userIds.length > 0
-        ? await supabase
+      // Get sleep session counts for each user
+      const usersWithStats = await Promise.all(
+        (usersData || []).map(async (user) => {
+          const { data: lastRows, count } = await supabase
             .from('sleep_records')
-            .select('user_id, created_at')
-            .in('user_id', userIds)
+            .select('created_at', { count: 'exact' })
+            .eq('user_id', user.id)
             .order('created_at', { ascending: false })
-        : { data: [] };
+            .limit(1);
 
-      // Build per-user stats map from the single result
-      const statsMap: Record<string, { count: number; last_active: string | null }> = {};
-      for (const row of (sleepStats || [])) {
-        if (!statsMap[row.user_id]) {
-          statsMap[row.user_id] = { count: 0, last_active: row.created_at };
-        }
-        statsMap[row.user_id].count++;
-      }
-
-      const usersWithStats = (usersData || []).map(user => ({
-        ...user,
-        total_sleep_sessions: statsMap[user.id]?.count || 0,
-        last_active: statsMap[user.id]?.last_active || null,
-      }));
+          return {
+            ...user,
+            total_sleep_sessions: count || 0,
+            last_active: lastRows?.[0]?.created_at || null,
+          };
+        })
+      );
 
       setUsers(usersWithStats);
 
@@ -257,22 +245,6 @@ export default function AdminScreen() {
         active_today: activeToday || 0,
         new_users_today: newUsersToday || 0,
       });
-
-      // Calculate country distribution
-      const countryMap = new Map<string, number>();
-      usersWithStats.forEach(user => {
-        if (user.country) {
-          const count = countryMap.get(user.country) || 0;
-          countryMap.set(user.country, count + 1);
-        }
-      });
-      
-      const topCountries = Array.from(countryMap.entries())
-        .map(([country, count]) => ({ country, count }))
-        .sort((a, b) => b.count - a.count)
-        .slice(0, 5); // Top 5 countries
-      
-      setCountryStats(topCountries);
     } catch (error: any) {
       console.error('Error loading admin data:', error);
       Alert.alert('Error', 'Failed to load admin data');
@@ -509,22 +481,6 @@ export default function AdminScreen() {
                 </BlurView>
               </View>
 
-              {/* Country Distribution */}
-              {countryStats.length > 0 && (
-                <>
-                  <Text style={s.sectionTitle}>Top Countries</Text>
-                  <View style={s.statsRow}>
-                    {countryStats.map((item, index) => (
-                      <BlurView key={item.country} intensity={20} tint="dark" style={s.countryCard}>
-                        <Text style={s.countryFlag}>🌍</Text>
-                        <Text style={s.countryName} numberOfLines={1}>{item.country}</Text>
-                        <Text style={s.countryCount}>{item.count} users</Text>
-                      </BlurView>
-                    ))}
-                  </View>
-                </>
-              )}
-
               {/* Send Notification Section */}
               <Text style={s.sectionTitle}>Send Push Notification</Text>
               <BlurView intensity={20} tint="dark" style={s.notificationCard}>
@@ -685,11 +641,6 @@ export default function AdminScreen() {
                     <Text style={s.metaText}>
                       Joined: {new Date(user.created_at).toLocaleDateString()}
                     </Text>
-                    {user.country && (
-                      <Text style={s.metaText}>
-                        📍 {user.country} {user.country_code ? `(${user.country_code})` : ''}
-                      </Text>
-                    )}
                     {user.subscription_end_date && (
                       <Text style={s.metaText}>
                         Sub Ends: {new Date(user.subscription_end_date).toLocaleDateString()}
@@ -968,29 +919,4 @@ const styles = (theme: any) =>
       fontSize: 16,
       fontWeight: '600',
     },
-    countryCard: {
-      flex: 1,
-      minWidth: 90,
-      padding: 12,
-      borderRadius: 16,
-      alignItems: 'center',
-      marginHorizontal: 4,
-    },
-    countryFlag: {
-      fontSize: 24,
-      marginBottom: 4,
-    },
-    countryName: {
-      color: theme.colors.textPrimary,
-      fontSize: 12,
-      fontWeight: '600',
-      marginBottom: 2,
-      textAlign: 'center',
-    },
-    countryCount: {
-      color: theme.colors.textSecondary,
-      fontSize: 11,
-    },
   });
-
-export default AdminScreen;

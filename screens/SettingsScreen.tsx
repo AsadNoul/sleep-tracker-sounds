@@ -67,9 +67,9 @@ const GlassCard = ({ style, children, intensity = 20, tint = "dark" }: { style?:
     );
   }
   return (
-    <BlurView intensity={intensity} tint={tint} style={style}>
+    <GlassCard intensity={intensity} tint={tint} style={style}>
       {children}
-    </BlurView>
+    </GlassCard>
   );
 };
 
@@ -120,6 +120,7 @@ export default function SettingsScreen() {
     const [accountExpanded, setAccountExpanded] = useState(false);
     const [sleepToolsExpanded, setSleepToolsExpanded] = useState(false);
     const [healthLifestyleExpanded, setHealthLifestyleExpanded] = useState(false);
+    const [relaxationExpanded, setRelaxationExpanded] = useState(false);
     const [appPreferencesExpanded, setAppPreferencesExpanded] = useState(false);
     const [supportExpanded, setSupportExpanded] = useState(false);
     const [dataPrivacyExpanded, setDataPrivacyExpanded] = useState(false);
@@ -762,14 +763,6 @@ export default function SettingsScreen() {
                                     <ChevronRight size={20} color="#A0AEC0" />
                                 </TouchableOpacity>
 
-                                <TouchableOpacity style={styles.settingItem} onPress={() => navigation.navigate('Alarms' as never)}>
-                                    <View style={styles.settingInfo}>
-                                        <Bell size={24} color="#8B5CF6" />
-                                        <Text style={styles.settingLabel}>Manage Alarms</Text>
-                                    </View>
-                                    <ChevronRight size={20} color="#A0AEC0" />
-                                </TouchableOpacity>
-
                                 {/* Hide Partner Mode for initial release */}
                                 {/* <TouchableOpacity
                                     style={styles.settingItem}
@@ -825,18 +818,37 @@ export default function SettingsScreen() {
                                     </View>
                                     <ChevronRight size={20} color="#A0AEC0" />
                                 </TouchableOpacity>
-
-                                <TouchableOpacity
-                                    style={styles.settingItem}
-                                    onPress={navigateToRelaxationLibrary}
-                                >
-                                    <View style={styles.settingInfo}>
-                                        <Headphones size={24} color="#A855F7" />
-                                        <Text style={styles.settingLabel}>Relaxation Library</Text>
-                                    </View>
-                                    <ChevronRight size={20} color="#A0AEC0" />
-                                </TouchableOpacity>
                             </>
+                        )}
+                    </GlassCard>
+
+                    {/* Relaxation & Content */}
+                    <GlassCard intensity={20} tint="dark" style={styles.card}>
+                        <TouchableOpacity
+                            style={styles.collapsibleHeader}
+                            onPress={() => setRelaxationExpanded(!relaxationExpanded)}
+                        >
+                            <Text style={styles.cardTitle}>Relaxation & Content</Text>
+                            <ChevronDown
+                                size={24}
+                                color="#A0AEC0"
+                                style={{
+                                    transform: [{ rotate: relaxationExpanded ? '180deg' : '0deg' }]
+                                }}
+                            />
+                        </TouchableOpacity>
+
+                        {relaxationExpanded && (
+                            <TouchableOpacity
+                                style={styles.settingItem}
+                                onPress={navigateToRelaxationLibrary}
+                            >
+                                <View style={styles.settingInfo}>
+                                    <Headphones size={24} color="#A855F7" />
+                                    <Text style={styles.settingLabel}>Relaxation Library</Text>
+                                </View>
+                                <ChevronRight size={20} color="#A0AEC0" />
+                            </TouchableOpacity>
                         )}
                     </GlassCard>
 
@@ -971,6 +983,13 @@ export default function SettingsScreen() {
                                     <ChevronRight size={20} color="#A0AEC0" />
                                 </TouchableOpacity>
 
+                                <TouchableOpacity style={styles.settingItem} onPress={() => navigation.navigate('Alarms' as never)}>
+                                    <View style={styles.settingInfo}>
+                                        <Bell size={24} color="#8B5CF6" />
+                                        <Text style={styles.settingLabel}>Manage Alarms</Text>
+                                    </View>
+                                    <ChevronRight size={20} color="#A0AEC0" />
+                                </TouchableOpacity>
                             </>
                         )}
                     </GlassCard>

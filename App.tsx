@@ -26,15 +26,7 @@ import revenueCatService from './services/revenueCatService';
 import { crashLogger, setupGlobalErrorHandlers } from './services/crashLogger';
 import alarmService from './services/alarmService';
 import { useFonts } from 'expo-font';
-// UpdateChecker uses expo-updates which throws at import time in bare workflow
-// when the native module is not configured. Load it lazily so a failure here
-// never crashes the app on startup.
-let UpdateChecker: React.ComponentType<any> | null = null;
-try {
-  UpdateChecker = require('./components/UpdateChecker').default;
-} catch {
-  UpdateChecker = null;
-}
+import UpdateChecker from './components/UpdateChecker';
 
 // Import screens
 import HomeScreen from './screens/HomeScreen';
@@ -382,7 +374,7 @@ export default function App() {
               <AuthProvider>
                 <SleepProvider>
                   <AudioProvider>
-                    {UpdateChecker ? <UpdateChecker /> : null}
+                    <UpdateChecker />
                     <NavigationContainer>
                       <OfflineBanner />
                       <NetworkStatus />

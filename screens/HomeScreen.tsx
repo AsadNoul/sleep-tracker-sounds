@@ -588,7 +588,7 @@ export default function HomeScreen() {
             onPress={() => navigation.navigate('Sounds')}
           >
             <LinearGradient
-              colors={['rgba(139, 92, 246, 0.28)', 'rgba(139, 92, 246, 0.10)']}
+              colors={['rgba(107, 114, 128, 0.28)', 'rgba(107, 114, 128, 0.10)']}
               style={themedStyles.actionContent}
             >
               <View style={[themedStyles.actionIconWrapper, { backgroundColor: 'rgba(139, 92, 246, 0.22)' }]}>
@@ -603,7 +603,7 @@ export default function HomeScreen() {
             onPress={() => navigation.navigate('Alarms')}
           >
             <LinearGradient
-              colors={['rgba(16, 185, 129, 0.28)', 'rgba(16, 185, 129, 0.10)']}
+              colors={['rgba(107, 114, 128, 0.28)', 'rgba(107, 114, 128, 0.10)']}
               style={themedStyles.actionContent}
             >
               <View style={[themedStyles.actionIconWrapper, { backgroundColor: 'rgba(16, 185, 129, 0.22)' }]}>
@@ -1026,8 +1026,9 @@ const styles = (theme: any, width: number) => StyleSheet.create({
   },
   vitalWidgetGrid: {
     backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: 24,
-    padding: 16,
+    borderRadius: 20,
+    padding: 12,
+    paddingBottom: 10,
     flex: 1,
     minWidth: '45%',
     borderWidth: 1,
@@ -1036,7 +1037,7 @@ const styles = (theme: any, width: number) => StyleSheet.create({
   vitalIconRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 6,
   },
   vitalLabel: {
     color: '#94A3B8',
@@ -1047,10 +1048,10 @@ const styles = (theme: any, width: number) => StyleSheet.create({
   },
   vitalValue: {
     color: '#FFFFFF',
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '700',
     fontFamily: theme.typography.fontFamily.bold,
-    marginBottom: 4,
+    marginBottom: 2,
   },
   vitalSubtext: {
     color: '#64748B',
@@ -1061,9 +1062,9 @@ const styles = (theme: any, width: number) => StyleSheet.create({
   sparkLineContainer: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    height: 20,
+    height: 16,
     gap: 3,
-    marginTop: 8,
+    marginTop: 4,
   },
   sparkBar: {
     width: 4,
