@@ -260,6 +260,51 @@ class AnalyticsService {
     }
   }
 
+  /**
+   * Get AppsFlyer ID for testing and verification
+   */
+  async getAppsFlyerId(): Promise<string | null> {
+    try {
+      if (this.appsFlyerInitialized) {
+        const appsFlyerId = await appsFlyer.getAppsFlyerUID();
+        logger.debug('📊 AppsFlyer ID:', appsFlyerId);
+        return appsFlyerId;
+      }
+      return null;
+    } catch (error) {
+      logger.error('Get AppsFlyer ID error:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Test AppsFlyer integration
+   */
+  async testAppsFlyerIntegration(): Promise<boolean> {
+    try {
+      if (!this.appsFlyerInitialized) {
+        logger.error('❌ AppsFlyer not initialized');
+        return false;
+      }
+
+      // Get AppsFlyer ID
+      const appsFlyerId = await this.getAppsFlyerId();
+      logger.info('✅ AppsFlyer ID retrieved:', appsFlyerId);
+
+      // Send test event
+      appsFlyer.logEvent('af_test_event', {
+        test_param: 'test_value',
+        timestamp: new Date().toISOString()
+      });
+      logger.info('✅ AppsFlyer test event sent');
+
+      return true;
+    } catch (error) {
+      logger.error('❌ AppsFlyer test failed:', error);
+      return false;
+    }
+  }
+
   // Sleep tracking events
   async trackSleepSessionStart() {
     await this.trackEvent('sleep_session_start', {

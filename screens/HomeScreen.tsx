@@ -49,6 +49,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { formatDuration, format12HourTime } from '../utils/dateFormatting';
 import { Modal, TextInput } from 'react-native';
 import alarmService from '../services/alarmService';
+import analyticsService from '../services/analyticsService';
 
 const isIOS = Platform.OS === 'ios';
 
@@ -201,6 +202,24 @@ export default function HomeScreen() {
     update();
     const timer = setInterval(update, 60000);
     return () => clearInterval(timer);
+  }, []);
+
+  // Test AppsFlyer integration on mount
+  useEffect(() => {
+    const testAppsFlyer = async () => {
+      try {
+        console.log('🧪 Testing AppsFlyer integration...');
+        const result = await analyticsService.testAppsFlyerIntegration();
+        if (result) {
+          console.log('✅ AppsFlyer integration test passed');
+        } else {
+          console.log('❌ AppsFlyer integration test failed');
+        }
+      } catch (error) {
+        console.error('❌ AppsFlyer test error:', error);
+      }
+    };
+    testAppsFlyer();
   }, []);
 
   const displayMode = useMemo(() => {
