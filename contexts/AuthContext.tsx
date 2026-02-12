@@ -13,6 +13,7 @@ import * as Notifications from 'expo-notifications';
 import notificationService from '../services/notificationService';
 import welcomeService from '../services/welcomeService';
 import analyticsService from '../services/analyticsService';
+import countryService from '../services/countryService';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -230,6 +231,35 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         } catch (analyticsError) {
           console.error('Failed to identify user in analytics:', analyticsError);
         }
+
+        // Get and save user's country based on device locale (async, don't block)
+        countryService.getUserCountryInfo().then(async (countryInfo) => {
+          if (countryInfo.countryCode && (!data.country || !data.country_code)) {
+            try {
+              await supabase
+                .from('user_profiles')
+                .update({
+                  country: countryInfo.countryName,
+                  country_code: countryInfo.countryCode,
+                  last_login_at: new Date().toISOString(),
+                })
+                .eq('id', data.id);
+              console.log('📍 User country saved:', countryInfo.countryName);
+            } catch (geoError) {
+              console.error('Failed to save user country:', geoError);
+            }
+          } else {
+            // Just update last login time
+            try {
+              await supabase
+                .from('user_profiles')
+                .update({ last_login_at: new Date().toISOString() })
+                .eq('id', data.id);
+            } catch (loginError) {
+              console.error('Failed to update last login:', loginError);
+            }
+          }
+        }).catch(err => console.error('Geo location detection failed:', err));
 
         // Set RevenueCat user ID so webhooks can identify this user
         try {

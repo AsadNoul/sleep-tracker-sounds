@@ -7,7 +7,7 @@ import { useAudio } from '../contexts/AudioContext';
 import { useNavigation } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { Heart } from 'lucide-react-native';
+import { Heart, Volume2, Play, Pause, SkipBack, SkipForward } from 'lucide-react-native';
 
 const GITHUB_BASE_URL = 'https://raw.githubusercontent.com/AsadNoul/sleep-tracker-sounds/main';
 

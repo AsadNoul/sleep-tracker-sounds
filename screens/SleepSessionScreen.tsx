@@ -113,7 +113,7 @@ export default function SleepSessionScreen() {
   const { user } = useAuth();
   const { currentSession, isTracking, startSleepSession, endSleepSession } = useSleep();
   const { isPlaying, currentSound, volume, playSound, pauseSound, stopSound, setVolume, isMixing, stopMixing } = useAudio();
-  const themedStyles = useMemo(() => styles(theme), [theme]);
+  const themedStyles = useMemo(() => styles(theme, insets), [theme, insets]);
 
   // Initialize states from navigation params if available
   const [sleepSoundsEnabled, setSleepSoundsEnabled] = useState(route.params?.initialSounds ?? false);
@@ -1116,7 +1116,7 @@ export default function SleepSessionScreen() {
   );
 }
 
-const styles = (theme: any) => StyleSheet.create({
+const styles = (theme: any, insets: { top: number; bottom: number; left: number; right: number }) => StyleSheet.create({
   dimmedContainer: {
     flex: 1,
     backgroundColor: '#000000',

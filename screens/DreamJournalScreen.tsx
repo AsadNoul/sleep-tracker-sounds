@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   View,
   Text,
@@ -44,24 +45,18 @@ export default function DreamJournalScreen() {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const [isAdding, setIsAdding] = useState(false);
-  const [dreams, setDreams] = useState<Dream[]>([
-    {
-      id: '1',
-      date: 'Dec 20, 2025',
-      title: 'Flying over the ocean',
-      content: 'I was soaring above deep blue waves. The sun was warm on my back.',
-      mood: 'happy',
-      isLucid: true,
-    },
-    {
-      id: '2',
-      date: 'Dec 18, 2025',
-      title: 'Lost in a library',
-      content: 'Infinite shelves of books. I couldn\'t find the exit but felt calm.',
-      mood: 'neutral',
-      isLucid: false,
-    }
-  ]);
+  const [dreams, setDreams] = useState<Dream[]>([]);
+
+  useEffect(() => {
+    AsyncStorage.getItem('@dream_journal').then(data => {
+      if (data) setDreams(JSON.parse(data));
+    }).catch(() => {});
+  }, []);
+
+  const persistDreams = (updated: Dream[]) => {
+    setDreams(updated);
+    AsyncStorage.setItem('@dream_journal', JSON.stringify(updated)).catch(() => {});
+  };
 
   const [newDream, setNewDream] = useState<Partial<Dream>>({
     title: '',
@@ -85,7 +80,7 @@ export default function DreamJournalScreen() {
       isLucid: newDream.isLucid!,
     };
 
-    setDreams([dream, ...dreams]);
+    persistDreams([dream, ...dreams]);
     setIsAdding(false);
     setNewDream({ title: '', content: '', mood: 'neutral', isLucid: false });
   };
@@ -93,7 +88,7 @@ export default function DreamJournalScreen() {
   const deleteDream = (id: string) => {
     Alert.alert('Delete Dream', 'Are you sure you want to remove this entry?', [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: () => setDreams(dreams.filter(d => d.id !== id)) }
+      { text: 'Delete', style: 'destructive', onPress: () => persistDreams(dreams.filter(d => d.id !== id)) }
     ]);
   };
 

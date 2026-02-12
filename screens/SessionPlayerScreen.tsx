@@ -12,6 +12,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
+import { X, Activity, Clock, Gauge, Volume2 } from 'lucide-react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 
 const ICON_MAP: Record<string, any> = {

@@ -19,12 +19,12 @@ const CAFFEINE_PRESETS = {
   'Coffee (8oz)': { amount: 95, type: 'coffee' as const, image: 'https://raw.githubusercontent.com/AsadNoul/sleep-tracker-sounds/main/espresso.png' },
   'Coffee (12oz)': { amount: 142, type: 'coffee' as const, image: 'https://raw.githubusercontent.com/AsadNoul/sleep-tracker-sounds/main/espresso.png' },
   'Coffee (16oz)': { amount: 190, type: 'coffee' as const, image: 'https://raw.githubusercontent.com/AsadNoul/sleep-tracker-sounds/main/espresso.png' },
-  'Green Tea': { amount: 28, type: 'tea' as const, image: 'https://raw.githubusercontent.com/AsadNoul/sleep-tracker-sounds/main/coffee.png' },
-  'Black Tea': { amount: 47, type: 'tea' as const, image: 'https://raw.githubusercontent.com/AsadNoul/sleep-tracker-sounds/main/greentea.png' },
+  'Green Tea': { amount: 28, type: 'tea' as const, image: 'https://raw.githubusercontent.com/AsadNoul/sleep-tracker-sounds/main/greentea.png' },
+  'Black Tea': { amount: 47, type: 'tea' as const, image: 'https://raw.githubusercontent.com/AsadNoul/sleep-tracker-sounds/main/blacktea.png' },
   'Cola (12oz)': { amount: 34, type: 'soda' as const, image: 'https://raw.githubusercontent.com/AsadNoul/sleep-tracker-sounds/main/cocacola.png' },
-  'Mountain Dew': { amount: 54, type: 'soda' as const, image: 'https://raw.githubusercontent.com/AsadNoul/sleep-tracker-sounds/main/blacktea.png' },
-  'Red Bull (8oz)': { amount: 80, type: 'energy' as const, image: 'https://raw.githubusercontent.com/AsadNoul/sleep-tracker-sounds/main/mountaindew.png' },
-  'Monster (16oz)': { amount: 160, type: 'energy' as const, image: 'https://raw.githubusercontent.com/AsadNoul/sleep-tracker-sounds/main/redbull.png' },
+  'Mountain Dew': { amount: 54, type: 'soda' as const, image: 'https://raw.githubusercontent.com/AsadNoul/sleep-tracker-sounds/main/mountaindew.png' },
+  'Red Bull (8oz)': { amount: 80, type: 'energy' as const, image: 'https://raw.githubusercontent.com/AsadNoul/sleep-tracker-sounds/main/redbull.png' },
+  'Monster (16oz)': { amount: 160, type: 'energy' as const, image: 'https://raw.githubusercontent.com/AsadNoul/sleep-tracker-sounds/main/monster.png' },
   'Dark Chocolate (1oz)': { amount: 12, type: 'other' as const, image: 'https://raw.githubusercontent.com/AsadNoul/sleep-tracker-sounds/main/chocolate.png' },
 };
 
