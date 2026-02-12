@@ -8,8 +8,16 @@ const APPSFLYER_DEV_KEY = 'fRMbuaBdG4LdpmtXjo7Z2C';
 
 // Lazy load AppsFlyer (not available in Expo Go)
 let appsFlyer: any = null;
+let appsFlyerAvailable = false;
 try {
-  appsFlyer = require('react-native-appsflyer').default;
+  const module = require('react-native-appsflyer');
+  appsFlyer = module?.default || module;
+  // Check if the module actually has the required methods
+  appsFlyerAvailable = appsFlyer && typeof appsFlyer.initSdk === 'function';
+  if (!appsFlyerAvailable) {
+    appsFlyer = null;
+    logger.warn('⚠️ AppsFlyer module loaded but native methods not available (Expo Go). Will work in production builds.');
+  }
 } catch (e) {
   logger.warn('⚠️ AppsFlyer is not available in this runtime (Expo Go). It will work in development/production builds.');
 }
@@ -52,8 +60,16 @@ class AnalyticsService {
 
   private async initializeAppsFlyer() {
     try {
-      if (!appsFlyer) {
+      if (!appsFlyerAvailable || !appsFlyer) {
         logger.info('📊 AppsFlyer not available in this runtime. Will work in production builds.');
+        this.appsFlyerInitialized = false;
+        return;
+      }
+
+      // Verify the method exists before calling
+      if (typeof appsFlyer.initSdk !== 'function') {
+        logger.warn('⚠️ AppsFlyer initSdk method not available. Skipping initialization.');
+        this.appsFlyerInitialized = false;
         return;
       }
 
@@ -300,7 +316,7 @@ class AnalyticsService {
    */
   async testAppsFlyerIntegration(): Promise<boolean> {
     try {
-      if (!appsFlyer) {
+      if (!appsFlyerAvailable || !appsFlyer) {
         logger.warn('⚠️ AppsFlyer not available in this runtime (Expo Go). Build the app with EAS to test AppsFlyer.');
         return false;
       }
@@ -328,7 +344,7 @@ class AnalyticsService {
       }
 
       // Send test event
-      if (appsFlyer) {
+      if (appsFlyer && typeof appsFlyer.logEvent === 'function') {
         appsFlyer.logEvent('af_test_event', {
           test_param: 'test_value',
           timestamp: new Date().toISOString()

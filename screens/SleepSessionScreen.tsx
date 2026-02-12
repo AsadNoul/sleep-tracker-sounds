@@ -782,21 +782,19 @@ export default function SleepSessionScreen() {
   return (
     <View style={themedStyles.container}>
       <LinearGradient colors={['#0F0F1E', '#161632', '#0F0F1E']} style={themedStyles.gradient}>
-        <View style={themedStyles.topControls}>
-          <TouchableOpacity onPress={exitSleepMode} style={themedStyles.backButton}>
-            <ChevronLeft size={28} color={theme.colors.textSecondary} />
-            <Text style={themedStyles.backButtonText}>Back</Text>
-          </TouchableOpacity>
-        </View>
-
         <ScrollView
           style={themedStyles.content}
           contentContainerStyle={{
-            paddingTop: insets.top + 20,
+            paddingTop: insets.top + 8,
             paddingBottom: insets.bottom + 100
           }}
           showsVerticalScrollIndicator={false}
         >
+          <TouchableOpacity onPress={exitSleepMode} style={themedStyles.backButton}>
+            <ChevronLeft size={28} color={theme.colors.textSecondary} />
+            <Text style={themedStyles.backButtonText}>Back</Text>
+          </TouchableOpacity>
+
           <View style={themedStyles.header}>
             <Text style={themedStyles.title}>Ready to Sleep?</Text>
             <Text style={themedStyles.subtitle}>Configure your sleep session</Text>
@@ -1176,6 +1174,7 @@ const styles = (theme: any) => StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
+    paddingTop: insets.top + 8,
     marginBottom: 20,
   },
   exitButton: {
@@ -1184,8 +1183,10 @@ const styles = (theme: any) => StyleSheet.create({
   backButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 10,
-    marginLeft: -10,
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+    marginBottom: 8,
+    alignSelf: 'flex-start',
   },
   backButtonText: {
     fontSize: 16,
