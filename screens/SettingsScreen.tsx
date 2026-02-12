@@ -117,13 +117,10 @@ export default function SettingsScreen() {
     const [sleepReminder, setSleepReminder] = useState(false);
     const [onboardingProfile, setOnboardingProfile] = useState<OnboardingProfile | null>(null);
     const [isLoadingProfile, setIsLoadingProfile] = useState(true);
-    const [accountExpanded, setAccountExpanded] = useState(false);
-    const [sleepToolsExpanded, setSleepToolsExpanded] = useState(false);
-    const [healthLifestyleExpanded, setHealthLifestyleExpanded] = useState(false);
-    const [relaxationExpanded, setRelaxationExpanded] = useState(false);
-    const [appPreferencesExpanded, setAppPreferencesExpanded] = useState(false);
-    const [supportExpanded, setSupportExpanded] = useState(false);
-    const [dataPrivacyExpanded, setDataPrivacyExpanded] = useState(false);
+    const [accountPreferencesExpanded, setAccountPreferencesExpanded] = useState(false);
+    const [sleepWellnessExpanded, setSleepWellnessExpanded] = useState(false);
+    const [helpLegalExpanded, setHelpLegalExpanded] = useState(false);
+    const [dataActionsExpanded, setDataActionsExpanded] = useState(false);
     const [confirmModalVisible, setConfirmModalVisible] = useState(false);
     const [confirmConfig, setConfirmConfig] = useState<{
         title: string;
@@ -614,23 +611,23 @@ export default function SettingsScreen() {
                     {/* Sleep Profile Header */}
                     {!isLoadingProfile && renderSleepProfileHeader()}
 
-                    {/* Account Section */}
+                    {/* Account & Preferences */}
                     <GlassCard intensity={20} tint="dark" style={styles.card}>
                         <TouchableOpacity
                             style={styles.collapsibleHeader}
-                            onPress={() => setAccountExpanded(!accountExpanded)}
+                            onPress={() => setAccountPreferencesExpanded(!accountPreferencesExpanded)}
                         >
-                            <Text style={styles.cardTitle}>Account</Text>
+                            <Text style={styles.cardTitle}>👤 Account & Preferences</Text>
                             <ChevronDown
                                 size={24}
                                 color="#A0AEC0"
                                 style={{
-                                    transform: [{ rotate: accountExpanded ? '180deg' : '0deg' }]
+                                    transform: [{ rotate: accountPreferencesExpanded ? '180deg' : '0deg' }]
                                 }}
                             />
                         </TouchableOpacity>
 
-                        {accountExpanded && (
+                        {accountPreferencesExpanded && (
                             <>
                                 <TouchableOpacity style={styles.settingItem} onPress={navigateToProfile}>
                                     <View style={styles.settingInfo}>
@@ -675,27 +672,70 @@ export default function SettingsScreen() {
                                         <ChevronRight size={20} color="#A0AEC0" />
                                     </TouchableOpacity>
                                 )}
+
+                                <TouchableOpacity style={styles.settingItem} onPress={handleThemeModeChange}>
+                                    <View style={styles.settingInfo}>
+                                        {themeMode === 'dark' ? (
+                                            <Moon size={24} color="#9D4EDD" />
+                                        ) : themeMode === 'light' ? (
+                                            <Sun size={24} color="#9D4EDD" />
+                                        ) : (
+                                            <Smartphone size={24} color="#9D4EDD" />
+                                        )}
+                                        <View style={{ marginLeft: 12 }}>
+                                            <Text style={styles.settingLabel}>Theme</Text>
+                                            <Text style={styles.settingSubLabel}>{getThemeModeLabel()}</Text>
+                                        </View>
+                                    </View>
+                                    <ChevronRight size={20} color="#A0AEC0" />
+                                </TouchableOpacity>
+
+                                <View style={styles.settingItem}>
+                                    <View style={styles.settingInfo}>
+                                        <Bell size={24} color={theme.colors.danger} />
+                                        <Text style={styles.settingLabel}>Notifications</Text>
+                                    </View>
+                                    <Switch
+                                        value={notifications}
+                                        onValueChange={setNotifications}
+                                        trackColor={{ false: '#333', true: theme.colors.accent }}
+                                        thumbColor={notifications ? '#fff' : '#ccc'}
+                                    />
+                                </View>
+
+                                <View style={styles.settingItem}>
+                                    <View style={styles.settingInfo}>
+                                        <Bell size={24} color={theme.colors.premium} />
+                                        <Text style={styles.settingLabel}>Sleep Reminder</Text>
+                                    </View>
+                                    <Switch
+                                        value={sleepReminder}
+                                        onValueChange={handleSleepReminderToggle}
+                                        trackColor={{ false: '#333', true: theme.colors.premium }}
+                                        thumbColor={sleepReminder ? '#fff' : '#ccc'}
+                                    />
+                                </View>
                             </>
                         )}
                     </GlassCard>
 
-                    {/* Sleep Tools */}
+                    {/* Sleep & Wellness */}
                     <GlassCard intensity={20} tint="dark" style={styles.card}>
                         <TouchableOpacity
                             style={styles.collapsibleHeader}
-                            onPress={() => setSleepToolsExpanded(!sleepToolsExpanded)}
+                            onPress={() => setSleepWellnessExpanded(!sleepWellnessExpanded)}
                         >
-                            <Text style={styles.cardTitle}>Sleep Tools</Text>
+                            <Text style={styles.cardTitle}>🌙 Sleep & Wellness</Text>
                             <ChevronDown
                                 size={24}
                                 color="#A0AEC0"
                                 style={{
-                                    transform: [{ rotate: sleepToolsExpanded ? '180deg' : '0deg' }]
+                                    transform: [{ rotate: sleepWellnessExpanded ? '180deg' : '0deg' }]
                                 }}
                             />
                         </TouchableOpacity>
 
-                        {sleepToolsExpanded && (
+                        {sleepWellnessExpanded && (
                             <>
                                 <TouchableOpacity
                                     style={styles.settingItem}
@@ -763,50 +803,16 @@ export default function SettingsScreen() {
                                     <ChevronRight size={20} color="#A0AEC0" />
                                 </TouchableOpacity>
 
-                                {/* Hide Partner Mode for initial release */}
-                                {/* <TouchableOpacity
+                                <TouchableOpacity
                                     style={styles.settingItem}
-                                    onPress={navigateToPartnerMode}
+                                    onPress={navigateToRelaxationLibrary}
                                 >
                                     <View style={styles.settingInfo}>
-                                        <Users size={24} color="#EC4899" />
-                                        <Text style={styles.settingLabel}>Partner Mode</Text>
+                                        <Headphones size={24} color="#A855F7" />
+                                        <Text style={styles.settingLabel}>Relaxation Library</Text>
                                     </View>
                                     <ChevronRight size={20} color="#A0AEC0" />
-                                </TouchableOpacity> */}
-                            </>
-                        )}
-                    </GlassCard>
-
-                    {/* Health & Lifestyle */}
-                    <GlassCard intensity={20} tint="dark" style={styles.card}>
-                        <TouchableOpacity
-                            style={styles.collapsibleHeader}
-                            onPress={() => setHealthLifestyleExpanded(!healthLifestyleExpanded)}
-                        >
-                            <Text style={styles.cardTitle}>Health & Lifestyle</Text>
-                            <ChevronDown
-                                size={24}
-                                color="#A0AEC0"
-                                style={{
-                                    transform: [{ rotate: healthLifestyleExpanded ? '180deg' : '0deg' }]
-                                }}
-                            />
-                        </TouchableOpacity>
-
-                        {healthLifestyleExpanded && (
-                            <>
-                                {/* Hide Health Tracking for initial release */}
-                                {/* <TouchableOpacity
-                                    style={styles.settingItem}
-                                    onPress={navigateToHealthTracking}
-                                >
-                                    <View style={styles.settingInfo}>
-                                        <Activity size={24} color="#10B981" />
-                                        <Text style={styles.settingLabel}>Health Tracking</Text>
-                                    </View>
-                                    <ChevronRight size={20} color="#A0AEC0" />
-                                </TouchableOpacity> */}
+                                </TouchableOpacity>
 
                                 <TouchableOpacity
                                     style={styles.settingItem}
@@ -822,117 +828,23 @@ export default function SettingsScreen() {
                         )}
                     </GlassCard>
 
-                    {/* Relaxation & Content */}
+                    {/* Help & Legal */}
                     <GlassCard intensity={20} tint="dark" style={styles.card}>
                         <TouchableOpacity
                             style={styles.collapsibleHeader}
-                            onPress={() => setRelaxationExpanded(!relaxationExpanded)}
+                            onPress={() => setHelpLegalExpanded(!helpLegalExpanded)}
                         >
-                            <Text style={styles.cardTitle}>Relaxation & Content</Text>
+                            <Text style={styles.cardTitle}>ℹ️ Help & Legal</Text>
                             <ChevronDown
                                 size={24}
                                 color="#A0AEC0"
                                 style={{
-                                    transform: [{ rotate: relaxationExpanded ? '180deg' : '0deg' }]
+                                    transform: [{ rotate: helpLegalExpanded ? '180deg' : '0deg' }]
                                 }}
                             />
                         </TouchableOpacity>
 
-                        {relaxationExpanded && (
-                            <TouchableOpacity
-                                style={styles.settingItem}
-                                onPress={navigateToRelaxationLibrary}
-                            >
-                                <View style={styles.settingInfo}>
-                                    <Headphones size={24} color="#A855F7" />
-                                    <Text style={styles.settingLabel}>Relaxation Library</Text>
-                                </View>
-                                <ChevronRight size={20} color="#A0AEC0" />
-                            </TouchableOpacity>
-                        )}
-                    </GlassCard>
-
-                    {/* App Preferences */}
-                    <GlassCard intensity={20} tint="dark" style={styles.card}>
-                        <TouchableOpacity
-                            style={styles.collapsibleHeader}
-                            onPress={() => setAppPreferencesExpanded(!appPreferencesExpanded)}
-                        >
-                            <Text style={styles.cardTitle}>App Preferences</Text>
-                            <ChevronDown
-                                size={24}
-                                color="#A0AEC0"
-                                style={{
-                                    transform: [{ rotate: appPreferencesExpanded ? '180deg' : '0deg' }]
-                                }}
-                            />
-                        </TouchableOpacity>
-
-                        {appPreferencesExpanded && (
-                            <>
-                                <View style={styles.settingItem}>
-                                    <View style={styles.settingInfo}>
-                                        <Bell size={24} color={theme.colors.danger} />
-                                        <Text style={styles.settingLabel}>Notifications</Text>
-                                    </View>
-                                    <Switch
-                                        value={notifications}
-                                        onValueChange={setNotifications}
-                                        trackColor={{ false: '#333', true: theme.colors.accent }}
-                                        thumbColor={notifications ? '#fff' : '#ccc'}
-                                    />
-                                </View>
-
-                                <TouchableOpacity style={styles.settingItem} onPress={handleThemeModeChange}>
-                                    <View style={styles.settingInfo}>
-                                        {themeMode === 'dark' ? (
-                                            <Moon size={24} color="#9D4EDD" />
-                                        ) : themeMode === 'light' ? (
-                                            <Sun size={24} color="#9D4EDD" />
-                                        ) : (
-                                            <Smartphone size={24} color="#9D4EDD" />
-                                        )}
-                                        <View style={{ marginLeft: 12 }}>
-                                            <Text style={styles.settingLabel}>Theme</Text>
-                                            <Text style={styles.settingSubLabel}>{getThemeModeLabel()}</Text>
-                                        </View>
-                                    </View>
-                                    <ChevronRight size={20} color="#A0AEC0" />
-                                </TouchableOpacity>
-
-                                <View style={styles.settingItem}>
-                                    <View style={styles.settingInfo}>
-                                        <Bell size={24} color={theme.colors.premium} />
-                                        <Text style={styles.settingLabel}>Sleep Reminder</Text>
-                                    </View>
-                                    <Switch
-                                        value={sleepReminder}
-                                        onValueChange={handleSleepReminderToggle}
-                                        trackColor={{ false: '#333', true: theme.colors.premium }}
-                                        thumbColor={sleepReminder ? '#fff' : '#ccc'}
-                                    />
-                                </View>
-                            </>
-                        )}
-                    </GlassCard>
-
-                    {/* Support & Info */}
-                    <GlassCard intensity={20} tint="dark" style={styles.card}>
-                        <TouchableOpacity
-                            style={styles.collapsibleHeader}
-                            onPress={() => setSupportExpanded(!supportExpanded)}
-                        >
-                            <Text style={styles.cardTitle}>Support & Info</Text>
-                            <ChevronDown
-                                size={24}
-                                color="#A0AEC0"
-                                style={{
-                                    transform: [{ rotate: supportExpanded ? '180deg' : '0deg' }]
-                                }}
-                            />
-                        </TouchableOpacity>
-
-                        {supportExpanded && (
+                        {helpLegalExpanded && (
                             <>
                                 <TouchableOpacity
                                     style={styles.settingItem}
@@ -983,34 +895,35 @@ export default function SettingsScreen() {
                                     <ChevronRight size={20} color="#A0AEC0" />
                                 </TouchableOpacity>
 
-                                <TouchableOpacity style={styles.settingItem} onPress={() => navigation.navigate('Alarms' as never)}>
+                                {/* Manage Alarms - Commented (available in main tab navigation) */}
+                                {/* <TouchableOpacity style={styles.settingItem} onPress={() => navigation.navigate('Alarms' as never)}>
                                     <View style={styles.settingInfo}>
                                         <Bell size={24} color="#8B5CF6" />
                                         <Text style={styles.settingLabel}>Manage Alarms</Text>
                                     </View>
                                     <ChevronRight size={20} color="#A0AEC0" />
-                                </TouchableOpacity>
+                                </TouchableOpacity> */}
                             </>
                         )}
                     </GlassCard>
 
-                    {/* Data & Privacy */}
+                    {/* Data & Actions */}
                     <GlassCard intensity={20} tint="dark" style={styles.card}>
                         <TouchableOpacity
                             style={styles.collapsibleHeader}
-                            onPress={() => setDataPrivacyExpanded(!dataPrivacyExpanded)}
+                            onPress={() => setDataActionsExpanded(!dataActionsExpanded)}
                         >
-                            <Text style={styles.cardTitle}>Data & Privacy</Text>
+                            <Text style={styles.cardTitle}>🔒 Data & Actions</Text>
                             <ChevronDown
                                 size={24}
                                 color="#A0AEC0"
                                 style={{
-                                    transform: [{ rotate: dataPrivacyExpanded ? '180deg' : '0deg' }]
+                                    transform: [{ rotate: dataActionsExpanded ? '180deg' : '0deg' }]
                                 }}
                             />
                         </TouchableOpacity>
 
-                        {dataPrivacyExpanded && (
+                        {dataActionsExpanded && (
                             <>
                                 <TouchableOpacity
                                     style={styles.settingItem}

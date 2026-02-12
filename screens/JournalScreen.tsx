@@ -558,6 +558,15 @@ export default function JournalScreen() {
     }
   }, [selectedDate, selectedDaySession?.id]);
 
+  // Cleanup audio on unmount
+  useEffect(() => {
+    return () => {
+      if (currentSound) {
+        currentSound.stopAsync().catch(() => {}).then(() => currentSound.unloadAsync().catch(() => {}));
+      }
+    };
+  }, [currentSound]);
+
   if (isLoading) {
     return <LoadingSpinner message="Opening your journal..." fullScreen />;
   }
@@ -570,7 +579,7 @@ export default function JournalScreen() {
 
       <View style={styles(theme).header}>
         <View style={{ paddingTop: insets.top + 10 }}>
-          <Text style={styles(theme).headerLargeTitle}>Architecture</Text>
+          <Text style={styles(theme).headerLargeTitle}>Dream Journal</Text>
           <View style={styles(theme).headerSubtitleRow}>
             <View style={styles(theme).statusIndicator} />
             <Text style={styles(theme).headerSubtitleText}>PERSONAL DREAM DATA</Text>
@@ -618,7 +627,7 @@ export default function JournalScreen() {
               setActiveTab('stats');
             }}
           >
-            <Text style={[styles(theme).tabText, activeTab === 'stats' && styles(theme).activeTabText]}>Architecture</Text>
+            <Text style={[styles(theme).tabText, activeTab === 'stats' && styles(theme).activeTabText]}>Sleep Stages</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -681,16 +690,20 @@ export default function JournalScreen() {
           <BlurView intensity={30} tint="dark" style={styles(theme).scoreCard}>
             <View style={styles(theme).scoreWheelContainer}>
               {/* Score Glow */}
-              <View style={[styles(theme).scoreGlow, { backgroundColor: '#8B5CF6' }]} />
-              <CircularProgress
-                size={160}
-                strokeWidth={14}
-                score={displayScore}
-                showText={false}
-                color="#8B5CF6"
-              />
+              {selectedDaySession && <View style={[styles(theme).scoreGlow, { backgroundColor: '#8B5CF6' }]} />}
+              {selectedDaySession ? (
+                <CircularProgress
+                  size={160}
+                  strokeWidth={14}
+                  score={displayScore}
+                  showText={false}
+                  color="#8B5CF6"
+                />
+              ) : (
+                <View style={{ width: 160, height: 160, borderRadius: 80, borderWidth: 14, borderColor: 'rgba(255, 255, 255, 0.1)' }} />
+              )}
               <View style={[StyleSheet.absoluteFill, styles(theme).wheelContent]}>
-                <Text style={styles(theme).wheelScore}>{displayScore}</Text>
+                <Text style={styles(theme).wheelScore}>{selectedDaySession ? displayScore : '—'}</Text>
                 <Text style={styles(theme).wheelLabel}>SLEEP QUALITY</Text>
                 <Text style={styles(theme).wheelSubLabel}>{scoreLabel}</Text>
               </View>
@@ -709,25 +722,37 @@ export default function JournalScreen() {
               <TrendingUp size={20} color="#8B5CF6" />
               <Text style={styles(theme).sectionTitle}>Sleep Stages</Text>
             </View>
-            <View style={styles(theme).barChartContainer}>
-              <View style={styles(theme).yAxis}>
-                <Text style={styles(theme).yAxisText}>Awake</Text>
-                <Text style={styles(theme).yAxisText}>REM</Text>
-                <Text style={styles(theme).yAxisText}>Light</Text>
-                <Text style={styles(theme).yAxisText}>Deep</Text>
+            {!selectedDaySession ? (
+              <View style={{ paddingVertical: 40, alignItems: 'center' }}>
+                <Moon size={48} color="#64748B" style={{ marginBottom: 16, opacity: 0.5 }} />
+                <Text style={styles(theme).noResultsText}>No sleep data recorded for this date</Text>
+                <Text style={[styles(theme).noResultsText, { fontSize: 12, marginTop: 4 }]}>Select a date with sleep data or record a new session</Text>
               </View>
-              <View style={styles(theme).barsContainer}>
-                {architectureData.map((bar, i) => (
-                  <View key={i} style={[styles(theme).chartBar, { height: bar.h, backgroundColor: bar.c }]} />
-                ))}
+            ) : (
+              <>
+                <View style={styles(theme).barChartContainer}>
+                  <View style={styles(theme).yAxis}>
+                    <Text style={styles(theme).yAxisText}>Awake</Text>
+                    <Text style={styles(theme).yAxisText}>REM</Text>
+                    <Text style={styles(theme).yAxisText}>Light</Text>
+                    <Text style={styles(theme).yAxisText}>Deep</Text>
+                  </View>
+                  <View style={styles(theme).barsContainer}>
+                    {architectureData?.map((bar, i) => (
+                      <View key={i} style={[styles(theme).chartBar, { height: bar.h, backgroundColor: bar.c }]} />
+                    ))}
+                  </View>
+                </View>
+              </>
+            )}
+            {selectedDaySession && (
+              <View style={styles(theme).chartLegend}>
+                <View style={styles(theme).legendItem}><View style={[styles(theme).legendDot, { backgroundColor: '#EF4444' }]} /><Text style={styles(theme).legendText}>Awake</Text></View>
+                <View style={styles(theme).legendItem}><View style={[styles(theme).legendDot, { backgroundColor: '#8B5CF6' }]} /><Text style={styles(theme).legendText}>REM</Text></View>
+                <View style={styles(theme).legendItem}><View style={[styles(theme).legendDot, { backgroundColor: '#6366F1' }]} /><Text style={styles(theme).legendText}>Light</Text></View>
+                <View style={styles(theme).legendItem}><View style={[styles(theme).legendDot, { backgroundColor: '#4F46E5' }]} /><Text style={styles(theme).legendText}>Deep</Text></View>
               </View>
-            </View>
-            <View style={styles(theme).chartLegend}>
-              <View style={styles(theme).legendItem}><View style={[styles(theme).legendDot, { backgroundColor: '#EF4444' }]} /><Text style={styles(theme).legendText}>Awake</Text></View>
-              <View style={styles(theme).legendItem}><View style={[styles(theme).legendDot, { backgroundColor: '#8B5CF6' }]} /><Text style={styles(theme).legendText}>REM</Text></View>
-              <View style={styles(theme).legendItem}><View style={[styles(theme).legendDot, { backgroundColor: '#6366F1' }]} /><Text style={styles(theme).legendText}>Light</Text></View>
-              <View style={styles(theme).legendItem}><View style={[styles(theme).legendDot, { backgroundColor: '#4F46E5' }]} /><Text style={styles(theme).legendText}>Deep</Text></View>
-            </View>
+            )}
           </BlurView>
 
           {/* Stats Grid - Premium 2x2 */}
@@ -964,18 +989,6 @@ export default function JournalScreen() {
         <View style={{ flex: 1 }}>
           <SleepAnalysisScreen hideHeader={true} isSubcomponent={true} />
         </View>
-      )}
-      {showDatePicker && (
-        <DateTimePicker
-          value={selectedDate}
-          mode="date"
-          display="default"
-          onChange={(event, date) => {
-            setShowDatePicker(false);
-            if (date) setSelectedDate(date);
-          }}
-          maximumDate={new Date()}
-        />
       )}
     </View>
   );
@@ -1292,6 +1305,7 @@ function createStyles(theme: any, SCREEN_WIDTH: number, CHART_HEIGHT: number) {
       fontSize: 14,
       color: '#94A3B8',
       marginBottom: 12,
+      textAlign: 'center',
     },
     statsGrid: {
       flexDirection: 'row',
