@@ -1,9 +1,10 @@
 import { supabase } from '../lib/supabase';
-import { AppState, AppStateStatus } from 'react-native';
+import { AppState, AppStateStatus, Platform } from 'react-native';
 import logger from '../utils/logger';
-import { Mixpanel } from 'mixpanel-react-native';
 
 const MIXPANEL_TOKEN = 'cdece4b2549e31e3cf56aa53ca6da153';
+const MIXPANEL_TRACK_URL = 'https://api.mixpanel.com/track';
+const MIXPANEL_ENGAGE_URL = 'https://api.mixpanel.com/engage';
 
 class AnalyticsService {
   private eventQueue: any[] = [];
@@ -15,23 +16,60 @@ class AnalyticsService {
   private cachedUserId: string | null = null;
   private userIdCacheTime = 0;
   private readonly USER_ID_CACHE_TTL = 60000; // 1 minute
-  private mixpanel: Mixpanel | null = null;
-  private mixpanelInitialized = false;
+  private mixpanelDistinctId: string | null = null;
 
   constructor() {
     this.startAutoFlush();
     this.setupAppStateListener();
-    this.initializeMixpanel();
+    // Generate anonymous distinct_id for Mixpanel until user identifies
+    this.mixpanelDistinctId = 'anon_' + Math.random().toString(36).substring(2, 15);
+    logger.debug('📊 Mixpanel HTTP API ready (pure JS, no native modules)');
   }
 
-  private async initializeMixpanel() {
+  /**
+   * Send events to Mixpanel via HTTP API (pure JS - works in Expo Go)
+   */
+  private async mixpanelTrack(eventName: string, properties?: any) {
     try {
-      this.mixpanel = new Mixpanel(MIXPANEL_TOKEN, true);
-      await this.mixpanel.init();
-      this.mixpanelInitialized = true;
-      logger.debug('📊 Mixpanel initialized');
+      const payload = [{
+        event: eventName,
+        properties: {
+          token: MIXPANEL_TOKEN,
+          distinct_id: this.mixpanelDistinctId || 'anonymous',
+          time: Math.floor(Date.now() / 1000),
+          $os: Platform.OS,
+          ...properties,
+        },
+      }];
+
+      fetch(MIXPANEL_TRACK_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'text/plain' },
+        body: JSON.stringify(payload),
+      }).catch(() => {}); // Fire and forget
     } catch (error) {
-      logger.error('Mixpanel initialization error:', error);
+      // Silently fail - analytics should never crash the app
+    }
+  }
+
+  /**
+   * Set user profile properties via Mixpanel Engage API
+   */
+  private async mixpanelEngage(operation: string, data: any) {
+    try {
+      const payload = [{
+        $token: MIXPANEL_TOKEN,
+        $distinct_id: this.mixpanelDistinctId || 'anonymous',
+        [operation]: data,
+      }];
+
+      fetch(MIXPANEL_ENGAGE_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'text/plain' },
+        body: JSON.stringify(payload),
+      }).catch(() => {});
+    } catch (error) {
+      // Silently fail
     }
   }
 
@@ -90,10 +128,8 @@ class AnalyticsService {
    */
   async trackEvent(eventName: string, properties?: any): Promise<void> {
     try {
-      // Track to Mixpanel (real-time)
-      if (this.mixpanelInitialized && this.mixpanel) {
-        this.mixpanel.track(eventName, properties || {});
-      }
+      // Track to Mixpanel via HTTP API (real-time, pure JS)
+      this.mixpanelTrack(eventName, properties || {});
 
       // Enforce queue size limit
       if (this.eventQueue.length >= this.MAX_QUEUE_SIZE) {
@@ -126,14 +162,12 @@ class AnalyticsService {
     try {
       this.cachedUserId = userId;
       this.userIdCacheTime = Date.now();
+      this.mixpanelDistinctId = userId;
 
-      if (this.mixpanelInitialized && this.mixpanel) {
-        this.mixpanel.identify(userId);
-        if (traits) {
-          this.mixpanel.getPeople().set(traits);
-        }
-        logger.debug('📊 User identified in Mixpanel:', userId);
+      if (traits) {
+        this.mixpanelEngage('$set', traits);
       }
+      logger.debug('📊 User identified in Mixpanel:', userId);
     } catch (error) {
       logger.error('User identification error:', error);
     }
@@ -144,10 +178,8 @@ class AnalyticsService {
    */
   async setUserProperties(properties: any) {
     try {
-      if (this.mixpanelInitialized && this.mixpanel) {
-        this.mixpanel.getPeople().set(properties);
-        logger.debug('📊 User properties set in Mixpanel');
-      }
+      this.mixpanelEngage('$set', properties);
+      logger.debug('📊 User properties set in Mixpanel');
     } catch (error) {
       logger.error('Set user properties error:', error);
     }
@@ -158,9 +190,7 @@ class AnalyticsService {
    */
   async incrementUserProperty(property: string, value: number = 1) {
     try {
-      if (this.mixpanelInitialized && this.mixpanel) {
-        this.mixpanel.getPeople().increment(property, value);
-      }
+      this.mixpanelEngage('$add', { [property]: value });
     } catch (error) {
       logger.error('Increment user property error:', error);
     }
@@ -171,9 +201,6 @@ class AnalyticsService {
    */
   async forceFlush() {
     await this.flush();
-    if (this.mixpanelInitialized && this.mixpanel) {
-      await this.mixpanel.flush();
-    }
   }
 
   /**
@@ -189,9 +216,6 @@ class AnalyticsService {
       this.appStateSubscription = null;
     }
     await this.flush();
-    if (this.mixpanelInitialized && this.mixpanel) {
-      await this.mixpanel.flush();
-    }
   }
 
   /**
@@ -201,10 +225,8 @@ class AnalyticsService {
     try {
       this.cachedUserId = null;
       this.userIdCacheTime = 0;
-      if (this.mixpanelInitialized && this.mixpanel) {
-        this.mixpanel.reset();
-        logger.debug('📊 Mixpanel user reset');
-      }
+      this.mixpanelDistinctId = 'anon_' + Math.random().toString(36).substring(2, 15);
+      logger.debug('📊 Mixpanel user reset');
     } catch (error) {
       logger.error('Reset error:', error);
     }
