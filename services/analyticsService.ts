@@ -2,8 +2,10 @@ import { supabase } from '../lib/supabase';
 import { AppState, AppStateStatus } from 'react-native';
 import logger from '../utils/logger';
 import { Mixpanel } from 'mixpanel-react-native';
+import appsFlyer from 'react-native-appsflyer';
 
 const MIXPANEL_TOKEN = 'cdece4b2549e31e3cf56aa53ca6da153';
+const APPSFLYER_DEV_KEY = 'fRMbuaBdG4LdpmtXjo7Z2C';
 
 class AnalyticsService {
   private eventQueue: any[] = [];
@@ -17,6 +19,7 @@ class AnalyticsService {
   private readonly USER_ID_CACHE_TTL = 60000; // 1 minute
   private mixpanel: Mixpanel | null = null;
   private mixpanelInitialized = false;
+  private appsFlyerInitialized = false;
 
   constructor() {
     // Start auto-flush timer
@@ -25,6 +28,8 @@ class AnalyticsService {
     this.setupAppStateListener();
     // Initialize Mixpanel
     this.initializeMixpanel();
+    // Initialize AppsFlyer
+    this.initializeAppsFlyer();
   }
 
   private async initializeMixpanel() {
@@ -35,6 +40,30 @@ class AnalyticsService {
       logger.debug('📊 Mixpanel initialized');
     } catch (error) {
       logger.error('Mixpanel initialization error:', error);
+    }
+  }
+
+  private async initializeAppsFlyer() {
+    try {
+      appsFlyer.initSdk(
+        {
+          devKey: APPSFLYER_DEV_KEY,
+          isDebug: __DEV__,
+          appId: 'com.sleeptracker.app', // Android package name
+          onInstallConversionDataListener: true,
+          onDeepLinkListener: true,
+          timeToWaitForATTUserAuthorization: 10,
+        },
+        (result) => {
+          this.appsFlyerInitialized = true;
+          logger.debug('📊 AppsFlyer initialized:', result);
+        },
+        (error) => {
+          logger.error('AppsFlyer initialization error:', error);
+        }
+      );
+    } catch (error) {
+      logger.error('AppsFlyer setup error:', error);
     }
   }
 
@@ -102,6 +131,11 @@ class AnalyticsService {
         this.mixpanel.track(eventName, properties || {});
       }
 
+      // Track to AppsFlyer (real-time)
+      if (this.appsFlyerInitialized) {
+        appsFlyer.logEvent(eventName, properties || {});
+      }
+
       // Enforce queue size limit - drop oldest events if full
       if (this.eventQueue.length >= this.MAX_QUEUE_SIZE) {
         this.eventQueue.splice(0, this.eventQueue.length - this.MAX_QUEUE_SIZE + 1);
@@ -141,6 +175,14 @@ class AnalyticsService {
           this.mixpanel.getPeople().set(traits);
         }
         logger.debug('📊 User identified in Mixpanel:', userId);
+      }
+
+      if (this.appsFlyerInitialized) {
+        appsFlyer.setCustomerUserId(userId);
+        if (traits) {
+          appsFlyer.setAdditionalData(traits);
+        }
+        logger.debug('📊 User identified in AppsFlyer:', userId);
       }
     } catch (error) {
       logger.error('User identification error:', error);
