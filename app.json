@@ -13,6 +13,7 @@
       "resizeMode": "contain",
       "backgroundColor": "#0B0B15"
     },
+    "runtimeVersion": "1.0.0",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.sleeptracker.app",
@@ -26,9 +27,6 @@
       },
       "config": {
         "usesNonExemptEncryption": false
-      },
-      "runtimeVersion": {
-        "policy": "appVersion"
       }
     },
     "android": {
@@ -81,8 +79,7 @@
             "DEFAULT"
           ]
         }
-      ],
-      "runtimeVersion": "1.0.0"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
