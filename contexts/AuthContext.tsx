@@ -218,6 +218,19 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           isPremium: data.role === 'admin' || data.subscription_status === 'premium_monthly' || data.subscription_status === 'premium_yearly',
         });
 
+        // Identify user in analytics (Mixpanel + Supabase)
+        try {
+          await analyticsService.identifyUser(data.id, {
+            email: data.email,
+            name: data.full_name,
+            subscription_status: data.subscription_status,
+            role: data.role || 'user',
+            created_at: data.created_at,
+          });
+        } catch (analyticsError) {
+          console.error('Failed to identify user in analytics:', analyticsError);
+        }
+
         // Set RevenueCat user ID so webhooks can identify this user
         try {
           // Only set user ID if RevenueCat is properly configured
@@ -639,6 +652,10 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       setProfile(null);
       setSession(null);
       setHasCompletedOnboarding(false);
+      
+      // Reset analytics identity and track signout
+      await analyticsService.reset();
+      await analyticsService.trackSignout();
     } catch (error: any) {
       console.error('Error signing out:', error);
       throw new Error(error.message || 'Failed to sign out');
