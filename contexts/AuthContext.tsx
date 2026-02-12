@@ -219,37 +219,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           isPremium: data.role === 'admin' || data.subscription_status === 'premium_monthly' || data.subscription_status === 'premium_yearly',
         });
 
-        // Identify user in analytics (Mixpanel + Supabase)
-        try {
-          await analyticsService.identifyUser(data.id, {
-            email: data.email,
-            name: data.full_name,
-            subscription_status: data.subscription_status,
-            role: data.role || 'user',
-            created_at: data.created_at,
-          });
-        } catch (analyticsError) {
-          console.error('Failed to identify user in analytics:', analyticsError);
-        }
-
-        // Get and save user's country (async, non-blocking)
-        countryService.getUserCountryInfo().then(async (countryInfo) => {
-          if (countryInfo.countryCode && (!data.country || !data.country_code)) {
-            try {
-              await supabase
-                .from('user_profiles')
-                .update({
-                  country: countryInfo.countryName,
-                  country_code: countryInfo.countryCode,
-                  last_login_at: new Date().toISOString(),
-                })
-                .eq('id', data.id);
-            } catch (geoError) {
-              console.error('Failed to save user country:', geoError);
-            }
-          }
-        }).catch(err => console.error('Country detection failed:', err));
-
         // Set RevenueCat user ID so webhooks can identify this user
         try {
           // Only set user ID if RevenueCat is properly configured
@@ -267,6 +236,18 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         registerPushToken(data.id).catch(err =>
           console.error('Failed to register push token:', err)
         );
+
+        // Track user country if not already set
+        if (!data.country) {
+          const country = countryService.getCountryFromLocale();
+          if (country) {
+            await supabase
+              .from('user_profiles')
+              .update({ country })
+              .eq('id', data.id);
+            console.log('✅ User country tracked:', country);
+          }
+        }
 
         // Check if user has completed onboarding by checking if onboarding_completed_at exists
         if (data.onboarding_completed_at) {
@@ -423,6 +404,12 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           await migrateGuestData();
         }
 
+        // Update signup method
+        await supabase
+          .from('user_profiles')
+          .update({ signup_method: 'email' })
+          .eq('id', data.user.id);
+
         await loadUserProfile(data.user.id);
 
         // Track signup
@@ -541,6 +528,12 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
                   [{ text: 'Let\'s Go' }]
                 );
               }
+
+              // Update signup method for Google users
+              await supabase
+                .from('user_profiles')
+                .update({ signup_method: 'google' })
+                .eq('id', sessionData.session.user.id);
 
               await loadUserProfile(sessionData.session.user.id);
               return;
@@ -671,10 +664,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       setProfile(null);
       setSession(null);
       setHasCompletedOnboarding(false);
-
-      // Reset analytics identity
-      await analyticsService.reset();
-      await analyticsService.trackSignout();
     } catch (error: any) {
       console.error('Error signing out:', error);
       throw new Error(error.message || 'Failed to sign out');

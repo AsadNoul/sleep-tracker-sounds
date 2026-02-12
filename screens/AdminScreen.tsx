@@ -41,6 +41,8 @@ interface UserData {
   created_at: string;
   total_sleep_sessions: number;
   last_active: string | null;
+  country?: string | null;
+  signup_method?: 'email' | 'google' | 'apple' | null;
 }
 
 interface Stats {
@@ -67,6 +69,11 @@ export default function AdminScreen() {
   const [timeRange, setTimeRange] = useState<'all' | '24h' | '7d' | '30d' | 'never'>('all');
   const [subscriptionFilter, setSubscriptionFilter] = useState<'all' | 'premium' | 'free' | 'expired'>('all');
   const [sortBy, setSortBy] = useState<'recent_active' | 'newest'>('recent_active');
+  const [countryFilter, setCountryFilter] = useState<string>('all');
+  const [countries, setCountries] = useState<string[]>([]);
+  const [signupMethodFilter, setSignupMethodFilter] = useState<'all' | 'email' | 'google' | 'apple'>('all');
+  const [showFilters, setShowFilters] = useState(false);
+  const [activeTab, setActiveTab] = useState<'users' | 'analytics' | 'heatmap'>('users');
 
   const [notificationTitle, setNotificationTitle] = useState('');
   const [notificationMessage, setNotificationMessage] = useState('');
@@ -79,6 +86,11 @@ export default function AdminScreen() {
     active_today: 0,
     new_users_today: 0,
   });
+  const [heatmapData, setHeatmapData] = useState<{
+    hourly: { hour: string; percentage: number }[];
+    daily: { day: string; percentage: number }[];
+    topSounds: { name: string; count: number }[];
+  }>({ hourly: [], daily: [], topSounds: [] });
 
   useEffect(() => {
     loadAdminData();
@@ -86,7 +98,7 @@ export default function AdminScreen() {
 
   useEffect(() => {
     filterUsers();
-  }, [searchQuery, users, timeField, timeRange, subscriptionFilter, sortBy]);
+  }, [searchQuery, users, timeField, timeRange, subscriptionFilter, sortBy, countryFilter, signupMethodFilter]);
 
   const isPremiumStatus = useCallback((status: string) => {
     return status === 'premium_monthly' || status === 'premium_yearly';
@@ -122,6 +134,20 @@ export default function AdminScreen() {
     return user.subscription_status;
   }, [isExpiredPremium]);
 
+  const getCountryName = (countryCode: string | null | undefined): string => {
+    if (!countryCode || countryCode.length !== 2) return 'Unknown';
+    const names: Record<string, string> = {
+      US: 'United States', GB: 'United Kingdom', CA: 'Canada', AU: 'Australia',
+      IN: 'India', DE: 'Germany', FR: 'France', JP: 'Japan', CN: 'China',
+      BR: 'Brazil', MX: 'Mexico', ES: 'Spain', IT: 'Italy', NL: 'Netherlands',
+      SE: 'Sweden', NO: 'Norway', DK: 'Denmark', FI: 'Finland', PL: 'Poland',
+      RU: 'Russia', TR: 'Turkey', SA: 'Saudi Arabia', AE: 'UAE', SG: 'Singapore',
+      MY: 'Malaysia', TH: 'Thailand', VN: 'Vietnam', PH: 'Philippines', ID: 'Indonesia',
+      KR: 'South Korea', TW: 'Taiwan', HK: 'Hong Kong', NZ: 'New Zealand',
+    };
+    return names[countryCode.toUpperCase()] || countryCode.toUpperCase();
+  };
+
   const filterUsers = () => {
     const query = searchQuery.trim().toLowerCase();
 
@@ -148,6 +174,14 @@ export default function AdminScreen() {
           if (subscriptionFilter === 'premium' && (!premium || expired)) return false;
           if (subscriptionFilter === 'free' && user.subscription_status !== 'free') return false;
           if (subscriptionFilter === 'expired' && !expired) return false;
+        }
+
+        if (countryFilter !== 'all' && user.country !== countryFilter) {
+          return false;
+        }
+
+        if (signupMethodFilter !== 'all' && user.signup_method !== signupMethodFilter) {
+          return false;
         }
 
         if (timeRange !== 'all') {
@@ -183,7 +217,7 @@ export default function AdminScreen() {
       // Load users with sleep session counts
       const { data: usersData, error: usersError } = await supabase
         .from('user_profiles')
-        .select('id, email, full_name, subscription_status, subscription_start_date, subscription_end_date, created_at')
+        .select('id, email, full_name, subscription_status, subscription_start_date, subscription_end_date, created_at, country, signup_method')
         .order('created_at', { ascending: false });
 
       if (usersError) throw usersError;
@@ -207,6 +241,14 @@ export default function AdminScreen() {
       );
 
       setUsers(usersWithStats);
+
+      // Extract unique countries for filter
+      const uniqueCountries = [...new Set(
+        usersWithStats
+          .map(u => u.country)
+          .filter(c => c && c.length === 2)
+      )].sort();
+      setCountries(uniqueCountries as string[]);
 
       // Load statistics
       const today = new Date();
@@ -245,6 +287,66 @@ export default function AdminScreen() {
         active_today: activeToday || 0,
         new_users_today: newUsersToday || 0,
       });
+
+      // Load heatmap data - hourly usage
+      const { data: sleepRecords } = await supabase
+        .from('sleep_records')
+        .select('created_at')
+        .order('created_at', { ascending: false })
+        .limit(1000);
+
+      // Calculate hourly distribution
+      const hourCounts: { [key: string]: number } = {};
+      const dayCounts: { [key: string]: number } = {};
+      const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      
+      sleepRecords?.forEach(record => {
+        const date = new Date(record.created_at);
+        const hour = date.getHours();
+        const day = date.getDay();
+        
+        // Group into time periods
+        let period = '';
+        if (hour >= 0 && hour < 6) period = 'Night (0-6)';
+        else if (hour >= 6 && hour < 12) period = 'Morning (6-12)';
+        else if (hour >= 12 && hour < 18) period = 'Afternoon (12-18)';
+        else period = 'Evening (18-24)';
+        
+        hourCounts[period] = (hourCounts[period] || 0) + 1;
+        dayCounts[dayNames[day]] = (dayCounts[dayNames[day]] || 0) + 1;
+      });
+
+      const totalRecords = sleepRecords?.length || 1;
+      const hourlyData = Object.entries(hourCounts).map(([hour, count]) => ({
+        hour,
+        percentage: Math.round((count / totalRecords) * 100),
+      }));
+
+      const dailyData = dayNames.map(day => ({
+        day,
+        percentage: Math.round(((dayCounts[day] || 0) / totalRecords) * 100),
+      }));
+
+      // Load top sounds
+      const { data: soundsData } = await supabase
+        .from('sleep_records')
+        .select('sound_played')
+        .not('sound_played', 'is', null)
+        .limit(500);
+
+      const soundCounts: { [key: string]: number } = {};
+      soundsData?.forEach(record => {
+        if (record.sound_played) {
+          soundCounts[record.sound_played] = (soundCounts[record.sound_played] || 0) + 1;
+        }
+      });
+
+      const topSounds = Object.entries(soundCounts)
+        .sort(([, a], [, b]) => b - a)
+        .slice(0, 5)
+        .map(([name, count]) => ({ name, count }));
+
+      setHeatmapData({ hourly: hourlyData, daily: dailyData, topSounds });
     } catch (error: any) {
       console.error('Error loading admin data:', error);
       Alert.alert('Error', 'Failed to load admin data');
@@ -481,6 +583,241 @@ export default function AdminScreen() {
                 </BlurView>
               </View>
 
+              {/* Top Countries */}
+              {countries.length > 0 && (
+                <>
+                  <Text style={s.sectionTitle}>Top Countries ({countries.length})</Text>
+                  <BlurView intensity={20} tint="dark" style={s.countriesCard}>
+                    {countries.slice(0, 8).map((country) => {
+                      const count = users.filter(u => u.country === country).length;
+                      const percentage = ((count / users.length) * 100).toFixed(1);
+                      return (
+                        <TouchableOpacity
+                          key={country}
+                          onPress={() => setCountryFilter(country)}
+                          style={s.countryRow}
+                        >
+                          <Text style={s.countryFlag}>
+                            {String.fromCodePoint(...[...country.toUpperCase()].map(c => 0x1F1E6 - 65 + c.charCodeAt(0)))}
+                          </Text>
+                          <Text style={s.countryName}>{getCountryName(country)}</Text>
+                          <View style={{ flex: 1 }} />
+                          <Text style={s.countryCount}>{count}</Text>
+                          <Text style={s.countryPercent}>({percentage}%)</Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </BlurView>
+                </>
+              )}
+
+              {/* Tab Navigation */}
+              <View style={s.tabContainer}>
+                <TouchableOpacity
+                  onPress={() => setActiveTab('users')}
+                  style={[s.tab, activeTab === 'users' && s.tabActive]}
+                >
+                  <Users size={18} color={activeTab === 'users' ? '#FFFFFF' : '#94A3B8'} />
+                  <Text style={[s.tabText, activeTab === 'users' && s.tabTextActive]}>Users</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => setActiveTab('analytics')}
+                  style={[s.tab, activeTab === 'analytics' && s.tabActive]}
+                >
+                  <BarChart3 size={18} color={activeTab === 'analytics' ? '#FFFFFF' : '#94A3B8'} />
+                  <Text style={[s.tabText, activeTab === 'analytics' && s.tabTextActive]}>Analytics</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => setActiveTab('heatmap')}
+                  style={[s.tab, activeTab === 'heatmap' && s.tabActive]}
+                >
+                  <TrendingUp size={18} color={activeTab === 'heatmap' ? '#FFFFFF' : '#94A3B8'} />
+                  <Text style={[s.tabText, activeTab === 'heatmap' && s.tabTextActive]}>Heatmap</Text>
+                </TouchableOpacity>
+              </View>
+
+              {activeTab === 'users' && (
+                <>
+                  {/* Filter Toggle Button */}
+                  <TouchableOpacity
+                    onPress={() => setShowFilters(!showFilters)}
+                    style={s.filterToggle}
+                  >
+                    <Search size={18} color="#FFFFFF" />
+                    <Text style={s.filterToggleText}>
+                      {showFilters ? 'Hide Filters' : 'Show Filters'}
+                    </Text>
+                  </TouchableOpacity>
+
+                  {/* Collapsible Filters */}
+                  {showFilters && (
+                    <BlurView intensity={20} tint="dark" style={s.filtersCard}>
+                      <View style={s.filterRow}>
+                        <Text style={s.filterLabel}>Signup Method</Text>
+                        <View style={s.pillsRow}>
+                          {(['all', 'email', 'google', 'apple'] as const).map((m) => (
+                            <TouchableOpacity
+                              key={m}
+                              onPress={() => setSignupMethodFilter(m)}
+                              style={[s.pill, signupMethodFilter === m && s.pillActive]}
+                            >
+                              <Text style={[s.pillText, signupMethodFilter === m && s.pillTextActive]}>
+                                {m === 'all' ? 'All' : m.charAt(0).toUpperCase() + m.slice(1)}
+                              </Text>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      </View>
+
+                      {countries.length > 0 && (
+                        <View style={s.filterRow}>
+                          <Text style={s.filterLabel}>Country</Text>
+                          <View style={s.pillsRow}>
+                            <TouchableOpacity
+                              onPress={() => setCountryFilter('all')}
+                              style={[s.pill, countryFilter === 'all' && s.pillActive]}
+                            >
+                              <Text style={[s.pillText, countryFilter === 'all' && s.pillTextActive]}>All</Text>
+                            </TouchableOpacity>
+                            {countries.slice(0, 6).map((c) => (
+                              <TouchableOpacity
+                                key={c}
+                                onPress={() => setCountryFilter(c)}
+                                style={[s.pill, countryFilter === c && s.pillActive]}
+                              >
+                                <Text style={[s.pillText, countryFilter === c && s.pillTextActive]}>
+                                  {String.fromCodePoint(...[...c.toUpperCase()].map(ch => 0x1F1E6 - 65 + ch.charCodeAt(0)))} {c}
+                                </Text>
+                              </TouchableOpacity>
+                            ))}
+                          </View>
+                        </View>
+                      )}
+
+                      <View style={s.filterRow}>
+                        <Text style={s.filterLabel}>Subscription</Text>
+                        <View style={s.pillsRow}>
+                          {(['all', 'premium', 'free', 'expired'] as const).map((f) => (
+                            <TouchableOpacity
+                              key={f}
+                              onPress={() => setSubscriptionFilter(f)}
+                              style={[s.pill, subscriptionFilter === f && s.pillActive]}
+                            >
+                              <Text style={[s.pillText, subscriptionFilter === f && s.pillTextActive]}>
+                                {f === 'all' ? 'All' : f.charAt(0).toUpperCase() + f.slice(1)}
+                              </Text>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      </View>
+
+                      <View style={s.filterRow}>
+                        <Text style={s.filterLabel}>Time Range</Text>
+                        <View style={s.pillsRow}>
+                          {(['all', '24h', '7d', '30d'] as const).map((r) => (
+                            <TouchableOpacity
+                              key={r}
+                              onPress={() => setTimeRange(r)}
+                              style={[s.pill, timeRange === r && s.pillActive]}
+                            >
+                              <Text style={[s.pillText, timeRange === r && s.pillTextActive]}>
+                                {r === 'all' ? 'All' : r}
+                              </Text>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      </View>
+                    </BlurView>
+                  )}
+
+                  <Text style={s.sectionTitle}>Users ({filteredUsers.length})</Text>
+                </>
+              )}
+
+              {activeTab === 'analytics' && (
+                <>
+                  <Text style={s.sectionTitle}>Analytics Dashboard</Text>
+                  <BlurView intensity={20} tint="dark" style={s.analyticsCard}>
+                    <Text style={s.analyticsTitle}>📈 User Growth (Last 7 Days)</Text>
+                    <Text style={s.analyticsText}>New signups: {stats.new_users_today} today</Text>
+                    <Text style={s.analyticsText}>Total users: {stats.total_users}</Text>
+                    <Text style={s.analyticsText}>Premium conversion: {stats.total_users > 0 ? ((stats.premium_users / stats.total_users) * 100).toFixed(1) : '0'}%</Text>
+                  </BlurView>
+
+                  <BlurView intensity={20} tint="dark" style={s.analyticsCard}>
+                    <Text style={s.analyticsTitle}>💰 Revenue Insights</Text>
+                    <Text style={s.analyticsText}>Premium users: {stats.premium_users}</Text>
+                    <Text style={s.analyticsText}>Total sessions: {stats.total_sessions}</Text>
+                    <Text style={s.analyticsText}>Avg sessions/user: {stats.total_users > 0 ? (stats.total_sessions / stats.total_users).toFixed(1) : '0'}</Text>
+                  </BlurView>
+
+                  <BlurView intensity={20} tint="dark" style={s.analyticsCard}>
+                    <Text style={s.analyticsTitle}>🎯 Engagement Metrics</Text>
+                    <Text style={s.analyticsText}>Active today: {stats.active_today}</Text>
+                    <Text style={s.analyticsText}>Activity rate: {stats.total_users > 0 ? ((stats.active_today / stats.total_users) * 100).toFixed(1) : '0'}%</Text>
+                  </BlurView>
+                </>
+              )}
+
+              {activeTab === 'heatmap' && (
+                <>
+                  <Text style={s.sectionTitle}>Usage Heatmap</Text>
+                  
+                  {heatmapData.hourly.length > 0 ? (
+                    <>
+                      <BlurView intensity={20} tint="dark" style={s.heatmapCard}>
+                        <Text style={s.heatmapTitle}>🕐 Peak Usage Times</Text>
+                        {heatmapData.hourly.map((item) => {
+                          const color = item.percentage > 60 ? '#8B5CF6' : item.percentage > 40 ? '#10B981' : item.percentage > 20 ? '#F59E0B' : '#3B82F6';
+                          return (
+                            <View key={item.hour} style={s.heatmapRow}>
+                              <Text style={s.heatmapLabel}>{item.hour}</Text>
+                              <View style={s.heatmapBar}>
+                                <View style={[s.heatmapFill, { width: `${item.percentage}%`, backgroundColor: color }]} />
+                              </View>
+                              <Text style={s.heatmapValue}>{item.percentage}%</Text>
+                            </View>
+                          );
+                        })}
+                      </BlurView>
+
+                      <BlurView intensity={20} tint="dark" style={s.heatmapCard}>
+                        <Text style={s.heatmapTitle}>📅 Weekly Activity</Text>
+                        {heatmapData.daily.map((item) => {
+                          const color = item.percentage > 20 ? '#10B981' : item.percentage > 12 ? '#F59E0B' : '#EF4444';
+                          return (
+                            <View key={item.day} style={s.heatmapRow}>
+                              <Text style={s.heatmapLabel}>{item.day}</Text>
+                              <View style={s.heatmapBar}>
+                                <View style={[s.heatmapFill, { width: `${item.percentage}%`, backgroundColor: color }]} />
+                              </View>
+                              <Text style={s.heatmapValue}>{item.percentage}%</Text>
+                            </View>
+                          );
+                        })}
+                      </BlurView>
+
+                      {heatmapData.topSounds.length > 0 && (
+                        <BlurView intensity={20} tint="dark" style={s.heatmapCard}>
+                          <Text style={s.heatmapTitle}>🎵 Most Popular Sounds</Text>
+                          {heatmapData.topSounds.map((sound, index) => (
+                            <View key={sound.name} style={s.heatmapRow}>
+                              <Text style={s.heatmapLabel}>{index + 1}. {sound.name}</Text>
+                              <View style={{ flex: 1 }} />
+                              <Text style={s.heatmapValue}>{sound.count} uses</Text>
+                            </View>
+                          ))}
+                        </BlurView>
+                      )}
+                    </>
+                  ) : (
+                    <BlurView intensity={20} tint="dark" style={s.heatmapCard}>
+                      <Text style={s.analyticsText}>📊 No usage data available yet. Data will appear as users track sleep sessions.</Text>
+                    </BlurView>
+                  )}
+                </>
+              )}
+
               {/* Send Notification Section */}
               <Text style={s.sectionTitle}>Send Push Notification</Text>
               <BlurView intensity={20} tint="dark" style={s.notificationCard}>
@@ -531,92 +868,26 @@ export default function AdminScreen() {
                   onChangeText={setSearchQuery}
                 />
               </BlurView>
-
-              {/* Filters */}
-              <BlurView intensity={20} tint="dark" style={s.filtersCard}>
-                <View style={s.filterRow}>
-                  <Text style={s.filterLabel}>Time Field</Text>
-                  <View style={s.pillsRow}>
-                    <TouchableOpacity
-                      onPress={() => setTimeField('last_active')}
-                      style={[s.pill, timeField === 'last_active' && s.pillActive]}
-                    >
-                      <Text style={[s.pillText, timeField === 'last_active' && s.pillTextActive]}>Recent Active</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={() => setTimeField('created_at')}
-                      style={[s.pill, timeField === 'created_at' && s.pillActive]}
-                    >
-                      <Text style={[s.pillText, timeField === 'created_at' && s.pillTextActive]}>Joined</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-
-                <View style={s.filterRow}>
-                  <Text style={s.filterLabel}>Time Range</Text>
-                  <View style={s.pillsRow}>
-                    {(['all', '24h', '7d', '30d', 'never'] as const).map((r) => (
-                      <TouchableOpacity
-                        key={r}
-                        onPress={() => setTimeRange(r)}
-                        style={[s.pill, timeRange === r && s.pillActive]}
-                      >
-                        <Text style={[s.pillText, timeRange === r && s.pillTextActive]}>
-                          {r === 'all' ? 'All' : r === 'never' ? 'Never' : r}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </View>
-
-                <View style={s.filterRow}>
-                  <Text style={s.filterLabel}>Subscription</Text>
-                  <View style={s.pillsRow}>
-                    {(['all', 'premium', 'free', 'expired'] as const).map((f) => (
-                      <TouchableOpacity
-                        key={f}
-                        onPress={() => setSubscriptionFilter(f)}
-                        style={[s.pill, subscriptionFilter === f && s.pillActive]}
-                      >
-                        <Text style={[s.pillText, subscriptionFilter === f && s.pillTextActive]}>
-                          {f === 'all' ? 'All' : f.charAt(0).toUpperCase() + f.slice(1)}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </View>
-
-                <View style={s.filterRow}>
-                  <Text style={s.filterLabel}>Sort</Text>
-                  <View style={s.pillsRow}>
-                    <TouchableOpacity
-                      onPress={() => setSortBy('recent_active')}
-                      style={[s.pill, sortBy === 'recent_active' && s.pillActive]}
-                    >
-                      <Text style={[s.pillText, sortBy === 'recent_active' && s.pillTextActive]}>Active</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={() => setSortBy('newest')}
-                      style={[s.pill, sortBy === 'newest' && s.pillActive]}
-                    >
-                      <Text style={[s.pillText, sortBy === 'newest' && s.pillTextActive]}>Newest</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              </BlurView>
-
-              <Text style={s.sectionTitle}>Users ({filteredUsers.length})</Text>
             </>
           }
           renderItem={({ item: user }) => {
             const premium = isPremiumStatus(user.subscription_status);
             const expired = isExpiredPremium(user);
+            const signupIcon = user.signup_method === 'google' ? '🔵' : user.signup_method === 'apple' ? '' : '📧';
             return (
               <BlurView intensity={20} tint="dark" style={s.userCard}>
                 <View style={s.userInfo}>
-                  <Text style={s.userEmail} numberOfLines={1}>
-                    {user.email || 'No email'}
-                  </Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    {user.country && (
+                      <Text style={{ fontSize: 16 }}>
+                        {String.fromCodePoint(...[...user.country.toUpperCase()].map(c => 0x1F1E6 - 65 + c.charCodeAt(0)))}
+                      </Text>
+                    )}
+                    {signupIcon && <Text style={{ fontSize: 14 }}>{signupIcon}</Text>}
+                    <Text style={s.userEmail} numberOfLines={1}>
+                      {user.email || 'No email'}
+                    </Text>
+                  </View>
                   {user.full_name && (
                     <Text style={s.userName} numberOfLines={1}>
                       {user.full_name}
@@ -641,6 +912,11 @@ export default function AdminScreen() {
                     <Text style={s.metaText}>
                       Joined: {new Date(user.created_at).toLocaleDateString()}
                     </Text>
+                    {user.signup_method && (
+                      <Text style={s.metaText}>
+                        Via: {user.signup_method.charAt(0).toUpperCase() + user.signup_method.slice(1)}
+                      </Text>
+                    )}
                     {user.subscription_end_date && (
                       <Text style={s.metaText}>
                         Sub Ends: {new Date(user.subscription_end_date).toLocaleDateString()}
@@ -918,5 +1194,150 @@ const styles = (theme: any) =>
       color: '#FFFFFF',
       fontSize: 16,
       fontWeight: '600',
+    },
+    countriesCard: {
+      backgroundColor: 'rgba(255, 255, 255, 0.04)',
+      borderRadius: 16,
+      padding: 16,
+      marginBottom: 20,
+      borderWidth: 1,
+      borderColor: 'rgba(255, 255, 255, 0.08)',
+    },
+    countryRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: 10,
+      gap: 12,
+      borderBottomWidth: 1,
+      borderBottomColor: 'rgba(255, 255, 255, 0.05)',
+    },
+    countryFlag: {
+      fontSize: 24,
+    },
+    countryName: {
+      color: '#FFFFFF',
+      fontSize: 14,
+      fontWeight: '600',
+    },
+    countryCount: {
+      color: theme.colors.accent,
+      fontSize: 16,
+      fontWeight: '700',
+    },
+    countryPercent: {
+      color: '#94A3B8',
+      fontSize: 13,
+      fontWeight: '500',
+      minWidth: 50,
+      textAlign: 'right',
+    },
+    tabContainer: {
+      flexDirection: 'row',
+      gap: 8,
+      marginBottom: 20,
+      marginTop: 10,
+    },
+    tab: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 6,
+      padding: 12,
+      borderRadius: 12,
+      backgroundColor: 'rgba(255, 255, 255, 0.05)',
+      borderWidth: 1,
+      borderColor: 'rgba(255, 255, 255, 0.08)',
+    },
+    tabActive: {
+      backgroundColor: theme.colors.accent,
+      borderColor: theme.colors.accent,
+    },
+    tabText: {
+      color: '#94A3B8',
+      fontSize: 13,
+      fontWeight: '600',
+    },
+    tabTextActive: {
+      color: '#FFFFFF',
+    },
+    filterToggle: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      backgroundColor: theme.colors.accent,
+      padding: 14,
+      borderRadius: 12,
+      marginBottom: 16,
+    },
+    filterToggleText: {
+      color: '#FFFFFF',
+      fontSize: 15,
+      fontWeight: '600',
+    },
+    analyticsCard: {
+      backgroundColor: 'rgba(255, 255, 255, 0.04)',
+      borderRadius: 16,
+      padding: 20,
+      marginBottom: 16,
+      borderWidth: 1,
+      borderColor: 'rgba(255, 255, 255, 0.08)',
+    },
+    analyticsTitle: {
+      color: '#FFFFFF',
+      fontSize: 16,
+      fontWeight: '700',
+      marginBottom: 12,
+    },
+    analyticsText: {
+      color: '#CBD5E1',
+      fontSize: 14,
+      fontWeight: '500',
+      marginBottom: 8,
+    },
+    heatmapCard: {
+      backgroundColor: 'rgba(255, 255, 255, 0.04)',
+      borderRadius: 16,
+      padding: 20,
+      marginBottom: 16,
+      borderWidth: 1,
+      borderColor: 'rgba(255, 255, 255, 0.08)',
+    },
+    heatmapTitle: {
+      color: '#FFFFFF',
+      fontSize: 16,
+      fontWeight: '700',
+      marginBottom: 16,
+    },
+    heatmapRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: 12,
+      gap: 12,
+    },
+    heatmapLabel: {
+      color: '#CBD5E1',
+      fontSize: 13,
+      fontWeight: '600',
+      width: 100,
+    },
+    heatmapBar: {
+      flex: 1,
+      height: 8,
+      backgroundColor: 'rgba(255, 255, 255, 0.1)',
+      borderRadius: 4,
+      overflow: 'hidden',
+    },
+    heatmapFill: {
+      height: '100%',
+      borderRadius: 4,
+    },
+    heatmapValue: {
+      color: '#FFFFFF',
+      fontSize: 13,
+      fontWeight: '700',
+      width: 45,
+      textAlign: 'right',
     },
   });

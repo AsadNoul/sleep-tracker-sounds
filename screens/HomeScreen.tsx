@@ -525,57 +525,61 @@ export default function HomeScreen() {
 
         {/* Vital Widgets Grid (2x2) */}
         <View style={themedStyles.vitalsGrid}>
-          {/* Readiness Widget */}
-          <GlassView intensity={20} tint="dark" style={themedStyles.vitalWidgetGrid}>
-            <View style={themedStyles.vitalIconRow}>
-              <Zap size={16} color="#10B981" />
-              <Text style={themedStyles.vitalLabel}>Readiness</Text>
-            </View>
-            <Text style={themedStyles.vitalValue}>{readinessScore}%</Text>
-            <View style={themedStyles.sparkLineContainer}>
-              {readinessSparkData.map((v, i) => (
-                <View key={i} style={[themedStyles.sparkBar, { height: Math.max(2, (v / 100) * 16), backgroundColor: v >= 80 ? '#10B981' : v > 0 ? 'rgba(16, 185, 129, 0.3)' : 'rgba(16, 185, 129, 0.1)' }]} />
-              ))}
-            </View>
-          </GlassView>
-
-          {/* Sleep Debt Widget */}
-          <GlassView intensity={20} tint="dark" style={themedStyles.vitalWidgetGrid}>
-            <View style={themedStyles.vitalIconRow}>
-              <Activity size={16} color={sleepDebt > 0 ? '#EF4444' : '#10B981'} />
-              <Text style={themedStyles.vitalLabel}>Sleep Debt</Text>
-            </View>
-            <Text style={[themedStyles.vitalValue, { color: sleepDebt > 0 ? '#EF4444' : '#10B981' }]}>
-              {sleepDebt > 0 ? '-' : '+'}{Math.abs(sleepDebt)}h
-            </Text>
-            <Text style={themedStyles.vitalSubtext}>{sleepDebt > 0 ? 'Recovery needed' : 'Well rested'}</Text>
-          </GlassView>
-
-          {/* Next Alarm Widget */}
-          <TouchableOpacity
-            activeOpacity={0.8}
-            onPress={() => navigation.navigate('Alarms')}
-            style={{ flex: 1, minWidth: '45%' }}
-          >
+          {/* Row 1 */}
+          <View style={themedStyles.vitalsRow}>
+            {/* Readiness Widget */}
             <GlassView intensity={20} tint="dark" style={themedStyles.vitalWidgetGrid}>
+              <View style={themedStyles.vitalIconRow}>
+                <Zap size={16} color="#10B981" />
+                <Text style={themedStyles.vitalLabel}>Readiness</Text>
+              </View>
+              <Text style={themedStyles.vitalValue}>{readinessScore}%</Text>
+              <View style={themedStyles.sparkLineContainer}>
+                {readinessSparkData.map((v, i) => (
+                  <View key={i} style={[themedStyles.sparkBar, { height: Math.max(2, (v / 100) * 16), backgroundColor: v >= 80 ? '#10B981' : v > 0 ? 'rgba(16, 185, 129, 0.3)' : 'rgba(16, 185, 129, 0.1)' }]} />
+                ))}
+              </View>
+            </GlassView>
+
+            {/* Sleep Debt Widget */}
+            <GlassView intensity={20} tint="dark" style={themedStyles.vitalWidgetGrid}>
+              <View style={themedStyles.vitalIconRow}>
+                <Activity size={16} color={sleepDebt > 0 ? '#EF4444' : '#10B981'} />
+                <Text style={themedStyles.vitalLabel}>Sleep Debt</Text>
+              </View>
+              <Text style={[themedStyles.vitalValue, { color: sleepDebt > 0 ? '#EF4444' : '#10B981' }]}>
+                {sleepDebt > 0 ? '-' : '+'}{Math.abs(sleepDebt)}h
+              </Text>
+              <Text style={themedStyles.vitalSubtext}>{sleepDebt > 0 ? 'Recovery needed' : 'Well rested'}</Text>
+            </GlassView>
+          </View>
+
+          {/* Row 2 */}
+          <View style={themedStyles.vitalsRow}>
+            {/* Next Alarm Widget */}
+            <TouchableOpacity
+              activeOpacity={0.8}
+              onPress={() => navigation.navigate('Alarms')}
+              style={themedStyles.vitalWidgetGrid}
+            >
               <View style={themedStyles.vitalIconRow}>
                 <Bell size={16} color="#8B5CF6" />
                 <Text style={themedStyles.vitalLabel}>Next Alarm</Text>
               </View>
               <Text style={themedStyles.vitalValue}>{nextAlarm ? nextAlarm.time : '--:--'}</Text>
               <Text style={themedStyles.vitalSubtext}>{nextAlarm ? (nextAlarm.name || 'Wake up') : 'Not set'}</Text>
-            </GlassView>
-          </TouchableOpacity>
+            </TouchableOpacity>
 
-          {/* Streak Widget */}
-          <GlassView intensity={20} tint="dark" style={themedStyles.vitalWidgetGrid}>
-            <View style={themedStyles.vitalIconRow}>
-              <Trophy size={16} color="#F59E0B" />
-              <Text style={themedStyles.vitalLabel}>Streak</Text>
-            </View>
-            <Text style={themedStyles.vitalValue}>{currentStreak} Days</Text>
-            <Text style={themedStyles.vitalSubtext}>{currentStreak >= 7 ? '🔥 Burning bright' : currentStreak >= 3 ? '✨ Building up' : currentStreak > 0 ? '🌱 Getting started' : '💤 Start tracking'}</Text>
-          </GlassView>
+            {/* Streak Widget */}
+            <GlassView intensity={20} tint="dark" style={themedStyles.vitalWidgetGrid}>
+              <View style={themedStyles.vitalIconRow}>
+                <Trophy size={16} color="#F59E0B" />
+                <Text style={themedStyles.vitalLabel}>Streak</Text>
+              </View>
+              <Text style={themedStyles.vitalValue}>{currentStreak} Days</Text>
+              <Text style={themedStyles.vitalSubtext}>{currentStreak >= 7 ? '🔥 On fire!' : currentStreak >= 3 ? '✨ Building' : currentStreak > 0 ? '🌱 Started' : '💤 Track now'}</Text>
+            </GlassView>
+          </View>
         </View>
 
         {/* Control Center - Quick Actions */}
@@ -583,65 +587,71 @@ export default function HomeScreen() {
           <Text style={themedStyles.sectionTitle}>🛠️ Control Center</Text>
         </View>
         <View style={themedStyles.quickActionsGrid}>
-          <TouchableOpacity
-            style={themedStyles.actionCard}
-            onPress={() => navigation.navigate('Sounds')}
-          >
-            <LinearGradient
-              colors={['rgba(107, 114, 128, 0.28)', 'rgba(107, 114, 128, 0.10)']}
-              style={themedStyles.actionContent}
+          {/* Row 1 */}
+          <View style={themedStyles.quickActionsRow}>
+            <TouchableOpacity
+              style={themedStyles.actionCard}
+              onPress={() => navigation.navigate('Sounds')}
             >
-              <View style={[themedStyles.actionIconWrapper, { backgroundColor: 'rgba(139, 92, 246, 0.22)' }]}>
-                <Moon size={32} color="#8B5CF6" strokeWidth={2.5} />
-              </View>
-              <Text style={themedStyles.actionLabel}>Sounds</Text>
-            </LinearGradient>
-          </TouchableOpacity>
+              <LinearGradient
+                colors={['rgba(107, 114, 128, 0.28)', 'rgba(107, 114, 128, 0.10)']}
+                style={themedStyles.actionContent}
+              >
+                <View style={[themedStyles.actionIconWrapper, { backgroundColor: 'rgba(139, 92, 246, 0.22)' }]}>
+                  <Moon size={22} color="#8B5CF6" strokeWidth={2.5} />
+                </View>
+                <Text style={themedStyles.actionLabel}>Sounds</Text>
+              </LinearGradient>
+            </TouchableOpacity>
 
-          <TouchableOpacity
-            style={themedStyles.actionCard}
-            onPress={() => navigation.navigate('Alarms')}
-          >
-            <LinearGradient
-              colors={['rgba(107, 114, 128, 0.28)', 'rgba(107, 114, 128, 0.10)']}
-              style={themedStyles.actionContent}
+            <TouchableOpacity
+              style={themedStyles.actionCard}
+              onPress={() => navigation.navigate('Alarms')}
             >
-              <View style={[themedStyles.actionIconWrapper, { backgroundColor: 'rgba(16, 185, 129, 0.22)' }]}>
-                <Bell size={32} color="#10B981" strokeWidth={2.5} />
-              </View>
-              <Text style={themedStyles.actionLabel}>Alarms</Text>
-            </LinearGradient>
-          </TouchableOpacity>
+              <LinearGradient
+                colors={['rgba(107, 114, 128, 0.28)', 'rgba(107, 114, 128, 0.10)']}
+                style={themedStyles.actionContent}
+              >
+                <View style={[themedStyles.actionIconWrapper, { backgroundColor: 'rgba(16, 185, 129, 0.22)' }]}>
+                  <Bell size={22} color="#10B981" strokeWidth={2.5} />
+                </View>
+                <Text style={themedStyles.actionLabel}>Alarms</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
 
-          <TouchableOpacity
-            style={themedStyles.actionCard}
-            onPress={() => navigation.navigate('SleepSession')}
-          >
-            <LinearGradient
-              colors={['rgba(245, 158, 11, 0.28)', 'rgba(245, 158, 11, 0.10)']}
-              style={themedStyles.actionContent}
+          {/* Row 2 */}
+          <View style={themedStyles.quickActionsRow}>
+            <TouchableOpacity
+              style={themedStyles.actionCard}
+              onPress={() => navigation.navigate('SleepSession')}
             >
-              <View style={[themedStyles.actionIconWrapper, { backgroundColor: 'rgba(245, 158, 11, 0.22)' }]}>
-                <Activity size={32} color="#F59E0B" strokeWidth={2.5} />
-              </View>
-              <Text style={themedStyles.actionLabel}>Log Sleep</Text>
-            </LinearGradient>
-          </TouchableOpacity>
+              <LinearGradient
+                colors={['rgba(245, 158, 11, 0.28)', 'rgba(245, 158, 11, 0.10)']}
+                style={themedStyles.actionContent}
+              >
+                <View style={[themedStyles.actionIconWrapper, { backgroundColor: 'rgba(245, 158, 11, 0.22)' }]}>
+                  <Activity size={22} color="#F59E0B" strokeWidth={2.5} />
+                </View>
+                <Text style={themedStyles.actionLabel}>Log Sleep</Text>
+              </LinearGradient>
+            </TouchableOpacity>
 
-          <TouchableOpacity
-            style={themedStyles.actionCard}
-            onPress={() => navigation.navigate('Settings')}
-          >
-            <LinearGradient
-              colors={['rgba(107, 114, 128, 0.28)', 'rgba(107, 114, 128, 0.10)']}
-              style={themedStyles.actionContent}
+            <TouchableOpacity
+              style={themedStyles.actionCard}
+              onPress={() => navigation.navigate('Settings')}
             >
-              <View style={[themedStyles.actionIconWrapper, { backgroundColor: 'rgba(107, 114, 128, 0.22)' }]}>
-                <Layout size={32} color="#9CA3AF" strokeWidth={2.5} />
-              </View>
-              <Text style={themedStyles.actionLabel}>Settings</Text>
-            </LinearGradient>
-          </TouchableOpacity>
+              <LinearGradient
+                colors={['rgba(107, 114, 128, 0.28)', 'rgba(107, 114, 128, 0.10)']}
+                style={themedStyles.actionContent}
+              >
+                <View style={[themedStyles.actionIconWrapper, { backgroundColor: 'rgba(107, 114, 128, 0.22)' }]}>
+                  <Layout size={22} color="#9CA3AF" strokeWidth={2.5} />
+                </View>
+                <Text style={themedStyles.actionLabel}>Settings</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Enhanced Sleep Improvement Dashboard */}
@@ -1018,11 +1028,13 @@ const styles = (theme: any, width: number) => StyleSheet.create({
     letterSpacing: 0.5,
   },
   vitalsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
     gap: 12,
     marginBottom: 32,
+  },
+  vitalsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
   },
   vitalWidgetGrid: {
     backgroundColor: 'rgba(255, 255, 255, 0.05)',
@@ -1030,7 +1042,6 @@ const styles = (theme: any, width: number) => StyleSheet.create({
     padding: 12,
     paddingBottom: 10,
     flex: 1,
-    minWidth: '45%',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.1)',
   },
@@ -1058,6 +1069,11 @@ const styles = (theme: any, width: number) => StyleSheet.create({
     fontSize: 10,
     fontWeight: '500',
     fontFamily: theme.typography.fontFamily.medium,
+  },
+  vitalBottomRow: {
+    height: 16,
+    marginTop: 4,
+    justifyContent: 'center',
   },
   sparkLineContainer: {
     flexDirection: 'row',
@@ -1131,35 +1147,37 @@ const styles = (theme: any, width: number) => StyleSheet.create({
     fontFamily: theme.typography.fontFamily.semibold,
   },
   quickActionsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
+    gap: 12,
     marginBottom: 24,
+  },
+  quickActionsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     gap: 12,
   },
   actionCard: {
-    width: (width - 52) / 2,
-    borderRadius: 24,
+    flex: 1,
+    borderRadius: 16,
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   actionContent: {
-    padding: 20,
+    padding: 14,
     alignItems: 'center',
     justifyContent: 'center',
   },
   actionIconWrapper: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 8,
   },
   actionLabel: {
     color: '#FFFFFF',
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '700',
     fontFamily: theme.typography.fontFamily.bold,
   },
