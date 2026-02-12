@@ -49,7 +49,6 @@ import { useAuth } from '../contexts/AuthContext';
 import { formatDuration, format12HourTime } from '../utils/dateFormatting';
 import { Modal, TextInput } from 'react-native';
 import alarmService from '../services/alarmService';
-import analyticsService from '../services/analyticsService';
 
 const isIOS = Platform.OS === 'ios';
 
@@ -202,26 +201,6 @@ export default function HomeScreen() {
     update();
     const timer = setInterval(update, 60000);
     return () => clearInterval(timer);
-  }, []);
-
-  // Test AppsFlyer integration on mount (with delay to allow initialization)
-  useEffect(() => {
-    const testAppsFlyer = async () => {
-      try {
-        // Wait 2 seconds for all services to initialize
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        console.log('🧪 Testing AppsFlyer integration...');
-        const result = await analyticsService.testAppsFlyerIntegration();
-        if (result) {
-          console.log('✅ AppsFlyer integration test PASSED - SDK is working!');
-        } else {
-          console.log('❌ AppsFlyer integration test FAILED - Check logs above');
-        }
-      } catch (error) {
-        console.error('❌ AppsFlyer test error:', error);
-      }
-    };
-    testAppsFlyer();
   }, []);
 
   const displayMode = useMemo(() => {

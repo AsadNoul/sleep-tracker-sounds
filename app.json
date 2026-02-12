@@ -98,6 +98,7 @@
       "expo-notifications",
       "expo-file-system",
       "expo-av",
+      "expo-updates",
       [
         "expo-build-properties",
         {
@@ -106,14 +107,6 @@
             "targetSdkVersion": 36,
             "buildToolsVersion": "36.0.0"
           }
-        }
-      ],
-      [
-        "react-native-appsflyer",
-        {
-          "devKey": "fRMbuaBdG4LdpmtXjo7Z2C",
-          "appId": "6738912651",
-          "isDebug": true
         }
       ]
     ],

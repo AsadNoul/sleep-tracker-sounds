@@ -1,10 +1,33 @@
-import * as Updates from 'expo-updates';
-import { Platform } from 'react-native';
-
 export interface UpdateInfo {
   isAvailable: boolean;
-  manifest?: Updates.Manifest;
+  manifest?: any;
   isEmergency?: boolean;
+}
+
+// expo-updates throws "TypeError: property is not configurable" at import time
+// in bare workflow when the native module is not set up. We load it lazily so
+// a failure here never crashes the app.
+// _updatesReady: undefined = not yet probed, null = probed and failed, object = ready
+let _updates: any = undefined;
+function getUpdates(): any | null {
+  if (_updates !== undefined) return _updates;
+  try {
+    const mod = require('expo-updates');
+    // checkForUpdateAsync is the function we actually call — probe it
+    if (typeof mod.checkForUpdateAsync !== 'function') {
+      _updates = null;
+      return null;
+    }
+    _updates = mod;
+    return _updates;
+  } catch {
+    _updates = null;
+    return null;
+  }
+}
+
+function isUpdatesConfigured(): boolean {
+  return getUpdates() !== null;
 }
 
 export class UpdateService {
@@ -20,17 +43,17 @@ export class UpdateService {
     return UpdateService.instance;
   }
 
-  /**
-   * Check if a new update is available from EAS
-   */
   async checkForUpdates(): Promise<UpdateInfo> {
-    // Skip in development mode
     if (__DEV__) {
       console.log('🔄 Skipping update check in development mode');
       return { isAvailable: false };
     }
 
-    // Prevent multiple simultaneous checks
+    if (!isUpdatesConfigured()) {
+      console.log('⚠️ expo-updates not configured, skipping update check');
+      return { isAvailable: false };
+    }
+
     if (this.checkingForUpdate) {
       console.log('⏳ Update check already in progress');
       return { isAvailable: false };
@@ -40,14 +63,12 @@ export class UpdateService {
       this.checkingForUpdate = true;
       console.log('🔍 Checking for updates...');
 
-      const update = await Updates.checkForUpdateAsync();
+      const u = getUpdates()!;
+      const update = await u.checkForUpdateAsync();
 
       if (update.isAvailable) {
         console.log('✅ Update available!', update.manifest);
-
-        // Check if this is an emergency update (you can add metadata in your EAS updates)
         const isEmergency = update.manifest?.metadata?.emergency === true;
-
         return {
           isAvailable: true,
           manifest: update.manifest,
@@ -65,23 +86,20 @@ export class UpdateService {
     }
   }
 
-  /**
-   * Download and apply the update
-   */
-  async downloadAndApplyUpdate(
-    onProgress?: (progress: number) => void
-  ): Promise<boolean> {
+  async downloadAndApplyUpdate(): Promise<boolean> {
+    if (!isUpdatesConfigured()) {
+      console.log('⚠️ expo-updates not configured');
+      return false;
+    }
+
     try {
       console.log('⬇️ Downloading update...');
-
-      // Fetch the update with progress tracking
-      const result = await Updates.fetchUpdateAsync();
+      const u = getUpdates()!;
+      const result = await u.fetchUpdateAsync();
 
       if (result.isNew) {
         console.log('✅ Update downloaded successfully');
-
-        // Reload the app to apply the update
-        await Updates.reloadAsync();
+        await u.reloadAsync();
         return true;
       } else {
         console.log('ℹ️ No new update to apply');
@@ -93,28 +111,18 @@ export class UpdateService {
     }
   }
 
-  /**
-   * Get current app version info
-   */
   getCurrentVersion(): string {
-    if (Updates.manifest) {
-      return Updates.manifest.version || 'Unknown';
-    }
+    const u = getUpdates();
+    if (u?.manifest) return u.manifest.version || 'Unknown';
     return 'Unknown';
   }
 
-  /**
-   * Get update channel (production, preview, development)
-   */
   getUpdateChannel(): string {
-    return Updates.channel || 'default';
+    return getUpdates()?.channel || 'default';
   }
 
-  /**
-   * Check if app is running from an update
-   */
   isRunningFromUpdate(): boolean {
-    return Updates.isEmbeddedLaunch === false;
+    return getUpdates()?.isEmbeddedLaunch === false;
   }
 }
 
