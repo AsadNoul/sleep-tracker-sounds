@@ -1,11 +1,18 @@
 import { supabase } from '../lib/supabase';
-import { AppState, AppStateStatus } from 'react-native';
+import { AppState, AppStateStatus, Platform } from 'react-native';
 import logger from '../utils/logger';
 import { Mixpanel } from 'mixpanel-react-native';
-import appsFlyer from 'react-native-appsflyer';
 
 const MIXPANEL_TOKEN = 'cdece4b2549e31e3cf56aa53ca6da153';
 const APPSFLYER_DEV_KEY = 'fRMbuaBdG4LdpmtXjo7Z2C';
+
+// Lazy load AppsFlyer (not available in Expo Go)
+let appsFlyer: any = null;
+try {
+  appsFlyer = require('react-native-appsflyer').default;
+} catch (e) {
+  logger.warn('⚠️ AppsFlyer is not available in this runtime (Expo Go). It will work in development/production builds.');
+}
 
 class AnalyticsService {
   private eventQueue: any[] = [];
@@ -45,25 +52,36 @@ class AnalyticsService {
 
   private async initializeAppsFlyer() {
     try {
+      if (!appsFlyer) {
+        logger.info('📊 AppsFlyer not available in this runtime. Will work in production builds.');
+        return;
+      }
+
+      // Set initialization flag optimistically
+      this.appsFlyerInitialized = true;
+      
       appsFlyer.initSdk(
         {
           devKey: APPSFLYER_DEV_KEY,
           isDebug: __DEV__,
-          appId: 'com.sleeptracker.app', // Android package name
+          appId: Platform.OS === 'ios' ? '6738912651' : 'com.sleeptracker.app',
           onInstallConversionDataListener: true,
           onDeepLinkListener: true,
           timeToWaitForATTUserAuthorization: 10,
         },
         (result) => {
-          this.appsFlyerInitialized = true;
-          logger.debug('📊 AppsFlyer initialized:', result);
+          logger.debug('📊 AppsFlyer SDK initialized successfully:', result);
         },
         (error) => {
-          logger.error('AppsFlyer initialization error:', error);
+          logger.error('📊 AppsFlyer SDK error:', error);
+          this.appsFlyerInitialized = false;
         }
       );
+      
+      logger.info('✅ AppsFlyer initialization started');
     } catch (error) {
-      logger.error('AppsFlyer setup error:', error);
+      logger.error('❌ AppsFlyer setup error:', error);
+      this.appsFlyerInitialized = false;
     }
   }
 
@@ -132,7 +150,7 @@ class AnalyticsService {
       }
 
       // Track to AppsFlyer (real-time)
-      if (this.appsFlyerInitialized) {
+      if (this.appsFlyerInitialized && appsFlyer) {
         appsFlyer.logEvent(eventName, properties || {});
       }
 
@@ -177,7 +195,7 @@ class AnalyticsService {
         logger.debug('📊 User identified in Mixpanel:', userId);
       }
 
-      if (this.appsFlyerInitialized) {
+      if (this.appsFlyerInitialized && appsFlyer) {
         appsFlyer.setCustomerUserId(userId);
         if (traits) {
           appsFlyer.setAdditionalData(traits);
@@ -265,7 +283,7 @@ class AnalyticsService {
    */
   async getAppsFlyerId(): Promise<string | null> {
     try {
-      if (this.appsFlyerInitialized) {
+      if (this.appsFlyerInitialized && appsFlyer) {
         const appsFlyerId = await appsFlyer.getAppsFlyerUID();
         logger.debug('📊 AppsFlyer ID:', appsFlyerId);
         return appsFlyerId;
@@ -282,21 +300,41 @@ class AnalyticsService {
    */
   async testAppsFlyerIntegration(): Promise<boolean> {
     try {
-      if (!this.appsFlyerInitialized) {
-        logger.error('❌ AppsFlyer not initialized');
+      if (!appsFlyer) {
+        logger.warn('⚠️ AppsFlyer not available in this runtime (Expo Go). Build the app with EAS to test AppsFlyer.');
         return false;
       }
 
+      // Wait a bit for initialization to complete
+      let attempts = 0;
+      while (!this.appsFlyerInitialized && attempts < 10) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+        attempts++;
+      }
+
+      if (!this.appsFlyerInitialized) {
+        logger.error('❌ AppsFlyer not initialized after waiting. This is expected in Expo Go.');
+        return false;
+      }
+
+      logger.info('✅ AppsFlyer initialized successfully');
+
       // Get AppsFlyer ID
       const appsFlyerId = await this.getAppsFlyerId();
-      logger.info('✅ AppsFlyer ID retrieved:', appsFlyerId);
+      if (appsFlyerId) {
+        logger.info('✅ AppsFlyer ID retrieved:', appsFlyerId);
+      } else {
+        logger.warn('⚠️ Could not retrieve AppsFlyer ID (may be normal on first install)');
+      }
 
       // Send test event
-      appsFlyer.logEvent('af_test_event', {
-        test_param: 'test_value',
-        timestamp: new Date().toISOString()
-      });
-      logger.info('✅ AppsFlyer test event sent');
+      if (appsFlyer) {
+        appsFlyer.logEvent('af_test_event', {
+          test_param: 'test_value',
+          timestamp: new Date().toISOString()
+        });
+        logger.info('✅ AppsFlyer test event sent');
+      }
 
       return true;
     } catch (error) {

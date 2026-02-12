@@ -107,6 +107,14 @@
             "buildToolsVersion": "36.0.0"
           }
         }
+      ],
+      [
+        "react-native-appsflyer",
+        {
+          "devKey": "fRMbuaBdG4LdpmtXjo7Z2C",
+          "appId": "6738912651",
+          "isDebug": true
+        }
       ]
     ],
     "owner": "assdalinaul",
