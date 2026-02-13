@@ -34,7 +34,8 @@ import {
   Sparkles,
   Thermometer,
   Droplets,
-  Sun
+  Sun,
+  Coffee
 } from 'lucide-react-native';
 
 import CircularProgress from '../components/CircularProgress';
@@ -624,16 +625,16 @@ export default function HomeScreen() {
           <View style={themedStyles.quickActionsRow}>
             <TouchableOpacity
               style={themedStyles.actionCard}
-              onPress={() => navigation.navigate('SleepSession')}
+              onPress={() => navigation.navigate('CaffeineCalculator')}
             >
               <LinearGradient
-                colors={['rgba(245, 158, 11, 0.28)', 'rgba(245, 158, 11, 0.10)']}
+                colors={['rgba(139, 69, 19, 0.28)', 'rgba(139, 69, 19, 0.10)']}
                 style={themedStyles.actionContent}
               >
-                <View style={[themedStyles.actionIconWrapper, { backgroundColor: 'rgba(245, 158, 11, 0.22)' }]}>
-                  <Activity size={22} color="#F59E0B" strokeWidth={2.5} />
+                <View style={[themedStyles.actionIconWrapper, { backgroundColor: 'rgba(139, 69, 19, 0.22)' }]}>
+                  <Coffee size={22} color="#8B4513" strokeWidth={2.5} />
                 </View>
-                <Text style={themedStyles.actionLabel}>Log Sleep</Text>
+                <Text style={themedStyles.actionLabel}>Caffeine</Text>
               </LinearGradient>
             </TouchableOpacity>
 
