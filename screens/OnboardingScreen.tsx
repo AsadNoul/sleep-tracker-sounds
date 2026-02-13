@@ -43,6 +43,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
+import PushNotificationPrompt from '../components/PushNotificationPrompt';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -171,6 +172,7 @@ export default function OnboardingScreen() {
   const [analysisProgress, setAnalysisProgress] = useState(0);
   const [showCompleteButton, setShowCompleteButton] = useState(false);
   const [showCelebration, setShowCelebration] = useState(false);
+  const [showPushPrompt, setShowPushPrompt] = useState(false);
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
@@ -381,9 +383,9 @@ export default function OnboardingScreen() {
         await completeOnboarding();
         await reloadProfile();
         
-        // Wait for celebration before navigating
+        // Wait for celebration, then show push notification prompt
         setTimeout(() => {
-          // Navigation handled by completeOnboarding
+          setShowPushPrompt(true);
         }, 1500);
       } else {
         // Navigate to Welcome screen for signup/login after celebration
@@ -909,6 +911,14 @@ export default function OnboardingScreen() {
           </TouchableOpacity>
         </View>
       </LinearGradient>
+
+      {/* Push Notification Prompt */}
+      {showPushPrompt && user && (
+        <PushNotificationPrompt 
+          userId={user.id} 
+          trigger="onboarding"
+        />
+      )}
     </SafeAreaView>
   );
 }

@@ -56,6 +56,8 @@ import { supabase } from '../lib/supabase';
 import { useAppTheme } from '../hooks/useAppTheme';
 import GuestBanner from '../components/GuestBanner';
 import notificationService from '../services/notificationService';
+import * as Notifications from 'expo-notifications';
+import PushNotificationPrompt from '../components/PushNotificationPrompt';
 
 // Android-safe BlurView wrapper
 const GlassCard = ({ style, children, intensity = 20, tint = "dark" }: { style?: any; children: React.ReactNode; intensity?: number; tint?: 'dark' | 'light' | 'default' }) => {
@@ -128,6 +130,8 @@ export default function SettingsScreen() {
         onConfirm: () => void;
         isDestructive?: boolean;
     } | null>(null);
+    const [pushPermissionStatus, setPushPermissionStatus] = useState<'granted' | 'denied' | 'undetermined'>('undetermined');
+    const [showPushPrompt, setShowPushPrompt] = useState(false);
 
     // Animated values for fluid background
     const animatedValue1 = useRef(new Animated.Value(0)).current;
@@ -141,6 +145,10 @@ export default function SettingsScreen() {
                 setNotifications(savedSettings.notifications ?? true);
                 setSleepReminder(savedSettings.sleepReminder ?? false);
             }
+            
+            // Check push notification permission status
+            const { status } = await Notifications.getPermissionsAsync();
+            setPushPermissionStatus(status);
         };
         loadData();
     }, []);
@@ -608,6 +616,33 @@ export default function SettingsScreen() {
                     {/* Guest Banner */}
                     <GuestBanner />
 
+                    {/* Push Notification Banner (if not enabled) */}
+                    {user && user.id !== 'guest' && pushPermissionStatus !== 'granted' && (
+                        <TouchableOpacity
+                            style={styles.notificationBanner}
+                            onPress={() => setShowPushPrompt(true)}
+                            activeOpacity={0.8}
+                        >
+                            <LinearGradient
+                                colors={['#8B5CF6', '#EC4899']}
+                                start={{ x: 0, y: 0 }}
+                                end={{ x: 1, y: 1 }}
+                                style={styles.notificationBannerGradient}
+                            >
+                                <Bell size={24} color="#FFFFFF" />
+                                <View style={styles.notificationBannerText}>
+                                    <Text style={styles.notificationBannerTitle}>
+                                        Enable Notifications
+                                    </Text>
+                                    <Text style={styles.notificationBannerSubtitle}>
+                                        Get sleep reminders & insights
+                                    </Text>
+                                </View>
+                                <ChevronRight size={20} color="rgba(255,255,255,0.8)" />
+                            </LinearGradient>
+                        </TouchableOpacity>
+                    )}
+
                     {/* Sleep Profile Header */}
                     {!isLoadingProfile && renderSleepProfileHeader()}
 
@@ -1008,6 +1043,14 @@ export default function SettingsScreen() {
                         </GlassCard>
                     </View>
                 </Modal>
+
+                {/* Push Notification Prompt Modal */}
+                {showPushPrompt && user && (
+                    <PushNotificationPrompt 
+                        userId={user.id} 
+                        trigger="settings"
+                    />
+                )}
             </LinearGradient>
         </View>
     );
@@ -1061,6 +1104,35 @@ const styles = StyleSheet.create({
         fontWeight: '600',
         color: '#FFFFFF',
         marginBottom: 10,
+    },
+    notificationBanner: {
+        marginBottom: 20,
+        borderRadius: 16,
+        overflow: 'hidden',
+        shadowColor: '#8B5CF6',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 12,
+        elevation: 8,
+    },
+    notificationBannerGradient: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: 16,
+        gap: 12,
+    },
+    notificationBannerText: {
+        flex: 1,
+    },
+    notificationBannerTitle: {
+        fontSize: 16,
+        fontWeight: '700',
+        color: '#FFFFFF',
+        marginBottom: 2,
+    },
+    notificationBannerSubtitle: {
+        fontSize: 13,
+        color: 'rgba(255,255,255,0.85)',
     },
     collapsibleHeader: {
         flexDirection: 'row',

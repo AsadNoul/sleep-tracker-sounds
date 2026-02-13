@@ -43,6 +43,7 @@ interface UserData {
   last_active: string | null;
   country?: string | null;
   signup_method?: 'email' | 'google' | 'apple' | null;
+  expo_push_token?: string | null;
 }
 
 interface Stats {
@@ -52,6 +53,7 @@ interface Stats {
   total_events: number;
   active_today: number;
   new_users_today: number;
+  push_enabled_users: number;
 }
 
 export default function AdminScreen() {
@@ -85,6 +87,7 @@ export default function AdminScreen() {
     total_events: 0,
     active_today: 0,
     new_users_today: 0,
+    push_enabled_users: 0,
   });
   const [heatmapData, setHeatmapData] = useState<{
     hourly: { hour: string; percentage: number }[];
@@ -217,7 +220,7 @@ export default function AdminScreen() {
       // Load users with sleep session counts
       const { data: usersData, error: usersError } = await supabase
         .from('user_profiles')
-        .select('id, email, full_name, subscription_status, subscription_start_date, subscription_end_date, created_at, country, signup_method')
+        .select('id, email, full_name, subscription_status, subscription_start_date, subscription_end_date, created_at, country, signup_method, expo_push_token')
         .order('created_at', { ascending: false });
 
       if (usersError) throw usersError;
@@ -261,6 +264,7 @@ export default function AdminScreen() {
         { count: totalEvents },
         { count: activeToday },
         { count: newUsersToday },
+        { count: pushEnabledUsers },
       ] = await Promise.all([
         supabase.from('user_profiles').select('*', { count: 'exact', head: true }),
         supabase
@@ -277,6 +281,10 @@ export default function AdminScreen() {
           .from('user_profiles')
           .select('*', { count: 'exact', head: true })
           .gte('created_at', today.toISOString()),
+        supabase
+          .from('user_profiles')
+          .select('*', { count: 'exact', head: true })
+          .not('expo_push_token', 'is', null),
       ]);
 
       setStats({
@@ -286,6 +294,7 @@ export default function AdminScreen() {
         total_events: totalEvents || 0,
         active_today: activeToday || 0,
         new_users_today: newUsersToday || 0,
+        push_enabled_users: pushEnabledUsers || 0,
       });
 
       // Load heatmap data - hourly usage
@@ -573,6 +582,14 @@ export default function AdminScreen() {
                 </BlurView>
 
                 <BlurView intensity={20} tint="dark" style={s.statCard}>
+                  <Bell size={24} color="#10B981" />
+                  <Text style={s.statValue}>{stats.push_enabled_users}</Text>
+                  <Text style={s.statLabel}>Push Enabled</Text>
+                </BlurView>
+              </View>
+
+              <View style={s.statsRow}>
+                <BlurView intensity={20} tint="dark" style={s.statCard}>
                   <TrendingUp size={24} color="#8B5CF6" />
                   <Text style={s.statValue}>
                     {stats.total_users > 0
@@ -580,6 +597,26 @@ export default function AdminScreen() {
                       : '0'}%
                   </Text>
                   <Text style={s.statLabel}>Conversion</Text>
+                </BlurView>
+
+                <BlurView intensity={20} tint="dark" style={s.statCard}>
+                  <Bell size={24} color="#8B5CF6" />
+                  <Text style={s.statValue}>
+                    {stats.total_users > 0
+                      ? ((stats.push_enabled_users / stats.total_users) * 100).toFixed(1)
+                      : '0'}%
+                  </Text>
+                  <Text style={s.statLabel}>Push Rate</Text>
+                </BlurView>
+
+                <BlurView intensity={20} tint="dark" style={s.statCard}>
+                  <TrendingUp size={24} color="#EC4899" />
+                  <Text style={s.statValue}>
+                    {stats.premium_users > 0 && stats.push_enabled_users > 0
+                      ? ((stats.premium_users / stats.push_enabled_users)).toFixed(1)
+                      : '0'}x
+                  </Text>
+                  <Text style={s.statLabel}>Premium Reach</Text>
                 </BlurView>
               </View>
 
@@ -922,6 +959,12 @@ export default function AdminScreen() {
                         Sub Ends: {new Date(user.subscription_end_date).toLocaleDateString()}
                       </Text>
                     )}
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                      <Bell size={12} color={user.expo_push_token ? '#10B981' : '#EF4444'} />
+                      <Text style={[s.metaText, { color: user.expo_push_token ? '#10B981' : '#EF4444' }]}>
+                        Notifications: {user.expo_push_token ? 'Enabled' : 'Disabled'}
+                      </Text>
+                    </View>
                   </View>
                 </View>
 
