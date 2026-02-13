@@ -20,7 +20,6 @@ interface RatingPromptProps {
 }
 
 const STORAGE_KEY = 'rating_prompt_shown';
-const STORAGE_DECLINED_KEY = 'rating_prompt_declined';
 const PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=com.sleeptracker.app';
 const MIN_SESSIONS_FOR_PROMPT = 3; // Show after 3 sleep sessions
 
@@ -59,26 +58,16 @@ export default function RatingPrompt({
 
   const checkAndShowPrompt = async () => {
     try {
-      // Check if already shown or declined recently
-      const hasShown = await AsyncStorage.getItem(STORAGE_KEY);
-      const hasDeclined = await AsyncStorage.getItem(STORAGE_DECLINED_KEY);
+      // Check if already rated
+      const hasRated = await AsyncStorage.getItem(STORAGE_KEY);
       
-      // If already rated, don't show again
-      if (hasShown === 'rated') return;
-      
-      // If declined, wait 30 days before asking again
-      if (hasDeclined) {
-        const declinedTime = parseInt(hasDeclined);
-        const daysSinceDecline = (Date.now() - declinedTime) / (1000 * 60 * 60 * 24);
-        if (daysSinceDecline < 30) return;
-      }
+      // If already rated, don't show again (permanently)
+      if (hasRated === 'rated') return;
 
-      // Show based on trigger
+      // Show based on trigger - always show if not rated yet
       if (trigger === 'session_complete' && sessionCount >= MIN_SESSIONS_FOR_PROMPT) {
-        // Only show every 10 sessions after the first prompt eligibility
-        if (sessionCount === MIN_SESSIONS_FOR_PROMPT || sessionCount % 10 === 0) {
-          setVisible(true);
-        }
+        // Show every time after minimum sessions reached
+        setVisible(true);
       } else if (trigger === 'manual') {
         setVisible(true);
       }
@@ -89,8 +78,8 @@ export default function RatingPrompt({
 
   const handleRate = async () => {
     try {
+      // Mark as rated permanently - will never show again
       await AsyncStorage.setItem(STORAGE_KEY, 'rated');
-      await AsyncStorage.removeItem(STORAGE_DECLINED_KEY);
       
       // Open Play Store
       const supported = await Linking.canOpenURL(PLAY_STORE_URL);
@@ -107,10 +96,10 @@ export default function RatingPrompt({
 
   const handleMaybeLater = async () => {
     try {
-      await AsyncStorage.setItem(STORAGE_DECLINED_KEY, Date.now().toString());
+      // Just close - will show again next time
       setVisible(false);
     } catch (error) {
-      console.error('Error saving decline:', error);
+      console.error('Error closing prompt:', error);
     }
   };
 
