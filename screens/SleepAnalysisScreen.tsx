@@ -1306,6 +1306,75 @@ export default function SleepAnalysisScreen({ hideHeader = false, isSubcomponent
               </View>
             </GlassModule>
 
+            {/* Sleep Recordings */}
+            {recordings.length > 0 && (
+              <GlassModule title="Sleep Recordings" icon={Mic} pro={false} theme={theme} isDark={isDark}>
+                <View style={styles(theme, isDark).recordingsContainer}>
+                  <Text style={styles(theme, isDark).recordingsSubtitle}>
+                    {recordings.length} event{recordings.length !== 1 ? 's' : ''} recorded during this session
+                  </Text>
+                  {recordings.map((recording, index) => {
+                    const isPlaying = playingAudio === recording.id;
+                    const eventTypeLabel = recording.event_type === 'snoring' ? '🔊 Snoring' :
+                                          recording.event_type === 'sleep_talk' ? '💬 Sleep Talk' :
+                                          recording.event_type === 'noise' ? '🔔 Noise' :
+                                          recording.event_type === 'dreaming' ? '💭 Dreaming' : '🎤 Recording';
+                    
+                    return (
+                      <TouchableOpacity
+                        key={recording.id || index}
+                        style={[
+                          styles(theme, isDark).recordingItem,
+                          isPlaying && styles(theme, isDark).recordingItemActive
+                        ]}
+                        onPress={() => recording.audio_file_url && handlePlayAudio(recording.audio_file_url, recording.id)}
+                        disabled={!recording.audio_file_url}
+                      >
+                        <View style={styles(theme, isDark).recordingLeft}>
+                          <View style={[
+                            styles(theme, isDark).recordingIconWrapper,
+                            isPlaying && { backgroundColor: 'rgba(139, 92, 246, 0.3)' }
+                          ]}>
+                            {isPlaying ? (
+                              <Pause size={16} color="#8B5CF6" />
+                            ) : (
+                              <Play size={16} color={recording.audio_file_url ? '#8B5CF6' : '#64748B'} />
+                            )}
+                          </View>
+                          <View style={styles(theme, isDark).recordingInfo}>
+                            <Text style={styles(theme, isDark).recordingType}>{eventTypeLabel}</Text>
+                            <Text style={styles(theme, isDark).recordingTime}>
+                              {new Date(recording.timestamp).toLocaleTimeString('en-US', {
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
+                              {recording.duration_seconds && ` • ${Math.round(recording.duration_seconds)}s`}
+                              {recording.loudness_db && ` • ${Math.round(recording.loudness_db)}dB`}
+                            </Text>
+                          </View>
+                        </View>
+                        {isPlaying && playbackStatus && (
+                          <View style={styles(theme, isDark).recordingProgress}>
+                            <View style={styles(theme, isDark).recordingProgressBar}>
+                              <View 
+                                style={[
+                                  styles(theme, isDark).recordingProgressFill,
+                                  { width: `${(playbackStatus.position / playbackStatus.duration) * 100}%` }
+                                ]} 
+                              />
+                            </View>
+                          </View>
+                        )}
+                        {!recording.audio_file_url && (
+                          <Text style={styles(theme, isDark).recordingUnavailable}>No audio</Text>
+                        )}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </GlassModule>
+            )}
+
             {/* Report Generation CTA */}
             <TouchableOpacity
               style={styles(theme, isDark).mainCTA}
@@ -2174,6 +2243,78 @@ function styles(theme: any, isDark: boolean) {
       color: 'rgba(255, 255, 255, 0.4)',
       fontSize: 12,
       fontFamily: theme.typography.fontFamily.semibold,
+    },
+    recordingsContainer: {
+      gap: 12,
+    },
+    recordingsSubtitle: {
+      color: '#64748B',
+      fontSize: 13,
+      marginBottom: 8,
+      fontFamily: theme.typography.fontFamily.medium,
+    },
+    recordingItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      backgroundColor: 'rgba(17, 25, 40, 0.6)',
+      borderRadius: 12,
+      padding: 12,
+      borderWidth: 1,
+      borderColor: 'rgba(255, 255, 255, 0.05)',
+    },
+    recordingItemActive: {
+      backgroundColor: 'rgba(139, 92, 246, 0.1)',
+      borderColor: 'rgba(139, 92, 246, 0.3)',
+    },
+    recordingLeft: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      flex: 1,
+    },
+    recordingIconWrapper: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      backgroundColor: 'rgba(139, 92, 246, 0.15)',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    recordingInfo: {
+      flex: 1,
+      gap: 2,
+    },
+    recordingType: {
+      color: '#FFF',
+      fontSize: 14,
+      fontWeight: '600',
+      fontFamily: theme.typography.fontFamily.semibold,
+    },
+    recordingTime: {
+      color: '#64748B',
+      fontSize: 12,
+      fontFamily: theme.typography.fontFamily.medium,
+    },
+    recordingUnavailable: {
+      color: '#64748B',
+      fontSize: 11,
+      fontStyle: 'italic',
+      fontFamily: theme.typography.fontFamily.medium,
+    },
+    recordingProgress: {
+      marginLeft: 12,
+      width: 60,
+    },
+    recordingProgressBar: {
+      height: 3,
+      backgroundColor: 'rgba(139, 92, 246, 0.2)',
+      borderRadius: 2,
+      overflow: 'hidden',
+    },
+    recordingProgressFill: {
+      height: '100%',
+      backgroundColor: '#8B5CF6',
     },
     premiumOverlay: {
       ...StyleSheet.absoluteFillObject,
