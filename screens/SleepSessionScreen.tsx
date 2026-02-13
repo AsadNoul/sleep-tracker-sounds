@@ -52,6 +52,7 @@ import SleepBackgroundAnimation from '../components/SleepBackgroundAnimation';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import notificationService from '../services/notificationService';
 import sleepRecorderService from '../services/sleepRecorderService';
+import RatingPrompt from '../components/RatingPrompt';
 
 const GlassView = ({ style, children, intensity = 20, tint = "dark" }: any) => {
   if (Platform.OS === 'android') {
@@ -111,7 +112,7 @@ export default function SleepSessionScreen() {
   const navigation = useNavigation();
   const route = useRoute<any>();
   const { user } = useAuth();
-  const { currentSession, isTracking, startSleepSession, endSleepSession } = useSleep();
+  const { currentSession, isTracking, startSleepSession, endSleepSession, sleepHistory } = useSleep();
   const { isPlaying, currentSound, volume, playSound, pauseSound, stopSound, setVolume, isMixing, stopMixing } = useAudio();
   const themedStyles = useMemo(() => styles(theme), [theme]);
 
@@ -126,6 +127,7 @@ export default function SleepSessionScreen() {
   const [showMusicPicker, setShowMusicPicker] = useState(false);
   const [selectedMusic, setSelectedMusic] = useState(sleepSounds[0]);
   const [isDimmed, setIsDimmed] = useState(false);
+  const [showRatingPrompt, setShowRatingPrompt] = useState(false);
 
   // Alarm states
   const [alarmTime, setAlarmTime] = useState<Date | null>(() => {
@@ -414,7 +416,11 @@ export default function SleepSessionScreen() {
         [
           {
             text: 'OK',
-            onPress: () => navigation.goBack(),
+            onPress: () => {
+              // Show rating prompt after completing session
+              setShowRatingPrompt(true);
+              navigation.goBack();
+            },
           },
         ]
       );
@@ -1114,6 +1120,14 @@ export default function SleepSessionScreen() {
           </Modal>
         )}
       </LinearGradient>
+
+      {/* Rating Prompt */}
+      {showRatingPrompt && (
+        <RatingPrompt 
+          trigger="session_complete" 
+          sessionCount={sleepHistory?.length || 0}
+        />
+      )}
     </View>
   );
 }
@@ -1176,6 +1190,7 @@ const styles = (theme: any) => StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
+    paddingTop: 60, // Moved down from top
     marginBottom: 20,
   },
   exitButton: {
