@@ -98,6 +98,7 @@
       "expo-notifications",
       "expo-file-system",
       "expo-av",
+      "react-native-purchases",
       [
         "expo-build-properties",
         {
