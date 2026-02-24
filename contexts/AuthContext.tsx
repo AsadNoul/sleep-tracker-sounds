@@ -216,7 +216,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           full_name: data.full_name,
           subscription_status: data.subscription_status,
           role: data.role,
-          isPremium: data.role === 'admin' || data.subscription_status === 'premium_monthly' || data.subscription_status === 'premium_yearly',
+          isPremium: data.role === 'admin' || data.email === 'admin@naulx.com' || data.subscription_status === 'premium_monthly' || data.subscription_status === 'premium_yearly',
         });
 
         // Set RevenueCat user ID so webhooks can identify this user
@@ -308,7 +308,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             full_name: retryData.full_name,
             subscription_status: retryData.subscription_status,
             role: retryData.role,
-            isPremium: retryData.role === 'admin' || retryData.subscription_status === 'premium_monthly' || retryData.subscription_status === 'premium_yearly',
+            isPremium: retryData.role === 'admin' || retryData.email === 'admin@naulx.com' || retryData.subscription_status === 'premium_monthly' || retryData.subscription_status === 'premium_yearly',
           });
 
           // Register push notification token
@@ -416,7 +416,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         await analyticsService.trackSignup('email');
 
         // Send welcome notification (async, don't wait)
-        welcomeService.sendWelcomeNotification(data.user.id, name).catch(err => 
+        welcomeService.sendWelcomeNotification(data.user.id, name).catch(err =>
           console.error('Failed to send welcome notification:', err)
         );
 

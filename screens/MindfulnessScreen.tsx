@@ -317,7 +317,7 @@ export default function MindfulnessScreen() {
 
     if (session.premium) {
       // Check if user has premium subscription (including cancelled with valid end date)
-      const hasPremiumAccess = isPremiumActive(user?.subscription_status, user?.subscription_end_date);
+      const hasPremiumAccess = isPremiumActive(user?.subscription_status, user?.subscription_end_date, user?.role, user?.email);
 
       if (!hasPremiumAccess) {
         Alert.alert(

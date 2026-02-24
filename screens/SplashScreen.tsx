@@ -24,34 +24,30 @@ export default function SplashScreen({ onFinish }: SplashScreenProps) {
   const { theme } = useAppTheme();
   const { user, isLoading } = useAuth();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  
+
   const fadeAnim = new Animated.Value(0);
-  const scaleAnim = new Animated.Value(0.8);
-  const textAnim = new Animated.Value(20);
-  const logoRotate = new Animated.Value(0);
+  const scaleAnim = new Animated.Value(0.9);
+  const textAnim = new Animated.Value(15);
 
   useEffect(() => {
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
-        duration: 1500,
+        duration: 600,
         useNativeDriver: true,
       }),
       Animated.spring(scaleAnim, {
         toValue: 1,
-        friction: 4,
+        friction: 8,
+        tension: 80,
         useNativeDriver: true,
       }),
       Animated.timing(textAnim, {
         toValue: 0,
-        duration: 1000,
+        duration: 500,
+        delay: 200,
         useNativeDriver: true,
       }),
-      Animated.timing(logoRotate, {
-        toValue: 1,
-        duration: 2000,
-        useNativeDriver: true,
-      })
     ]).start();
 
     const timer = setTimeout(() => {
@@ -64,15 +60,10 @@ export default function SplashScreen({ onFinish }: SplashScreenProps) {
           navigation.replace('Welcome');
         }
       }
-    }, 3000);
+    }, 1800);
 
     return () => clearTimeout(timer);
   }, [user, isLoading, navigation, onFinish]);
-
-  const spin = logoRotate.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['0deg', '360deg']
-  });
 
   return (
     <View style={styles(theme).container}>
@@ -81,26 +72,24 @@ export default function SplashScreen({ onFinish }: SplashScreenProps) {
         style={styles(theme).gradient}
       >
 
-        <Animated.View 
+        <Animated.View
           style={[
             styles(theme).content,
-            { 
+            {
               opacity: fadeAnim,
               transform: [{ scale: scaleAnim }]
             }
           ]}
         >
           <View style={styles(theme).logoContainer}>
-            <Animated.View style={{ transform: [{ rotate: spin }] }}>
-              <View style={styles(theme).logoWrapper}>
-                <Image 
-                  source={require('../assets/app_logo.png')} 
-                  style={styles(theme).logoImage}
-                  resizeMode="contain"
-                />
-              </View>
-            </Animated.View>
-            
+            <View style={styles(theme).logoWrapper}>
+              <Image
+                source={require('../assets/app_logo.png')}
+                style={styles(theme).logoImage}
+                resizeMode="contain"
+              />
+            </View>
+
             <Animated.View style={{ transform: [{ translateY: textAnim }], alignItems: 'center' }}>
               <Text style={styles(theme).title}>Sleep Architect</Text>
               <View style={styles(theme).subtitleContainer}>

@@ -5,24 +5,24 @@ import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert, ScrollView 
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
-import { 
-  ChevronLeft, 
-  User, 
-  Moon, 
-  Flag, 
-  AlertCircle, 
-  Calendar, 
-  Activity, 
-  Clock, 
-  Sun, 
-  Stethoscope, 
-  Bell, 
-  Mail, 
-  ShieldCheck, 
-  Star, 
-  Edit2, 
-  LogIn, 
-  Smartphone 
+import {
+  ChevronLeft,
+  User,
+  Moon,
+  Flag,
+  AlertCircle,
+  Calendar,
+  Activity,
+  Clock,
+  Sun,
+  Stethoscope,
+  Bell,
+  Mail,
+  ShieldCheck,
+  Star,
+  Edit2,
+  LogIn,
+  Smartphone
 } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../contexts/AuthContext';
@@ -508,7 +508,7 @@ export default function ProfileScreen() {
                     <Text style={styles(theme).profileValue}>
                       {getSubscriptionLabel(user?.subscription_status)}
                     </Text>
-                    {isPremiumActive(user?.subscription_status, user?.subscription_end_date) && (
+                    {isPremiumActive(user?.subscription_status, user?.subscription_end_date, user?.role, user?.email) && (
                       <LinearGradient
                         colors={[theme.colors.accent, theme.colors.highlight, '#9D4EDD']}
                         start={{ x: 0, y: 0 }}
@@ -520,7 +520,7 @@ export default function ProfileScreen() {
                       </LinearGradient>
                     )}
                   </View>
-                  {user?.subscription_end_date && isPremiumActive(user?.subscription_status, user?.subscription_end_date) && (
+                  {user?.subscription_end_date && isPremiumActive(user?.subscription_status, user?.subscription_end_date, user?.role, user?.email) && (
                     <Text style={styles(theme).expiryDateText}>
                       Valid until: {new Date(user.subscription_end_date).toLocaleDateString('en-US', {
                         year: 'numeric',
@@ -585,8 +585,8 @@ export default function ProfileScreen() {
         <View style={styles(theme).placeholder} />
       </View>
 
-      <ScrollView 
-        style={styles(theme).scrollView} 
+      <ScrollView
+        style={styles(theme).scrollView}
         contentContainerStyle={[
           styles(theme).scrollContent,
           { paddingBottom: insets.bottom + 100 }

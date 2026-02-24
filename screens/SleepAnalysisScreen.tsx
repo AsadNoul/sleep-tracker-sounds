@@ -433,7 +433,7 @@ export default function SleepAnalysisScreen({ hideHeader = false, isSubcomponent
   const [playingAudio, setPlayingAudio] = useState<string | null>(null);
   const [playbackStatus, setPlaybackStatus] = useState<{ position: number, duration: number } | null>(null);
 
-  const isPremium = useMemo(() => isPremiumActive(user?.subscription_status, user?.subscription_end_date), [user]);
+  const isPremium = useMemo(() => isPremiumActive(user?.subscription_status, user?.subscription_end_date, user?.role, user?.email), [user]);
 
   const handleUnlock = () => {
     navigation.navigate('Subscription');
@@ -1316,10 +1316,10 @@ export default function SleepAnalysisScreen({ hideHeader = false, isSubcomponent
                   {recordings.map((recording, index) => {
                     const isPlaying = playingAudio === recording.id;
                     const eventTypeLabel = recording.event_type === 'snoring' ? '🔊 Snoring' :
-                                          recording.event_type === 'sleep_talk' ? '💬 Sleep Talk' :
-                                          recording.event_type === 'noise' ? '🔔 Noise' :
-                                          recording.event_type === 'dreaming' ? '💭 Dreaming' : '🎤 Recording';
-                    
+                      recording.event_type === 'sleep_talk' ? '💬 Sleep Talk' :
+                        recording.event_type === 'noise' ? '🔔 Noise' :
+                          recording.event_type === 'dreaming' ? '💭 Dreaming' : '🎤 Recording';
+
                     return (
                       <TouchableOpacity
                         key={recording.id || index}
@@ -1356,11 +1356,11 @@ export default function SleepAnalysisScreen({ hideHeader = false, isSubcomponent
                         {isPlaying && playbackStatus && (
                           <View style={styles(theme, isDark).recordingProgress}>
                             <View style={styles(theme, isDark).recordingProgressBar}>
-                              <View 
+                              <View
                                 style={[
                                   styles(theme, isDark).recordingProgressFill,
                                   { width: `${(playbackStatus.position / playbackStatus.duration) * 100}%` }
-                                ]} 
+                                ]}
                               />
                             </View>
                           </View>

@@ -77,7 +77,7 @@ export default function PrivacySettingsScreen() {
           if (error) {
             console.error('Failed to sync privacy settings:', error);
           } else {
-            console.log('Ã”Â£Ã  Privacy settings synced to cloud');
+            console.log('LOG Privacy settings synced to cloud');
           }
         } catch (error) {
           console.error('Privacy settings sync error:', error);
@@ -95,7 +95,7 @@ export default function PrivacySettingsScreen() {
       [key]: !settings[key],
     });
   };
-  
+
   // Handle data download - REAL IMPLEMENTATION with format selection
   const handleDownloadData = async () => {
     if (!user) {
@@ -184,7 +184,7 @@ export default function PrivacySettingsScreen() {
       setIsDownloading(false);
     }
   };
-  
+
   // Handle data deletion - REAL IMPLEMENTATION
   const handleDeleteData = () => {
     Alert.alert(
@@ -263,9 +263,9 @@ export default function PrivacySettingsScreen() {
         colors={[theme.colors.background, '#0A0C14']}
         style={StyleSheet.absoluteFill}
       />
-      
+
       <View style={styles(theme).header}>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles(theme).backButton}
           onPress={() => navigation.goBack()}
         >
@@ -274,25 +274,25 @@ export default function PrivacySettingsScreen() {
         <Text style={styles(theme).title}>Privacy Settings</Text>
         <View style={styles(theme).placeholder} />
       </View>
-      
-      <ScrollView 
+
+      <ScrollView
         style={styles(theme).content}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[
           styles(theme).scrollContent,
-          { 
-            paddingBottom: insets.bottom + 100 
+          {
+            paddingBottom: insets.bottom + 100
           }
         ]}
       >
         <Text style={styles(theme).sectionDescription}>
           Control how your data is collected, used, and shared. Your privacy is our priority.
         </Text>
-        
+
         {/* Data Collection Section */}
         <View style={styles(theme).section}>
           <Text style={styles(theme).sectionTitle}>Data Collection</Text>
-          
+
           <BlurView intensity={20} style={styles(theme).settingsCard}>
             <View style={styles(theme).settingItem}>
               <View style={styles(theme).settingInfo}>
@@ -309,9 +309,9 @@ export default function PrivacySettingsScreen() {
                 ios_backgroundColor="#1E2C3A"
               />
             </View>
-            
+
             <View style={styles(theme).divider} />
-            
+
             <View style={styles(theme).settingItem}>
               <View style={styles(theme).settingInfo}>
                 <Text style={styles(theme).settingTitle}>Anonymous Data Sharing</Text>
@@ -329,11 +329,11 @@ export default function PrivacySettingsScreen() {
             </View>
           </BlurView>
         </View>
-        
+
         {/* Personalization Section */}
         <View style={styles(theme).section}>
           <Text style={styles(theme).sectionTitle}>Personalization</Text>
-          
+
           <BlurView intensity={20} style={styles(theme).settingsCard}>
             <View style={styles(theme).settingItem}>
               <View style={styles(theme).settingInfo}>
@@ -350,9 +350,9 @@ export default function PrivacySettingsScreen() {
                 ios_backgroundColor="#1E2C3A"
               />
             </View>
-            
+
             <View style={styles(theme).divider} />
-            
+
             <View style={styles(theme).settingItem}>
               <View style={styles(theme).settingInfo}>
                 <Text style={styles(theme).settingTitle}>Notifications</Text>
@@ -370,11 +370,11 @@ export default function PrivacySettingsScreen() {
             </View>
           </BlurView>
         </View>
-        
+
         {/* Integrations Section */}
         <View style={styles(theme).section}>
           <Text style={styles(theme).sectionTitle}>Integrations</Text>
-          
+
           <BlurView intensity={20} style={styles(theme).settingsCard}>
             <View style={styles(theme).settingItem}>
               <View style={styles(theme).settingInfo}>
@@ -391,9 +391,9 @@ export default function PrivacySettingsScreen() {
                 ios_backgroundColor="#1E2C3A"
               />
             </View>
-            
+
             <View style={styles(theme).divider} />
-            
+
             <View style={styles(theme).settingItem}>
               <View style={styles(theme).settingInfo}>
                 <Text style={styles(theme).settingTitle}>Location Tracking</Text>
@@ -411,11 +411,11 @@ export default function PrivacySettingsScreen() {
             </View>
           </BlurView>
         </View>
-        
+
         {/* Data Management Section */}
         <View style={styles(theme).section}>
           <Text style={styles(theme).sectionTitle}>Data Management</Text>
-          
+
           <BlurView intensity={20} style={styles(theme).settingsCard}>
             <TouchableOpacity
               style={styles(theme).dataActionItem}
@@ -462,37 +462,37 @@ export default function PrivacySettingsScreen() {
             </TouchableOpacity>
           </BlurView>
         </View>
-        
+
         {/* Privacy Policy Section */}
         <View style={styles(theme).section}>
           <Text style={styles(theme).sectionTitle}>Legal</Text>
-          
+
           <BlurView intensity={20} style={styles(theme).settingsCard}>
             <TouchableOpacity style={styles(theme).legalItem}>
               <Text style={styles(theme).legalItemText}>Privacy Policy</Text>
               <Share2 size={20} color={theme.colors.textSecondary} />
             </TouchableOpacity>
-            
+
             <View style={styles(theme).divider} />
-            
+
             <TouchableOpacity style={styles(theme).legalItem}>
               <Text style={styles(theme).legalItemText}>Terms of Service</Text>
               <Share2 size={20} color={theme.colors.textSecondary} />
             </TouchableOpacity>
-            
+
             <View style={styles(theme).divider} />
-            
+
             <TouchableOpacity style={styles(theme).legalItem}>
               <Text style={styles(theme).legalItemText}>Data Processing Agreement</Text>
               <Share2 size={20} color={theme.colors.textSecondary} />
             </TouchableOpacity>
           </BlurView>
         </View>
-        
+
         <Text style={styles(theme).footerText}>
           Last updated: June 21, 2025
         </Text>
-        
+
         {/* Bottom padding for tab bar */}
         <View style={styles(theme).bottomPadding} />
       </ScrollView>

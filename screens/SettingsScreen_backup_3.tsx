@@ -43,9 +43,7 @@ import {
     Volume2,
     Users,
     Coffee,
-    Headphones,
-    RefreshCw,
-    BellRing
+    Headphones
 } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -58,25 +56,23 @@ import { supabase } from '../lib/supabase';
 import { useAppTheme } from '../hooks/useAppTheme';
 import GuestBanner from '../components/GuestBanner';
 import notificationService from '../services/notificationService';
-import revenueCatService from '../services/revenueCatService';
-import Constants from 'expo-constants';
 import * as Notifications from 'expo-notifications';
 import PushNotificationPrompt from '../components/PushNotificationPrompt';
 
 // Android-safe BlurView wrapper
 const GlassCard = ({ style, children, intensity = 20, tint = "dark" }: { style?: any; children: React.ReactNode; intensity?: number; tint?: 'dark' | 'light' | 'default' }) => {
-    if (Platform.OS === 'android') {
-        return (
-            <View style={[style, { backgroundColor: 'rgba(17, 25, 40, 0.75)' }]}>
-                {children}
-            </View>
-        );
-    }
+  if (Platform.OS === 'android') {
     return (
-        <BlurView intensity={intensity} tint={tint} style={style}>
-            {children}
-        </BlurView>
+      <View style={[style, { backgroundColor: 'rgba(17, 25, 40, 0.75)' }]}>
+        {children}
+      </View>
     );
+  }
+  return (
+    <GlassCard intensity={intensity} tint={tint} style={style}>
+      {children}
+    </GlassCard>
+  );
 };
 
 type RootStackParamList = {
@@ -123,6 +119,10 @@ export default function SettingsScreen() {
     const [sleepReminder, setSleepReminder] = useState(false);
     const [onboardingProfile, setOnboardingProfile] = useState<OnboardingProfile | null>(null);
     const [isLoadingProfile, setIsLoadingProfile] = useState(true);
+    const [accountPreferencesExpanded, setAccountPreferencesExpanded] = useState(false);
+    const [sleepWellnessExpanded, setSleepWellnessExpanded] = useState(false);
+    const [helpLegalExpanded, setHelpLegalExpanded] = useState(false);
+    const [dataActionsExpanded, setDataActionsExpanded] = useState(false);
     const [confirmModalVisible, setConfirmModalVisible] = useState(false);
     const [confirmConfig, setConfirmConfig] = useState<{
         title: string;
@@ -145,7 +145,7 @@ export default function SettingsScreen() {
                 setNotifications(savedSettings.notifications ?? true);
                 setSleepReminder(savedSettings.sleepReminder ?? false);
             }
-
+            
             // Check push notification permission status
             const { status } = await Notifications.getPermissionsAsync();
             setPushPermissionStatus(status);
@@ -288,6 +288,24 @@ export default function SettingsScreen() {
         setSleepReminder(value);
     };
 
+    const handleThemeModeChange = async () => {
+        const modes: ThemeMode[] = ['dark', 'light', 'auto'];
+        const currentIndex = modes.indexOf(themeMode);
+        const nextMode = modes[(currentIndex + 1) % modes.length];
+        await setThemeMode(nextMode);
+    };
+
+    const getThemeModeLabel = () => {
+        switch (themeMode) {
+            case 'dark':
+                return 'Dark';
+            case 'light':
+                return 'Light';
+            case 'auto':
+                return 'Auto';
+        }
+    };
+
     const navigateToSubscription = () => {
         navigation.navigate('Subscription');
     };
@@ -308,110 +326,44 @@ export default function SettingsScreen() {
         navigation.navigate('About');
     };
 
-    const handleRestorePurchases = async () => {
-        if (user?.id === 'guest') {
-            Alert.alert('Guest Mode', 'Please sign in to restore purchases.');
-            return;
-        }
-
-        try {
-            if (!revenueCatService.isReady()) {
-                Alert.alert(
-                    'Not Available',
-                    'Subscription services are not available in this environment. If you purchased a subscription, please try again in the production app.',
-                    [{ text: 'OK' }]
-                );
-                return;
-            }
-
-            Alert.alert('Restoring...', 'Please wait while we check for previous purchases.');
-
-            const customerInfo = await revenueCatService.restorePurchases();
-            const isPremium = customerInfo.entitlements.active['premium'] !== undefined;
-
-            if (isPremium) {
-                Alert.alert(
-                    'Subscription Restored! 🎉',
-                    'Your premium subscription has been restored successfully. Please restart the app to activate all features.',
-                    [{ text: 'OK' }]
-                );
-            } else {
-                Alert.alert(
-                    'No Subscription Found',
-                    'We could not find an active subscription linked to your account. If you believe this is an error, please contact support.',
-                    [{ text: 'OK' }]
-                );
-            }
-        } catch (error: any) {
-            console.error('Error restoring purchases:', error);
-            Alert.alert('Error', 'Failed to restore purchases. Please check your internet connection and try again.');
-        }
+    const navigateToBedtimeRoutine = () => {
+        navigation.navigate('BedtimeRoutine' as any);
     };
 
-    const handleSyncNotifications = async () => {
-        try {
-            const { status: existingStatus } = await Notifications.getPermissionsAsync();
-
-            if (existingStatus !== 'granted') {
-                const { status } = await Notifications.requestPermissionsAsync();
-                if (status !== 'granted') {
-                    Alert.alert(
-                        'Notifications Disabled',
-                        'Please enable notifications in your device settings to receive sleep reminders and insights.',
-                        [{ text: 'OK' }]
-                    );
-                    return;
-                }
-            }
-
-            // Re-register push token
-            if (user && user.id !== 'guest') {
-                try {
-                    const pushTokenData = await Notifications.getExpoPushTokenAsync({
-                        projectId: Constants.expoConfig?.extra?.eas?.projectId,
-                    });
-                    const pushToken = pushTokenData.data;
-
-                    await supabase
-                        .from('user_profiles')
-                        .update({ expo_push_token: pushToken })
-                        .eq('id', user.id);
-
-                    console.log('Push token re-synced:', pushToken);
-                } catch (tokenError) {
-                    console.warn('Failed to get push token (may be in Expo Go):', tokenError);
-                }
-            }
-
-            // Re-schedule bedtime reminder if enabled
-            if (sleepReminder && onboardingProfile?.preferred_bed_time) {
-                const [hours, minutes] = onboardingProfile.preferred_bed_time.split(':');
-                const bedtime = new Date();
-                bedtime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
-                await notificationService.scheduleBedtimeReminder(bedtime);
-            }
-
-            setPushPermissionStatus('granted');
-            Alert.alert(
-                'Notifications Synced ✅',
-                'Your notification settings have been synced successfully. You will now receive sleep reminders and insights.',
-                [{ text: 'OK' }]
-            );
-        } catch (error) {
-            console.error('Error syncing notifications:', error);
-            Alert.alert('Error', 'Failed to sync notifications. Please try again.');
-        }
+    const navigateToDreamJournal = () => {
+        navigation.navigate('DreamJournal' as any);
     };
 
-    const handleShareApp = async () => {
-        try {
-            await Share.share({
-                message: 'Check out Sleep Architect - the best sleep tracking app! Download it now and improve your sleep quality. 🌙💤',
-                title: 'Share Sleep Architect',
-            });
-        } catch (error) {
-            console.error('Share error:', error);
-        }
+    const navigateToRoomEnvironment = () => {
+        navigation.navigate('RoomEnvironment' as any);
+    };
+
+    const navigateToSleepStages = () => {
+        navigation.navigate('SleepStages' as any);
+    };
+
+    const navigateToSnoreDetection = () => {
+        navigation.navigate('SnoreDetection' as any);
+    };
+
+    const navigateToHealthTracking = () => {
+        navigation.navigate('HealthTracking' as any);
+    };
+
+    const navigateToRelaxationLibrary = () => {
+        navigation.navigate('RelaxationLibrary' as any);
+    };
+
+    const navigateToPartnerMode = () => {
+        navigation.navigate('PartnerMode' as any);
+    };
+
+    const navigateToSleepInterruptions = () => {
+        navigation.navigate('SleepInterruptions' as any);
+    };
+
+    const navigateToCaffeineCalculator = () => {
+        navigation.navigate('CaffeineCalculator' as any);
     };
 
     const handleExportData = async () => {
@@ -520,18 +472,18 @@ export default function SettingsScreen() {
                         <Animated.View style={[styles.fluidCircle1, { transform: [{ translateX: translateX1 }, { translateY: translateY1 }] }]} />
                         <Animated.View style={[styles.fluidCircle2, { transform: [{ translateX: translateX2 }, { translateY: translateY2 }] }]} />
                     </View>
-                    <GlassCard intensity={30} tint="dark" style={[styles.sleepProfileContent, { padding: 16 }]}>
+                    <GlassCard intensity={30} tint="dark" style={styles.sleepProfileContent}>
                         <View style={styles.sleepProfileTop}>
-                            <User size={24} color={theme.colors.accent} />
+                            <User size={32} color={theme.colors.accent} />
                             <View style={styles.sleepProfileTopText}>
-                                <Text style={[styles.sleepProfileTitle, { fontSize: 18 }]}>Complete Your Profile</Text>
+                                <Text style={styles.sleepProfileTitle}>Complete Your Profile</Text>
                                 <Text style={styles.sleepProfileSubtitle}>Personalize your sleep journey</Text>
                             </View>
                         </View>
                         <View style={styles.completeProfileRow}>
-                            <View style={[styles.completeProfileButton, { paddingHorizontal: 16, paddingVertical: 8 }]}>
+                            <View style={styles.completeProfileButton}>
                                 <Text style={styles.completeProfileButtonText}>Get Started</Text>
-                                <ChevronRight size={16} color="#000" />
+                                <ChevronRight size={18} color="#000" />
                             </View>
                         </View>
                     </GlassCard>
@@ -567,11 +519,11 @@ export default function SettingsScreen() {
                     />
                 </View>
 
-                <GlassCard intensity={30} tint="dark" style={[styles.sleepProfileContent, { padding: 16 }]}>
-                    <View style={[styles.sleepProfileTop, { marginBottom: 16 }]}>
-                        <Moon size={24} color={theme.colors.accent} />
+                <GlassCard intensity={30} tint="dark" style={styles.sleepProfileContent}>
+                    <View style={styles.sleepProfileTop}>
+                        <Moon size={32} color={theme.colors.accent} />
                         <View style={styles.sleepProfileTopText}>
-                            <Text style={[styles.sleepProfileTitle, { fontSize: 18 }]}>Sleep Profile</Text>
+                            <Text style={styles.sleepProfileTitle}>Sleep Profile</Text>
                             <Text style={styles.sleepProfileSubtitle}>Your personalized sleep data</Text>
                         </View>
                     </View>
@@ -580,8 +532,8 @@ export default function SettingsScreen() {
                         {/* Average Sleep Hours */}
                         {onboardingProfile.average_sleep_hours && (
                             <View style={styles.statBox}>
-                                <Clock size={20} color={theme.colors.accent} />
-                                <Text style={[styles.statValue, { fontSize: 16 }]}>{onboardingProfile.average_sleep_hours}h</Text>
+                                <Clock size={24} color={theme.colors.accent} />
+                                <Text style={styles.statValue}>{onboardingProfile.average_sleep_hours}h</Text>
                                 <Text style={styles.statLabel}>Avg Sleep</Text>
                             </View>
                         )}
@@ -589,8 +541,8 @@ export default function SettingsScreen() {
                         {/* Sleep Goals Count */}
                         {onboardingProfile.sleep_goals && onboardingProfile.sleep_goals.length > 0 && (
                             <View style={styles.statBox}>
-                                <Flag size={20} color={theme.colors.highlight} />
-                                <Text style={[styles.statValue, { fontSize: 16 }]}>{onboardingProfile.sleep_goals.length}</Text>
+                                <Flag size={24} color={theme.colors.highlight} />
+                                <Text style={styles.statValue}>{onboardingProfile.sleep_goals.length}</Text>
                                 <Text style={styles.statLabel}>Goals</Text>
                             </View>
                         )}
@@ -598,8 +550,8 @@ export default function SettingsScreen() {
                         {/* Age */}
                         {onboardingProfile.age && (
                             <View style={styles.statBox}>
-                                <User size={20} color="#9D4EDD" />
-                                <Text style={[styles.statValue, { fontSize: 16 }]}>{onboardingProfile.age}</Text>
+                                <User size={24} color="#9D4EDD" />
+                                <Text style={styles.statValue}>{onboardingProfile.age}</Text>
                                 <Text style={styles.statLabel}>Age</Text>
                             </View>
                         )}
@@ -607,16 +559,23 @@ export default function SettingsScreen() {
 
                     {/* Sleep Goals Tags */}
                     {onboardingProfile.sleep_goals && onboardingProfile.sleep_goals.length > 0 && (
-                        <View style={[styles.goalsContainer, { marginTop: 12 }]}>
+                        <View style={styles.goalsContainer}>
                             <Text style={styles.goalsTitle}>Your Goals:</Text>
                             <View style={styles.goalsTags}>
                                 {onboardingProfile.sleep_goals.slice(0, 3).map((goal) => (
-                                    <View key={goal} style={[styles.goalTag, { paddingHorizontal: 8, paddingVertical: 4 }]}>
-                                        <Text style={[styles.goalTagText, { fontSize: 10 }]}>
+                                    <View key={goal} style={styles.goalTag}>
+                                        <Text style={styles.goalTagText}>
                                             {SLEEP_GOAL_LABELS[goal] || goal}
                                         </Text>
                                     </View>
                                 ))}
+                                {onboardingProfile.sleep_goals.length > 3 && (
+                                    <View style={styles.goalTag}>
+                                        <Text style={styles.goalTagText}>
+                                            +{onboardingProfile.sleep_goals.length - 3} more
+                                        </Text>
+                                    </View>
+                                )}
                             </View>
                         </View>
                     )}
@@ -689,194 +648,341 @@ export default function SettingsScreen() {
 
                     {/* Account & Preferences */}
                     <GlassCard intensity={20} tint="dark" style={styles.card}>
-                        <View style={styles.collapsibleHeader}>
+                        <TouchableOpacity
+                            style={styles.collapsibleHeader}
+                            onPress={() => setAccountPreferencesExpanded(!accountPreferencesExpanded)}
+                        >
                             <Text style={styles.cardTitle}>👤 Account & Preferences</Text>
-                        </View>
-                        <TouchableOpacity style={styles.settingItem} onPress={navigateToProfile}>
-                            <View style={styles.settingInfo}>
-                                <User size={24} color={theme.colors.accent} />
-                                <Text style={styles.settingLabel}>Profile</Text>
-                            </View>
-                            <ChevronRight size={20} color="#A0AEC0" />
+                            <ChevronDown
+                                size={24}
+                                color="#A0AEC0"
+                                style={{
+                                    transform: [{ rotate: accountPreferencesExpanded ? '180deg' : '0deg' }]
+                                }}
+                            />
                         </TouchableOpacity>
 
-                        <TouchableOpacity
-                            style={styles.settingItem}
-                            onPress={navigateToSubscription}
-                        >
-                            <View style={styles.settingInfo}>
-                                <Star size={24} color={theme.colors.premium} />
-                                <Text style={styles.settingLabel}>Premium Subscription</Text>
-                            </View>
-                            <ChevronRight size={20} color="#A0AEC0" />
-                        </TouchableOpacity>
+                        {accountPreferencesExpanded && (
+                            <>
+                                <TouchableOpacity style={styles.settingItem} onPress={navigateToProfile}>
+                                    <View style={styles.settingInfo}>
+                                        <User size={24} color={theme.colors.accent} />
+                                        <Text style={styles.settingLabel}>Profile</Text>
+                                    </View>
+                                    <ChevronRight size={20} color="#A0AEC0" />
+                                </TouchableOpacity>
 
-                        <TouchableOpacity
-                            style={styles.settingItem}
-                            onPress={navigateToPrivacySettings}
-                        >
-                            <View style={styles.settingInfo}>
-                                <ShieldCheck size={24} color={theme.colors.highlight} />
-                                <Text style={styles.settingLabel}>Privacy Settings</Text>
-                            </View>
-                            <ChevronRight size={20} color="#A0AEC0" />
-                        </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={styles.settingItem}
+                                    onPress={navigateToSubscription}
+                                >
+                                    <View style={styles.settingInfo}>
+                                        <Star size={24} color={theme.colors.premium} />
+                                        <Text style={styles.settingLabel}>Premium Subscription</Text>
+                                    </View>
+                                    <ChevronRight size={20} color="#A0AEC0" />
+                                </TouchableOpacity>
 
-                        {/* Admin Dashboard - Only visible to admin */}
-                        {user?.email === 'admin@naulx.com' && (
-                            <TouchableOpacity
-                                style={styles.settingItem}
-                                onPress={() => navigation.navigate('Admin' as never)}
-                            >
-                                <View style={styles.settingInfo}>
-                                    <Users size={24} color="#FF6B6B" />
-                                    <Text style={styles.settingLabel}>Admin Dashboard</Text>
+                                <TouchableOpacity
+                                    style={styles.settingItem}
+                                    onPress={navigateToPrivacySettings}
+                                >
+                                    <View style={styles.settingInfo}>
+                                        <ShieldCheck size={24} color={theme.colors.highlight} />
+                                        <Text style={styles.settingLabel}>Privacy Settings</Text>
+                                    </View>
+                                    <ChevronRight size={20} color="#A0AEC0" />
+                                </TouchableOpacity>
+
+                                {/* Admin Dashboard - Only visible to admin */}
+                                {user?.email === 'admin@naulx.com' && (
+                                    <TouchableOpacity
+                                        style={styles.settingItem}
+                                        onPress={() => navigation.navigate('Admin' as never)}
+                                    >
+                                        <View style={styles.settingInfo}>
+                                            <Users size={24} color="#FF6B6B" />
+                                            <Text style={styles.settingLabel}>Admin Dashboard</Text>
+                                        </View>
+                                        <ChevronRight size={20} color="#A0AEC0" />
+                                    </TouchableOpacity>
+                                )}
+
+                                <TouchableOpacity style={styles.settingItem} onPress={handleThemeModeChange}>
+                                    <View style={styles.settingInfo}>
+                                        {themeMode === 'dark' ? (
+                                            <Moon size={24} color="#9D4EDD" />
+                                        ) : themeMode === 'light' ? (
+                                            <Sun size={24} color="#9D4EDD" />
+                                        ) : (
+                                            <Smartphone size={24} color="#9D4EDD" />
+                                        )}
+                                        <View style={{ marginLeft: 12 }}>
+                                            <Text style={styles.settingLabel}>Theme</Text>
+                                            <Text style={styles.settingSubLabel}>{getThemeModeLabel()}</Text>
+                                        </View>
+                                    </View>
+                                    <ChevronRight size={20} color="#A0AEC0" />
+                                </TouchableOpacity>
+
+                                <View style={styles.settingItem}>
+                                    <View style={styles.settingInfo}>
+                                        <Bell size={24} color={theme.colors.danger} />
+                                        <Text style={styles.settingLabel}>Notifications</Text>
+                                    </View>
+                                    <Switch
+                                        value={notifications}
+                                        onValueChange={setNotifications}
+                                        trackColor={{ false: '#333', true: theme.colors.accent }}
+                                        thumbColor={notifications ? '#fff' : '#ccc'}
+                                    />
                                 </View>
-                                <ChevronRight size={20} color="#A0AEC0" />
-                            </TouchableOpacity>
+
+                                <View style={styles.settingItem}>
+                                    <View style={styles.settingInfo}>
+                                        <Bell size={24} color={theme.colors.premium} />
+                                        <Text style={styles.settingLabel}>Sleep Reminder</Text>
+                                    </View>
+                                    <Switch
+                                        value={sleepReminder}
+                                        onValueChange={handleSleepReminderToggle}
+                                        trackColor={{ false: '#333', true: theme.colors.premium }}
+                                        thumbColor={sleepReminder ? '#fff' : '#ccc'}
+                                    />
+                                </View>
+                            </>
                         )}
-
-                        <View style={styles.settingItem}>
-                            <View style={styles.settingInfo}>
-                                <Bell size={24} color={theme.colors.danger} />
-                                <Text style={styles.settingLabel}>Notifications</Text>
-                            </View>
-                            <Switch
-                                value={notifications}
-                                onValueChange={setNotifications}
-                                trackColor={{ false: '#333', true: theme.colors.accent }}
-                                thumbColor={notifications ? '#fff' : '#ccc'}
-                            />
-                        </View>
-
-                        <View style={styles.settingItem}>
-                            <View style={styles.settingInfo}>
-                                <Bell size={24} color={theme.colors.premium} />
-                                <Text style={styles.settingLabel}>Sleep Reminder</Text>
-                            </View>
-                            <Switch
-                                value={sleepReminder}
-                                onValueChange={handleSleepReminderToggle}
-                                trackColor={{ false: '#333', true: theme.colors.premium }}
-                                thumbColor={sleepReminder ? '#fff' : '#ccc'}
-                            />
-                        </View>
                     </GlassCard>
 
-                    {/* Removed Sleep & Wellness Section as it was migrated to HomeScreen Side Menu */}
+                    {/* Sleep & Wellness */}
+                    <GlassCard intensity={20} tint="dark" style={styles.card}>
+                        <TouchableOpacity
+                            style={styles.collapsibleHeader}
+                            onPress={() => setSleepWellnessExpanded(!sleepWellnessExpanded)}
+                        >
+                            <Text style={styles.cardTitle}>🌙 Sleep & Wellness</Text>
+                            <ChevronDown
+                                size={24}
+                                color="#A0AEC0"
+                                style={{
+                                    transform: [{ rotate: sleepWellnessExpanded ? '180deg' : '0deg' }]
+                                }}
+                            />
+                        </TouchableOpacity>
+
+                        {sleepWellnessExpanded && (
+                            <>
+                                <TouchableOpacity
+                                    style={styles.settingItem}
+                                    onPress={navigateToBedtimeRoutine}
+                                >
+                                    <View style={styles.settingInfo}>
+                                        <CheckCircle2 size={24} color="#9D4EDD" />
+                                        <Text style={styles.settingLabel}>Bedtime Routine</Text>
+                                    </View>
+                                    <ChevronRight size={20} color="#A0AEC0" />
+                                </TouchableOpacity>
+
+                                <TouchableOpacity
+                                    style={styles.settingItem}
+                                    onPress={navigateToDreamJournal}
+                                >
+                                    <View style={styles.settingInfo}>
+                                        <Book size={24} color="#FF9B7A" />
+                                        <Text style={styles.settingLabel}>Dream Journal</Text>
+                                    </View>
+                                    <ChevronRight size={20} color="#A0AEC0" />
+                                </TouchableOpacity>
+
+                                <TouchableOpacity
+                                    style={styles.settingItem}
+                                    onPress={navigateToRoomEnvironment}
+                                >
+                                    <View style={styles.settingInfo}>
+                                        <Gauge size={24} color={theme.colors.highlight} />
+                                        <Text style={styles.settingLabel}>Room Environment</Text>
+                                    </View>
+                                    <ChevronRight size={20} color="#A0AEC0" />
+                                </TouchableOpacity>
+
+                                <TouchableOpacity
+                                    style={styles.settingItem}
+                                    onPress={navigateToSleepStages}
+                                >
+                                    <View style={styles.settingInfo}>
+                                        <Activity size={24} color="#4ECDC4" />
+                                        <Text style={styles.settingLabel}>Sleep Stages Detection</Text>
+                                    </View>
+                                    <ChevronRight size={20} color="#A0AEC0" />
+                                </TouchableOpacity>
+
+                                <TouchableOpacity
+                                    style={styles.settingItem}
+                                    onPress={navigateToSnoreDetection}
+                                >
+                                    <View style={styles.settingInfo}>
+                                        <Volume2 size={24} color="#F59E0B" />
+                                        <Text style={styles.settingLabel}>Snore Detection</Text>
+                                    </View>
+                                    <ChevronRight size={20} color="#A0AEC0" />
+                                </TouchableOpacity>
+
+                                <TouchableOpacity
+                                    style={styles.settingItem}
+                                    onPress={navigateToSleepInterruptions}
+                                >
+                                    <View style={styles.settingInfo}>
+                                        <Clock size={24} color="#EF4444" />
+                                        <Text style={styles.settingLabel}>Sleep Interruptions</Text>
+                                    </View>
+                                    <ChevronRight size={20} color="#A0AEC0" />
+                                </TouchableOpacity>
+
+                                <TouchableOpacity
+                                    style={styles.settingItem}
+                                    onPress={navigateToRelaxationLibrary}
+                                >
+                                    <View style={styles.settingInfo}>
+                                        <Headphones size={24} color="#A855F7" />
+                                        <Text style={styles.settingLabel}>Relaxation Library</Text>
+                                    </View>
+                                    <ChevronRight size={20} color="#A0AEC0" />
+                                </TouchableOpacity>
+
+                                <TouchableOpacity
+                                    style={styles.settingItem}
+                                    onPress={navigateToCaffeineCalculator}
+                                >
+                                    <View style={styles.settingInfo}>
+                                        <Coffee size={24} color="#8B4513" />
+                                        <Text style={styles.settingLabel}>Caffeine Calculator</Text>
+                                    </View>
+                                    <ChevronRight size={20} color="#A0AEC0" />
+                                </TouchableOpacity>
+                            </>
+                        )}
+                    </GlassCard>
 
                     {/* Help & Legal */}
                     <GlassCard intensity={20} tint="dark" style={styles.card}>
-                        <View style={styles.collapsibleHeader}>
+                        <TouchableOpacity
+                            style={styles.collapsibleHeader}
+                            onPress={() => setHelpLegalExpanded(!helpLegalExpanded)}
+                        >
                             <Text style={styles.cardTitle}>ℹ️ Help & Legal</Text>
-                        </View>
-                        <TouchableOpacity
-                            style={styles.settingItem}
-                            onPress={navigateToHelpSupport}
-                        >
-                            <View style={styles.settingInfo}>
-                                <HelpCircle size={24} color="#32CD32" />
-                                <Text style={styles.settingLabel}>Help & Support</Text>
-                            </View>
-                            <ChevronRight size={20} color="#A0AEC0" />
+                            <ChevronDown
+                                size={24}
+                                color="#A0AEC0"
+                                style={{
+                                    transform: [{ rotate: helpLegalExpanded ? '180deg' : '0deg' }]
+                                }}
+                            />
                         </TouchableOpacity>
 
-                        <TouchableOpacity
-                            style={styles.settingItem}
-                            onPress={navigateToAbout}
-                        >
-                            <View style={styles.settingInfo}>
-                                <FileText size={24} color="#FFA500" />
-                                <Text style={styles.settingLabel}>Terms of Service</Text>
-                            </View>
-                            <ChevronRight size={20} color="#A0AEC0" />
-                        </TouchableOpacity>
+                        {helpLegalExpanded && (
+                            <>
+                                <TouchableOpacity
+                                    style={styles.settingItem}
+                                    onPress={navigateToHelpSupport}
+                                >
+                                    <View style={styles.settingInfo}>
+                                        <HelpCircle size={24} color="#32CD32" />
+                                        <Text style={styles.settingLabel}>Help & Support</Text>
+                                    </View>
+                                    <ChevronRight size={20} color="#A0AEC0" />
+                                </TouchableOpacity>
 
-                        <TouchableOpacity
-                            style={styles.settingItem}
-                            onPress={navigateToAbout}
-                        >
-                            <View style={styles.settingInfo}>
-                                <ShieldCheck size={24} color="#6366F1" />
-                                <Text style={styles.settingLabel}>Privacy Policy</Text>
-                            </View>
-                            <ChevronRight size={20} color="#A0AEC0" />
-                        </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={styles.settingItem}
+                                    onPress={navigateToAbout}
+                                >
+                                    <View style={styles.settingInfo}>
+                                        <FileText size={24} color="#FFA500" />
+                                        <Text style={styles.settingLabel}>Terms of Service</Text>
+                                    </View>
+                                    <ChevronRight size={20} color="#A0AEC0" />
+                                </TouchableOpacity>
 
-                        <TouchableOpacity style={styles.settingItem} onPress={navigateToAbout}>
-                            <View style={styles.settingInfo}>
-                                <Info size={24} color="#87CEEB" />
-                                <Text style={styles.settingLabel}>About</Text>
-                            </View>
-                            <ChevronRight size={20} color="#A0AEC0" />
-                        </TouchableOpacity>
-                    </GlassCard>
+                                <TouchableOpacity
+                                    style={styles.settingItem}
+                                    onPress={navigateToAbout}
+                                >
+                                    <View style={styles.settingInfo}>
+                                        <ShieldCheck size={24} color="#6366F1" />
+                                        <Text style={styles.settingLabel}>Privacy Policy</Text>
+                                    </View>
+                                    <ChevronRight size={20} color="#A0AEC0" />
+                                </TouchableOpacity>
 
-                    {/* Subscription & Purchases */}
-                    <GlassCard intensity={20} tint="dark" style={styles.card}>
-                        <View style={styles.collapsibleHeader}>
-                            <Text style={styles.cardTitle}>💎 Subscription</Text>
-                        </View>
-                        <TouchableOpacity
-                            style={styles.settingItem}
-                            onPress={handleRestorePurchases}
-                        >
-                            <View style={styles.settingInfo}>
-                                <RefreshCw size={24} color="#8B5CF6" />
-                                <Text style={styles.settingLabel}>Restore Purchases</Text>
-                            </View>
-                            <ChevronRight size={20} color="#A0AEC0" />
-                        </TouchableOpacity>
+                                <TouchableOpacity style={styles.settingItem} onPress={navigateToAbout}>
+                                    <View style={styles.settingInfo}>
+                                        <Info size={24} color="#87CEEB" />
+                                        <Text style={styles.settingLabel}>About</Text>
+                                    </View>
+                                    <ChevronRight size={20} color="#A0AEC0" />
+                                </TouchableOpacity>
 
-                        <TouchableOpacity
-                            style={styles.settingItem}
-                            onPress={handleSyncNotifications}
-                        >
-                            <View style={styles.settingInfo}>
-                                <BellRing size={24} color="#10B981" />
-                                <Text style={styles.settingLabel}>Sync Notifications</Text>
-                            </View>
-                            <ChevronRight size={20} color="#A0AEC0" />
-                        </TouchableOpacity>
+                                <TouchableOpacity style={styles.settingItem} onPress={() => navigation.navigate('FeatureRequest' as never)}>
+                                    <View style={styles.settingInfo}>
+                                        <Lightbulb size={24} color="#F59E0B" />
+                                        <Text style={styles.settingLabel}>Request a Feature</Text>
+                                    </View>
+                                    <ChevronRight size={20} color="#A0AEC0" />
+                                </TouchableOpacity>
 
-                        <TouchableOpacity
-                            style={styles.settingItem}
-                            onPress={handleShareApp}
-                        >
-                            <View style={styles.settingInfo}>
-                                <Share2 size={24} color="#3B82F6" />
-                                <Text style={styles.settingLabel}>Share App</Text>
-                            </View>
-                            <ChevronRight size={20} color="#A0AEC0" />
-                        </TouchableOpacity>
+                                {/* Manage Alarms - Commented (available in main tab navigation) */}
+                                {/* <TouchableOpacity style={styles.settingItem} onPress={() => navigation.navigate('Alarms' as never)}>
+                                    <View style={styles.settingInfo}>
+                                        <Bell size={24} color="#8B5CF6" />
+                                        <Text style={styles.settingLabel}>Manage Alarms</Text>
+                                    </View>
+                                    <ChevronRight size={20} color="#A0AEC0" />
+                                </TouchableOpacity> */}
+                            </>
+                        )}
                     </GlassCard>
 
                     {/* Data & Actions */}
                     <GlassCard intensity={20} tint="dark" style={styles.card}>
-                        <View style={styles.collapsibleHeader}>
-                            <Text style={styles.cardTitle}>🔒 Data & Actions</Text>
-                        </View>
                         <TouchableOpacity
-                            style={styles.settingItem}
-                            onPress={handleExportData}
+                            style={styles.collapsibleHeader}
+                            onPress={() => setDataActionsExpanded(!dataActionsExpanded)}
                         >
-                            <View style={styles.settingInfo}>
-                                <Download size={24} color="#4CAF50" />
-                                <Text style={styles.settingLabel}>Export My Data</Text>
-                            </View>
-                            <ChevronRight size={20} color="#A0AEC0" />
+                            <Text style={styles.cardTitle}>🔒 Data & Actions</Text>
+                            <ChevronDown
+                                size={24}
+                                color="#A0AEC0"
+                                style={{
+                                    transform: [{ rotate: dataActionsExpanded ? '180deg' : '0deg' }]
+                                }}
+                            />
                         </TouchableOpacity>
 
-                        <TouchableOpacity
-                            style={styles.settingItem}
-                            onPress={handleDeleteAccount}
-                        >
-                            <View style={styles.settingInfo}>
-                                <Trash2 size={24} color={theme.colors.danger} />
-                                <Text style={styles.settingLabel}>Delete Account</Text>
-                            </View>
-                            <ChevronRight size={20} color="#A0AEC0" />
-                        </TouchableOpacity>
+                        {dataActionsExpanded && (
+                            <>
+                                <TouchableOpacity
+                                    style={styles.settingItem}
+                                    onPress={handleExportData}
+                                >
+                                    <View style={styles.settingInfo}>
+                                        <Download size={24} color="#4CAF50" />
+                                        <Text style={styles.settingLabel}>Export My Data</Text>
+                                    </View>
+                                    <ChevronRight size={20} color="#A0AEC0" />
+                                </TouchableOpacity>
+
+                                <TouchableOpacity
+                                    style={styles.settingItem}
+                                    onPress={handleDeleteAccount}
+                                >
+                                    <View style={styles.settingInfo}>
+                                        <Trash2 size={24} color={theme.colors.danger} />
+                                        <Text style={styles.settingLabel}>Delete Account</Text>
+                                    </View>
+                                    <ChevronRight size={20} color="#A0AEC0" />
+                                </TouchableOpacity>
+                            </>
+                        )}
                     </GlassCard>
 
                     {/* Sign Out */}
@@ -940,8 +1046,8 @@ export default function SettingsScreen() {
 
                 {/* Push Notification Prompt Modal */}
                 {showPushPrompt && user && (
-                    <PushNotificationPrompt
-                        userId={user.id}
+                    <PushNotificationPrompt 
+                        userId={user.id} 
                         trigger="settings"
                     />
                 )}

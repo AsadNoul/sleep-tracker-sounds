@@ -1,0 +1,40 @@
+✨ What's New in Version 48
+
+🎵 Sleep Recordings in Insights
+• View and play your sleep recordings directly in the Analysis screen
+• See playback progress and event types (snoring, sleep talk, noise)
+• No more searching through Settings to find your recordings
+
+💬 Enhanced Engagement
+• Smart notification permission prompts with clear benefits
+• In-app rating system - share your feedback easily
+• Direct link to rate us on Play Store
+
+☕ Quick Access Updates
+• New Caffeine Calculator button on home screen
+• Improved button placement for better one-handed use
+• Smoother animations and better performance
+
+🐛 Bug Fixes & Improvements
+• Fixed dashboard data loading issues
+• Performance optimizations
+• Better app stability
+
+Thank you for using our app! Your sleep journey matters to us 💙
+Please rate us if you're enjoying the app!
+
+---
+
+SHORTER VERSION (500 characters for Play Store):
+
+✨ New: Sleep recordings now in Insights with audio playback • Smart notification prompts • In-app rating system • Quick access to Caffeine Calculator from home
+
+🎨 Improved button placement & animations • Better performance • Bug fixes
+
+Thank you for trusting us with your sleep journey! Rate us if you love the app 💙
+
+---
+
+ULTRA SHORT VERSION (80 characters for What's New):
+
+Sleep recordings in Insights • Better notifications • UI improvements • Bug fixes

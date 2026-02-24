@@ -15,21 +15,21 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { isPremiumActive as checkPremiumStatus } from '../utils/subscriptionHelpers';
 import analyticsService from '../services/analyticsService';
-import { 
-  ArrowLeft, 
-  X, 
-  ShieldCheck, 
-  CheckCircle, 
-  Leaf, 
-  Music, 
-  BarChart2, 
-  Lightbulb, 
-  Download, 
-  Cloud, 
-  XCircle, 
-  Headset, 
-  TrendingDown, 
-  AlertCircle, 
+import {
+  ArrowLeft,
+  X,
+  ShieldCheck,
+  CheckCircle,
+  Leaf,
+  Music,
+  BarChart2,
+  Lightbulb,
+  Download,
+  Cloud,
+  XCircle,
+  Headset,
+  TrendingDown,
+  AlertCircle,
   Lock,
   Heart,
   Thermometer,
@@ -57,51 +57,51 @@ export default function SubscriptionScreen() {
   const [isComparisonVisible, setIsComparisonVisible] = useState(false);
 
   const COMPARISON_FEATURES = [
-    { 
-      label: 'Basic Sleep Tracking', 
-      free: true, 
+    {
+      label: 'Basic Sleep Tracking',
+      free: true,
       pro: true,
       description: 'Track your sleep duration, bedtime, and wake-up times with our core tracking engine.'
     },
-    { 
-      label: 'Sleep Sounds (Limited)', 
-      free: true, 
+    {
+      label: 'Sleep Sounds (Limited)',
+      free: true,
       pro: true,
       description: 'Access a selection of calming sounds to help you fall asleep. Premium unlocks the full library.'
     },
-    { 
-      label: 'Advanced HRV Metrics', 
-      free: false, 
+    {
+      label: 'Advanced HRV Metrics',
+      free: false,
       pro: true,
       description: 'Monitor Heart Rate Variability to understand your recovery and stress levels throughout the night.'
     },
-    { 
-      label: 'Sleep Architecture', 
-      free: false, 
+    {
+      label: 'Sleep Architecture',
+      free: false,
       pro: true,
       description: 'Detailed breakdown of your sleep stages: Deep, REM, Light, and Awake periods.'
     },
-    { 
-      label: 'Environmental Factors', 
-      free: false, 
+    {
+      label: 'Environmental Factors',
+      free: false,
       pro: true,
       description: 'See how room temperature, humidity, and noise levels affect your sleep quality.'
     },
-    { 
-      label: '30-Day Trends', 
-      free: false, 
+    {
+      label: '30-Day Trends',
+      free: false,
       pro: true,
       description: 'Analyze your sleep patterns over the last month to identify long-term improvements.'
     },
-    { 
-      label: 'AI Sleep Insights', 
-      free: false, 
+    {
+      label: 'AI Sleep Insights',
+      free: false,
       pro: true,
       description: 'Get personalized recommendations based on your unique sleep data and habits.'
     },
-    { 
-      label: 'Ad-Free Experience', 
-      free: false, 
+    {
+      label: 'Ad-Free Experience',
+      free: false,
       pro: true,
       description: 'Enjoy the complete app experience without any interruptions or advertisements.'
     },
@@ -122,12 +122,12 @@ export default function SubscriptionScreen() {
           // Only set user ID if RevenueCat is properly configured
           if (revenueCatService.isReady()) {
             await revenueCatService.setUserId(user.id);
-            console.log('Ã”Â£Ã  RevenueCat user ID set in SubscriptionScreen:', user.id);
+            console.log('LOG RevenueCat user ID set in SubscriptionScreen:', user.id);
           } else {
             console.warn('⚠️ RevenueCat not configured, skipping user ID set');
           }
         } catch (error) {
-          console.error('Ã”Ã˜Ã® Failed to set RevenueCat user ID:', error);
+          console.error('ERROR Failed to set RevenueCat user ID:', error);
         }
       }
 
@@ -140,7 +140,7 @@ export default function SubscriptionScreen() {
   const loadOfferings = async () => {
     try {
       setIsLoadingOfferings(true);
-      console.log('Â­Æ’Ã´Âª Loading RevenueCat offerings...');
+      console.log('LOG Loading RevenueCat offerings...');
 
       const availablePackages = await revenueCatService.getOfferings();
 
@@ -155,7 +155,7 @@ export default function SubscriptionScreen() {
         setPackages(availablePackages);
       }
     } catch (error: any) {
-      console.error('Ã”Ã˜Ã® Error loading offerings:', error);
+      console.error('ERROR Error loading offerings:', error);
       Alert.alert(
         'Error Loading Plans',
         'Could not load subscription plans. Please check your internet connection and try again.',
@@ -172,22 +172,22 @@ export default function SubscriptionScreen() {
         'Create an Account',
         'To ensure your premium subscription is safely linked to you and available on all your devices, please sign in or create an account first.',
         [
-          { 
-            text: 'Sign In / Sign Up', 
-            onPress: () => navigation.navigate('Login' as never) 
+          {
+            text: 'Sign In / Sign Up',
+            onPress: () => navigation.navigate('Login' as never)
           },
-          { 
-            text: 'Continue as Guest', 
+          {
+            text: 'Continue as Guest',
             style: 'destructive',
             onPress: () => {
-               Alert.alert(
-                 'Are you sure?',
-                 'Purchasing as a guest means your subscription might be lost if you reinstall the app or change devices. We strongly recommend signing in.',
-                 [
-                   { text: 'Sign In Now', onPress: () => navigation.navigate('Login' as never) },
-                   { text: 'Buy as Guest anyway', onPress: () => proceedWithPurchase() }
-                 ]
-               );
+              Alert.alert(
+                'Are you sure?',
+                'Purchasing as a guest means your subscription might be lost if you reinstall the app or change devices. We strongly recommend signing in.',
+                [
+                  { text: 'Sign In Now', onPress: () => navigation.navigate('Login' as never) },
+                  { text: 'Buy as Guest anyway', onPress: () => proceedWithPurchase() }
+                ]
+              );
             }
           },
           { text: 'Cancel', style: 'cancel' },
@@ -234,7 +234,7 @@ export default function SubscriptionScreen() {
         return;
       }
 
-      console.log('Â­Æ’Ã¸Ã† Purchasing package:', packageToPurchase.identifier);
+      console.log('LOG Purchasing package:', packageToPurchase.identifier);
 
       // Make the purchase
       const customerInfo = await revenueCatService.purchasePackage(packageToPurchase);
@@ -250,7 +250,7 @@ export default function SubscriptionScreen() {
         const updateSuccess = await updateSubscriptionStatus();
 
         if (updateSuccess) {
-          console.log('Ã”Â£Ã  Subscription status updated successfully!');
+          console.log('LOG Subscription status updated successfully!');
 
           // Wait a moment for the database to propagate
           await new Promise(resolve => setTimeout(resolve, 500));
@@ -266,7 +266,7 @@ export default function SubscriptionScreen() {
             }]
           );
         } else {
-          console.error('Ã”Ã˜Ã® Failed to update subscription status');
+          console.error('ERROR Failed to update subscription status');
           Alert.alert(
             'Warning',
             'Payment was successful but there was an issue activating your subscription. Please contact support.',
@@ -304,7 +304,7 @@ export default function SubscriptionScreen() {
   const updateSubscriptionStatus = async (): Promise<boolean> => {
     try {
       if (!session?.user) {
-        console.error('Ã”Ã˜Ã® No session user found!');
+        console.error('ERROR No session user found!');
         return false;
       }
 
@@ -321,7 +321,7 @@ export default function SubscriptionScreen() {
         endDate.setFullYear(endDate.getFullYear() + 1);
       }
 
-      console.log('Â­Æ’Ã´Ã˜ Updating subscription in database:', {
+      console.log('LOG Updating subscription in database:', {
         userId: session.user.id,
         status: subscriptionStatus,
         startDate: now.toISOString(),
@@ -341,14 +341,14 @@ export default function SubscriptionScreen() {
         .select();
 
       if (error) {
-        console.error('Ã”Ã˜Ã® Error updating subscription status:', error);
+        console.error('ERROR Error updating subscription status:', error);
         return false;
       }
 
-      console.log('Ã”Â£Ã  Database updated successfully:', data);
+      console.log('LOG Database updated successfully:', data);
       return true;
     } catch (error) {
-      console.error('Ã”Ã˜Ã® Error in updateSubscriptionStatus:', error);
+      console.error('ERROR Error in updateSubscriptionStatus:', error);
       return false;
     }
   };
@@ -362,7 +362,7 @@ export default function SubscriptionScreen() {
         return;
       }
 
-      console.log('Â­Æ’Ã¶Ã¤ Restoring purchases via RevenueCat...');
+      console.log('LOG Restoring purchases via RevenueCat...');
 
       // Restore purchases
       const customerInfo = await revenueCatService.restorePurchases();
@@ -409,17 +409,19 @@ export default function SubscriptionScreen() {
       'Cancel Subscription',
       cancelMessage,
       [
-        { text: buttonText, onPress: () => {
-          // In a real app, you'd open the respective store subscriptions page
-          Alert.alert('Info', `This would open ${Platform.OS === 'ios' ? 'iOS Settings' : 'Google Play Store'} subscriptions page.`);
-        }},
+        {
+          text: buttonText, onPress: () => {
+            // In a real app, you'd open the respective store subscriptions page
+            Alert.alert('Info', `This would open ${Platform.OS === 'ios' ? 'iOS Settings' : 'Google Play Store'} subscriptions page.`);
+          }
+        },
         { text: 'OK', style: 'cancel' }
       ]
     );
   };
 
   // Check if user is already premium (including cancelled with valid end date)
-  const isPremium = checkPremiumStatus(profile?.subscription_status, profile?.subscription_end_date);
+  const isPremium = checkPremiumStatus(profile?.subscription_status, profile?.subscription_end_date, profile?.role, profile?.email);
 
   if (isPremium) {
     return (
@@ -544,7 +546,7 @@ export default function SubscriptionScreen() {
           {/* Features Grid */}
           <View style={[styles(theme).card, { backgroundColor: 'transparent', borderWidth: 0 }]}>
             <Text style={styles(theme).cardTitle}>Premium Benefits</Text>
-            
+
             <View style={styles(theme).featuresGrid}>
               {[
                 { id: 'hrv', icon: Heart, text: 'HRV Analysis', subtext: 'Heart health', color: '#EC4899' },
@@ -567,7 +569,7 @@ export default function SubscriptionScreen() {
 
           {/* Comparison Table */}
           <View style={styles(theme).comparisonContainer}>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles(theme).comparisonHeaderToggle}
               onPress={() => setIsComparisonVisible(!isComparisonVisible)}
               activeOpacity={0.7}
@@ -593,12 +595,12 @@ export default function SubscriptionScreen() {
                   <Text style={[styles(theme).headerValue, { color: theme.colors.accent }]}>Pro</Text>
                   <View style={{ width: 30 }} />
                 </View>
-                
+
                 {COMPARISON_FEATURES.map((row, i) => (
                   <View key={i} style={{ borderBottomWidth: 1, borderBottomColor: 'rgba(255, 255, 255, 0.05)' }}>
-                    <TouchableOpacity 
+                    <TouchableOpacity
                       style={[
-                        styles(theme).comparisonRow, 
+                        styles(theme).comparisonRow,
                         i % 2 === 0 && expandedRow !== i && { backgroundColor: 'rgba(255, 255, 255, 0.03)' },
                         expandedRow === i && { backgroundColor: 'rgba(139, 92, 246, 0.1)' }
                       ]}
@@ -616,7 +618,7 @@ export default function SubscriptionScreen() {
                         {expandedRow === i ? <ChevronUp size={16} color={theme.colors.textSecondary} /> : <ChevronDown size={16} color="rgba(255, 255, 255, 0.3)" />}
                       </View>
                     </TouchableOpacity>
-                    
+
                     {expandedRow === i && (
                       <View style={styles(theme).expandedContent}>
                         <Text style={styles(theme).expandedDescription}>{row.description}</Text>
@@ -634,9 +636,9 @@ export default function SubscriptionScreen() {
               packages.map((pkg) => {
                 const isMonthly = pkg.identifier.toLowerCase().includes('month');
                 const isYearly = pkg.identifier.toLowerCase().includes('annual') ||
-                                 pkg.identifier.toLowerCase().includes('year');
+                  pkg.identifier.toLowerCase().includes('year');
                 const isSelected = (isMonthly && selectedPlan === 'monthly') ||
-                                  (isYearly && selectedPlan === 'yearly');
+                  (isYearly && selectedPlan === 'yearly');
 
                 return (
                   <TouchableOpacity

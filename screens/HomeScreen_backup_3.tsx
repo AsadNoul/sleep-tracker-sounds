@@ -35,17 +35,7 @@ import {
   Thermometer,
   Droplets,
   Sun,
-  Coffee,
-  Menu,
-  CheckCircle2,
-  Book,
-  Gauge,
-  Volume2,
-  Headphones,
-  Lightbulb,
-  HelpCircle,
-  Send,
-  MessageSquare
+  Coffee
 } from 'lucide-react-native';
 
 import CircularProgress from '../components/CircularProgress';
@@ -92,7 +82,6 @@ export default function HomeScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [nextAlarm, setNextAlarm] = useState<any>(null);
   const [refreshing, setRefreshing] = useState(false);
-  const [isSidebarVisible, setIsSidebarVisible] = useState(false);
 
   const sleepStats = useMemo(() => getSleepStats(), [sleepHistory]);
   const currentStreak = useMemo(() => getCurrentStreak(), [sleepHistory]);
@@ -121,12 +110,12 @@ export default function HomeScreen() {
       : 0;
     const avgBedtimeMs = thisWeek.length > 0
       ? thisWeek.reduce((sum, s) => {
-        const st = new Date(s.startTime);
-        // Normalize to minutes from midnight (handle past-midnight)
-        let mins = st.getHours() * 60 + st.getMinutes();
-        if (mins < 360) mins += 1440; // treat 0-6 AM as "late night" (add 24h)
-        return sum + mins;
-      }, 0) / thisWeek.length
+          const st = new Date(s.startTime);
+          // Normalize to minutes from midnight (handle past-midnight)
+          let mins = st.getHours() * 60 + st.getMinutes();
+          if (mins < 360) mins += 1440; // treat 0-6 AM as "late night" (add 24h)
+          return sum + mins;
+        }, 0) / thisWeek.length
       : 0;
 
     const lastWeekAvgQuality = lastWeek.length > 0
@@ -335,21 +324,12 @@ export default function HomeScreen() {
       >
         {/* Header */}
         <View style={themedStyles.header}>
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <TouchableOpacity
-              style={[themedStyles.iconButton, { marginRight: 12, marginLeft: -10, backgroundColor: 'rgba(255, 255, 255, 0.08)', width: 'auto', paddingHorizontal: 16, borderRadius: 24, flexDirection: 'row', gap: 8 }]}
-              onPress={() => setIsSidebarVisible(true)}
-            >
-              <Menu size={20} color="#FFFFFF" />
-              <Text style={{ color: '#FFFFFF', fontSize: 14, fontWeight: '700' }}>Menu</Text>
-            </TouchableOpacity>
-            <View>
-              <Text style={themedStyles.greeting}>
-                {displayMode === 'morning' ? 'Good Morning' :
-                  displayMode === 'daytime' ? 'Good Afternoon' : 'Good Evening'},
-              </Text>
-              <Text style={themedStyles.userName}>{user?.email?.split('@')[0] || 'Dreamer'}</Text>
-            </View>
+          <View>
+            <Text style={themedStyles.greeting}>
+              {displayMode === 'morning' ? 'Good Morning' :
+                displayMode === 'daytime' ? 'Good Afternoon' : 'Good Evening'},
+            </Text>
+            <Text style={themedStyles.userName}>{user?.email?.split('@')[0] || 'Dreamer'}</Text>
           </View>
           <View style={themedStyles.headerActions}>
             <View style={themedStyles.liveStatus}>
@@ -442,84 +422,6 @@ export default function HomeScreen() {
           </GlassView>
         </Modal>
 
-        {/* Sidebar/Menu Modal */}
-        <Modal
-          visible={isSidebarVisible}
-          animationType="fade"
-          transparent={true}
-          onRequestClose={() => setIsSidebarVisible(false)}
-        >
-          <View style={themedStyles.sidebarOverlay}>
-            <TouchableOpacity
-              style={themedStyles.sidebarCloseArea}
-              activeOpacity={1}
-              onPress={() => setIsSidebarVisible(false)}
-            />
-            <View style={themedStyles.sidebarContainer}>
-              <LinearGradient
-                colors={['#1E1B4B', '#0F172A']}
-                style={StyleSheet.absoluteFillObject}
-              />
-              <View style={[themedStyles.sidebarHeader, { paddingTop: insets.top + 20 }]}>
-                <Text style={themedStyles.sidebarTitle}>Tools & Support</Text>
-                <TouchableOpacity onPress={() => setIsSidebarVisible(false)}>
-                  <X size={24} color="#A0AEC0" />
-                </TouchableOpacity>
-              </View>
-
-              <ScrollView style={themedStyles.sidebarContent} showsVerticalScrollIndicator={false}>
-                <Text style={themedStyles.sidebarSectionTitle}>Wellness & Analysis</Text>
-                {[
-                  { label: 'Bedtime Routine', icon: <CheckCircle2 size={22} color="#9D4EDD" />, screen: 'BedtimeRoutine' },
-                  { label: 'Dream Journal', icon: <Book size={22} color="#FF9B7A" />, screen: 'DreamJournal' },
-                  { label: 'Room Environment', icon: <Gauge size={22} color="#10B981" />, screen: 'RoomEnvironment' },
-                  { label: 'Sleep Stages', icon: <Activity size={22} color="#3B82F6" />, screen: 'SleepStages' },
-                  { label: 'Snore Detection', icon: <Volume2 size={22} color="#F59E0B" />, screen: 'SnoreDetection' },
-                  { label: 'Sleep Interruptions', icon: <Clock size={22} color="#EF4444" />, screen: 'SleepInterruptions' },
-                  { label: 'Relaxation Library', icon: <Headphones size={22} color="#A855F7" />, screen: 'RelaxationLibrary' },
-                  { label: 'Caffeine Calculator', icon: <Coffee size={22} color="#8B4513" />, screen: 'CaffeineCalculator' },
-                ].map((item, index) => (
-                  <TouchableOpacity
-                    key={index}
-                    style={themedStyles.sidebarItem}
-                    onPress={() => {
-                      setIsSidebarVisible(false);
-                      navigation.navigate(item.screen as never);
-                    }}
-                  >
-                    <View style={themedStyles.sidebarIconContainer}>{item.icon}</View>
-                    <Text style={themedStyles.sidebarItemText}>{item.label}</Text>
-                    <ChevronRight size={16} color="#475569" />
-                  </TouchableOpacity>
-                ))}
-
-                <View style={themedStyles.sidebarDivider} />
-
-                <Text style={themedStyles.sidebarSectionTitle}>Support & Feedback</Text>
-                {[
-                  { label: 'Request a Feature', icon: <Lightbulb size={22} color="#FBBF24" />, screen: 'FeatureRequest' },
-                  { label: 'Help & Support', icon: <HelpCircle size={22} color="#32CD32" />, screen: 'HelpSupport' },
-                ].map((item, index) => (
-                  <TouchableOpacity
-                    key={index}
-                    style={themedStyles.sidebarItem}
-                    onPress={() => {
-                      setIsSidebarVisible(false);
-                      navigation.navigate(item.screen as never);
-                    }}
-                  >
-                    <View style={themedStyles.sidebarIconContainer}>{item.icon}</View>
-                    <Text style={themedStyles.sidebarItemText}>{item.label}</Text>
-                    <ChevronRight size={16} color="#475569" />
-                  </TouchableOpacity>
-                ))}
-
-                <View style={{ height: insets.bottom + 40 }} />
-              </ScrollView>
-            </View>
-          </View>
-        </Modal>
-
         {/* Hero Section - Dynamic Based on Mode */}
         <TouchableOpacity
           activeOpacity={0.9}
@@ -546,34 +448,26 @@ export default function HomeScreen() {
                 </Text>
               </View>
 
-              <View style={[themedStyles.scoreContainer, { width: Math.max(120, Math.min(width * 0.4, 150)), height: Math.max(120, Math.min(width * 0.4, 150)) }]}>
+              <View style={themedStyles.scoreContainer}>
                 {/* Visual Glow behind progress */}
-                <View style={[themedStyles.scoreGlow, {
-                  backgroundColor: scoreQuality.color,
-                  opacity: 0.15,
-                  width: Math.max(120, Math.min(width * 0.4, 150)) - 20,
-                  height: Math.max(120, Math.min(width * 0.4, 150)) - 20,
-                  borderRadius: (Math.max(120, Math.min(width * 0.4, 150)) - 20) / 2
-                }]} />
+                <View style={[themedStyles.scoreGlow, { backgroundColor: scoreQuality.color, opacity: 0.15 }]} />
                 <CircularProgress
                   score={isTracking ? 0 : (displayMode === 'daytime' ? readinessScore : sleepScore)}
-                  size={Math.max(120, Math.min(width * 0.4, 150))}
-                  strokeWidth={10}
+                  size={Math.max(140, Math.min(width * 0.45, 180))}
+                  strokeWidth={12}
                   showText={false}
                   color={displayMode === 'morning' ? lastNightQuality.color : scoreQuality.color}
                 />
                 <View style={themedStyles.scoreInnerContent}>
                   <Text style={[themedStyles.scoreValue, {
-                    fontSize: isTracking ? 36 : 42,
-                    lineHeight: isTracking ? 40 : 46,
                     color: isTracking ? '#F59E0B' : (displayMode === 'daytime' ? (readinessScore >= 75 ? '#10B981' : '#F59E0B') : scoreQuality.color)
                   }]}>
                     {isTracking ? '⏱️' : (displayMode === 'daytime' ? readinessScore : sleepScore)}
                   </Text>
-                  <Text style={[themedStyles.scoreLabel, { fontSize: 10, marginTop: 0 }]}>
+                  <Text style={themedStyles.scoreLabel}>
                     {isTracking ? 'TRACKING' : (sleepScore === 0 ? 'NO DATA' : (displayMode === 'daytime' ? 'READINESS' : 'SLEEP SCORE'))}
                   </Text>
-                  <Text style={[themedStyles.scoreQualityLabel, { fontSize: 12, marginTop: 0, color: scoreQuality.color }]}>
+                  <Text style={[themedStyles.scoreQualityLabel, { color: scoreQuality.color }]}>
                     {isTracking ? 'In Progress' : (sleepScore === 0 ? 'Start tracking' : (displayMode === 'daytime' ? (readinessScore >= 85 ? '👑 Peak' : '⚡ Good') : `${scoreQuality.emoji} ${scoreQuality.label}`))}
                   </Text>
                 </View>
@@ -840,7 +734,7 @@ export default function HomeScreen() {
             colors={['rgba(139, 92, 246, 0.15)', 'rgba(99, 102, 241, 0.05)']}
             style={themedStyles.tipGradient}
           >
-            <View style={{ marginRight: 8 }}>
+            <View style={themedStyles.iconButton}>
               <Zap size={20} color="#8B5CF6" />
             </View>
             <View style={themedStyles.tipContent}>
@@ -982,7 +876,7 @@ const styles = (theme: any, width: number) => StyleSheet.create({
   },
   mainCardContainer: {
     marginBottom: 24,
-    borderRadius: 24,
+    borderRadius: 32,
     overflow: Platform.OS === 'android' ? 'hidden' : 'visible',
     ...Platform.select({
       ios: {
@@ -997,12 +891,12 @@ const styles = (theme: any, width: number) => StyleSheet.create({
     }),
   },
   mainCardBlur: {
-    borderRadius: 24,
+    borderRadius: 32,
     overflow: 'hidden',
   },
   mainCard: {
-    padding: 16,
-    paddingVertical: 16,
+    padding: 20,
+    paddingVertical: 24,
     alignItems: 'center',
   },
   cardHeader: {
@@ -1036,7 +930,8 @@ const styles = (theme: any, width: number) => StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginVertical: 16,
-    alignSelf: 'center',
+    height: 180,
+    width: 180,
   },
   scoreGlow: {
     position: 'absolute',
@@ -1219,7 +1114,7 @@ const styles = (theme: any, width: number) => StyleSheet.create({
     marginLeft: 8,
   },
   seeAllText: {
-    color: '#FFFFFF',
+    color: '#8B5CF6',
     fontSize: 14,
     fontWeight: '600',
     fontFamily: theme.typography.fontFamily.semibold,
@@ -1379,6 +1274,7 @@ const styles = (theme: any, width: number) => StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
+    backgroundColor: 'rgba(139, 92, 246, 0.15)',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -1594,85 +1490,5 @@ const styles = (theme: any, width: number) => StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.2)',
-  },
-  sidebarOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    flexDirection: 'row',
-  },
-  sidebarCloseArea: {
-    flex: 1,
-  },
-  sidebarContainer: {
-    width: width * 0.75,
-    maxWidth: 320,
-    backgroundColor: '#0F172A',
-    height: '100%',
-    shadowColor: '#000',
-    shadowOffset: { width: 5, height: 0 },
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
-    elevation: 20,
-  },
-  sidebarHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingBottom: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.05)',
-  },
-  sidebarTitle: {
-    color: '#FFFFFF',
-    fontSize: 20,
-    fontWeight: '700',
-    fontFamily: theme.typography.fontFamily.bold,
-  },
-  sidebarContent: {
-    flex: 1,
-    paddingHorizontal: 16,
-    paddingTop: 16,
-  },
-  sidebarSectionTitle: {
-    color: '#94A3B8',
-    fontSize: 12,
-    fontWeight: '700',
-    fontFamily: theme.typography.fontFamily.bold,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    marginBottom: 12,
-    marginTop: 8,
-    paddingHorizontal: 4,
-  },
-  sidebarItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 8,
-    borderRadius: 12,
-    marginBottom: 4,
-  },
-  sidebarIconContainer: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  sidebarItemText: {
-    flex: 1,
-    color: '#E2E8F0',
-    fontSize: 16,
-    fontWeight: '500',
-    fontFamily: theme.typography.fontFamily.medium,
-  },
-  sidebarDivider: {
-    height: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    marginVertical: 16,
-    marginHorizontal: 4,
   },
 });

@@ -18,15 +18,15 @@ import { supabase } from '../lib/supabase';
 
 interface PushNotificationPromptProps {
   userId?: string;
-  trigger?: 'onboarding' | 'first_session' | 'settings' | 'manual';
+  trigger?: 'onboarding' | 'first_session' | 'settings' | 'manual' | 'always_insist';
 }
 
 const STORAGE_KEY = 'push_permission_prompted';
 const STORAGE_DECLINED_KEY = 'push_permission_declined';
 
-export default function PushNotificationPrompt({ 
-  userId, 
-  trigger = 'manual' 
+export default function PushNotificationPrompt({
+  userId,
+  trigger = 'manual'
 }: PushNotificationPromptProps) {
   const { theme } = useAppTheme();
   const [visible, setVisible] = useState(false);
@@ -62,13 +62,20 @@ export default function PushNotificationPrompt({
       // Check if already prompted
       const hasPrompted = await AsyncStorage.getItem(STORAGE_KEY);
       const hasDeclined = await AsyncStorage.getItem(STORAGE_DECLINED_KEY);
-      
+
       // Check current permission status
       const { status } = await Notifications.getPermissionsAsync();
-      
-      // Don't show if already granted or if declined recently (within 7 days)
+
+      // Don't show if already granted
       if (status === 'granted') return;
-      
+
+      // If we always want to insist, we ignore any history of declining
+      if (trigger === 'always_insist') {
+        setVisible(true);
+        return;
+      }
+
+      // Hide if declined recently
       if (hasDeclined) {
         const declinedTime = parseInt(hasDeclined);
         const daysSinceDecline = (Date.now() - declinedTime) / (1000 * 60 * 60 * 24);
@@ -173,7 +180,7 @@ export default function PushNotificationPrompt({
           </Animated.View>
 
           {/* Title */}
-          <Text style={[styles.title, { color: theme.colors.text }]}>
+          <Text style={[styles.title, { color: theme.colors.textPrimary }]}>
             Stay Connected to Your Sleep
           </Text>
 
@@ -242,7 +249,7 @@ function BenefitItem({ icon, text, theme }: BenefitItemProps) {
   return (
     <View style={styles.benefitItem}>
       <View style={styles.benefitIcon}>{icon}</View>
-      <Text style={[styles.benefitText, { color: theme.colors.text }]}>{text}</Text>
+      <Text style={[styles.benefitText, { color: theme.colors.textPrimary }]}>{text}</Text>
     </View>
   );
 }
