@@ -126,10 +126,33 @@ serve(async (req) => {
             onConflict: 'user_id'
           })
 
+
         if (subError) {
           console.error('Error creating/updating subscription:', subError)
         } else {
           console.log(`✅ Updated subscription record for ${userId}`)
+        }
+
+        // Fire & forget: send purchase confirmation email
+        try {
+          const emailFnUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/purchase-confirmation-email`
+          fetch(emailFnUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+            },
+            body: JSON.stringify({
+              userId,
+              eventType: event?.type,
+              productId,
+              planType: subscriptionType,
+              expiresDate: expiresDate?.toISOString() || null,
+            })
+          }).then(r => r.json()).then(d => console.log('📧 Email function triggered:', d))
+            .catch(e => console.warn('⚠️ Email function failed (non-blocking):', e.message))
+        } catch (emailErr: any) {
+          console.warn('⚠️ Could not trigger email function:', emailErr.message)
         }
 
         break

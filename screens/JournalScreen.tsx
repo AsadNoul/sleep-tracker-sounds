@@ -603,17 +603,17 @@ export default function JournalScreen() {
     try {
 
       // If already playing this audio, pause it
-      if (playingAudioId === disruption.id && currentSound) {
-        await currentSound.pauseAsync();
+      if (playingAudioId === disruption.id && sound) {
+        await sound.pauseAsync();
         setPlayingAudioId(null);
         return;
       }
 
       // Stop any currently playing audio
-      if (currentSound) {
+      if (sound) {
         await currentSound.stopAsync();
         await currentSound.unloadAsync();
-        setCurrentSound(null);
+        setSound(null);
       }
 
       // Check if audio file URL exists
@@ -676,7 +676,7 @@ export default function JournalScreen() {
         }
       );
 
-      setCurrentSound(sound);
+      setSound(sound);
       setPlayingAudioId(disruption.id);
 
       // Auto-stop after event duration
@@ -776,7 +776,12 @@ export default function JournalScreen() {
               setActiveTab('entries');
             }}
           >
-            <Text style={[styles(theme).tabText, activeTab === 'entries' && styles(theme).activeTabText]}>Entries</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+              <Text style={[styles(theme).tabText, activeTab === 'entries' && styles(theme).activeTabText]}>Journal</Text>
+              {(localRecordings.length > 0 || disruptions.length > 0) && (
+                <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#10B981' }} />
+              )}
+            </View>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles(theme).tabButton, activeTab === 'stats' && styles(theme).activeTabButton]}
@@ -785,7 +790,7 @@ export default function JournalScreen() {
               setActiveTab('stats');
             }}
           >
-            <Text style={[styles(theme).tabText, activeTab === 'stats' && styles(theme).activeTabText]}>Sleep Stages</Text>
+            <Text style={[styles(theme).tabText, activeTab === 'stats' && styles(theme).activeTabText]}>Analysis</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -1034,6 +1039,8 @@ export default function JournalScreen() {
             </BlurView>
           )}
 
+
+
           {/* Sleep Recordings — Local + Cloud */}
           {localRecordings.length > 0 && (
             <BlurView intensity={20} tint="dark" style={styles(theme).disruptionsCard}>
@@ -1152,6 +1159,148 @@ export default function JournalScreen() {
             </BlurView>
           )}
 
+          {/* ── SLEEP STAGES CHART ── */}
+          <BlurView intensity={20} tint="dark" style={[styles(theme).chartCard, { marginTop: 8 }]}>
+            <View style={styles(theme).sectionHeader}>
+              <Activity size={20} color="#8B5CF6" />
+              <Text style={styles(theme).sectionTitle}>Sleep Stages</Text>
+            </View>
+            {!selectedDaySession ? (
+              <View style={{ paddingVertical: 40, alignItems: 'center' }}>
+                <Activity size={40} color="#64748B" style={{ marginBottom: 12, opacity: 0.5 }} />
+                <Text style={styles(theme).noResultsText}>No stage data for this date</Text>
+              </View>
+            ) : (
+              <View>
+                <View style={[styles(theme).barChartContainer, { height: 140 }]}>
+                  <View style={styles(theme).yAxis}>
+                    <Text style={styles(theme).yAxisText}>Awake</Text>
+                    <Text style={styles(theme).yAxisText}>REM</Text>
+                    <Text style={styles(theme).yAxisText}>Light</Text>
+                    <Text style={styles(theme).yAxisText}>Deep</Text>
+                  </View>
+                  <View style={styles(theme).barsContainer}>
+                    {architectureData?.map((bar, i) => (
+                      <View key={i} style={[styles(theme).chartBar, { height: bar.h, backgroundColor: bar.c }]} />
+                    ))}
+                  </View>
+                </View>
+                <View style={styles(theme).chartLegend}>
+                  <View style={styles(theme).legendItem}><View style={[styles(theme).legendDot, { backgroundColor: '#EF4444' }]} /><Text style={styles(theme).legendText}>Awake</Text></View>
+                  <View style={styles(theme).legendItem}><View style={[styles(theme).legendDot, { backgroundColor: '#8B5CF6' }]} /><Text style={styles(theme).legendText}>REM</Text></View>
+                  <View style={styles(theme).legendItem}><View style={[styles(theme).legendDot, { backgroundColor: '#6366F1' }]} /><Text style={styles(theme).legendText}>Light</Text></View>
+                  <View style={styles(theme).legendItem}><View style={[styles(theme).legendDot, { backgroundColor: '#4F46E5' }]} /><Text style={styles(theme).legendText}>Deep</Text></View>
+                </View>
+              </View>
+            )}
+          </BlurView>
+
+          {/* ── SLEEP RECORDINGS ── */}
+          {localRecordings.length > 0 && (
+            <BlurView intensity={20} tint="dark" style={styles(theme).disruptionsCard}>
+              <View style={styles(theme).sectionHeader}>
+                <Mic size={20} color="#8B5CF6" />
+                <Text style={styles(theme).sectionTitle}>Sleep Recordings ({localRecordings.length})</Text>
+              </View>
+              <View style={styles(theme).disruptionsList}>
+                {localRecordings.slice(0, 10).map((recording) => {
+                  const timestamp = new Date(recording.timestamp);
+                  const time = timestamp.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+                  let icon = Volume2;
+                  let title = 'Sound detected';
+                  let color = '#F59E0B';
+                  if (recording.event_type === 'snoring') { title = 'Snoring'; color = '#F59E0B'; }
+                  else if (recording.event_type === 'sleep_talk') { title = 'Sleep Talking'; color = '#33C6FF'; }
+                  else if (recording.event_type === 'dreaming') { icon = Cloud; title = 'Dreaming (REM)'; color = '#BE4BDB'; }
+                  else if (recording.event_type === 'noise') { title = 'Noise'; color = '#FFD700'; }
+                  else if (recording.event_type === 'breathing') { icon = Wind; title = 'Breathing'; color = '#10B981'; }
+                  const hasDuration = recording.duration_seconds && recording.duration_seconds > 0;
+                  return (
+                    <View key={recording.id} style={styles(theme).disruptionItem}>
+                      <View style={[styles(theme).disruptionIcon, { backgroundColor: color + '20' }]}>
+                        {React.createElement(icon, { size: 18, color })}
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles(theme).disruptionTitle}>{title}</Text>
+                        <Text style={styles(theme).disruptionTime}>
+                          {time}{hasDuration ? ` • ${recording.duration_seconds}s` : ''}
+                        </Text>
+                      </View>
+                      {recording.loudness_db > 0 && (
+                        <Text style={[styles(theme).disruptionVolume, { color }]}>
+                          {Math.round(recording.loudness_db)}%
+                        </Text>
+                      )}
+                      <TouchableOpacity onPress={() => playAudio(recording)} style={styles(theme).playButton}>
+                        {playingAudioId === recording.id ? (
+                          <Pause size={20} color={color} />
+                        ) : (
+                          <Play size={20} color={color} />
+                        )}
+                      </TouchableOpacity>
+                    </View>
+                  );
+                })}
+                {localRecordings.length > 10 && (
+                  <Text style={{ color: '#94A3B8', fontSize: 12, textAlign: 'center', marginTop: 8 }}>
+                    +{localRecordings.length - 10} more events
+                  </Text>
+                )}
+              </View>
+            </BlurView>
+          )}
+
+          {/* ── DISRUPTIONS ── */}
+          {disruptions.length > 0 && (
+            <BlurView intensity={20} tint="dark" style={styles(theme).disruptionsCard}>
+              <View style={styles(theme).sectionHeader}>
+                <Bell size={20} color="#F59E0B" />
+                <Text style={styles(theme).sectionTitle}>Disruptions ({disruptions.length})</Text>
+              </View>
+              <View style={styles(theme).disruptionsList}>
+                {disruptions.slice(0, 10).map((disruption) => {
+                  const timestamp = new Date(disruption.timestamp);
+                  const time = timestamp.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+                  let icon = Volume2;
+                  let title = 'Noise detected';
+                  let color = '#F59E0B';
+                  if (disruption.event_type === 'snoring') { title = 'Snoring detected'; color = '#F59E0B'; }
+                  else if (disruption.event_type === 'sleep_talk') { title = 'Sleep talking'; color = '#33C6FF'; }
+                  else if (disruption.event_type === 'dreaming') { icon = Cloud; title = 'Dreaming (REM)'; color = '#BE4BDB'; }
+                  else if (disruption.event_type === 'noise') { title = 'Noise detected'; color = '#FFD700'; }
+                  return (
+                    <View key={disruption.id} style={styles(theme).disruptionItem}>
+                      <View style={[styles(theme).disruptionIcon, { backgroundColor: color + '20' }]}>
+                        {React.createElement(icon, { size: 18, color })}
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles(theme).disruptionTitle}>{title}</Text>
+                        <Text style={styles(theme).disruptionTime}>{time}</Text>
+                      </View>
+                      {disruption.loudness_db > 0 && (
+                        <Text style={[styles(theme).disruptionVolume, { color }]}>
+                          {Math.round(disruption.loudness_db)}%
+                        </Text>
+                      )}
+                      <TouchableOpacity onPress={() => playAudio(disruption)} style={styles(theme).playButton}>
+                        {playingAudioId === disruption.id ? (
+                          <Pause size={20} color={color} />
+                        ) : (
+                          <Play size={20} color={color} />
+                        )}
+                      </TouchableOpacity>
+                    </View>
+                  );
+                })}
+                {disruptions.length > 10 && (
+                  <Text style={{ color: '#94A3B8', fontSize: 12, textAlign: 'center', marginTop: 8 }}>
+                    +{disruptions.length - 10} more disruptions
+                  </Text>
+                )}
+              </View>
+            </BlurView>
+          )}
+
           {/* Smart Recommendation */}
           {smartTip && selectedDaySession && (
             <BlurView intensity={20} tint="dark" style={[styles(theme).disruptionsCard, { borderColor: 'rgba(139, 92, 246, 0.2)', borderWidth: 1 }]}>
@@ -1168,22 +1317,6 @@ export default function JournalScreen() {
             <View style={styles(theme).sectionHeader}>
               <BookOpen size={20} color="#EC4899" />
               <Text style={styles(theme).sectionTitle}>Journal Entry</Text>
-            </View>
-
-            <Text style={styles(theme).inputLabel}>How do you feel?</Text>
-            <View style={styles(theme).moodGrid}>
-              {['😊', '😴', '😌', '😐', '😔'].map((mood) => (
-                <TouchableOpacity
-                  key={mood}
-                  onPress={() => setSelectedMood(mood)}
-                  style={[
-                    styles(theme).moodButton,
-                    selectedMood === mood && styles(theme).selectedMoodButton
-                  ]}
-                >
-                  <Text style={styles(theme).moodEmoji}>{mood}</Text>
-                </TouchableOpacity>
-              ))}
             </View>
 
             <TextInput

@@ -45,7 +45,8 @@ import {
   Lightbulb,
   HelpCircle,
   Send,
-  MessageSquare
+  MessageSquare,
+  MoreVertical
 } from 'lucide-react-native';
 
 import CircularProgress from '../components/CircularProgress';
@@ -225,24 +226,15 @@ export default function HomeScreen() {
   const sleepScore = useMemo(() => {
     if (sleepStats.totalSessions === 0) return 0;
     const lastSession = sleepHistory[0];
+    if (!lastSession) return 0;
 
-    // Check if last session is within 24 hours
-    if (lastSession) {
-      const sessionTime = lastSession.endTime || lastSession.startTime;
-      const hoursSinceSession = (new Date().getTime() - new Date(sessionTime).getTime()) / (1000 * 60 * 60);
+    // Always show the most recent session score — never hide it
+    if (lastSession.sleepScore && lastSession.sleepScore > 0) return lastSession.sleepScore;
 
-      // If session is older than 24 hours, show 0 (stale data)
-      if (hoursSinceSession > 24) {
-        return 0;
-      }
-
-      // Show actual score if fresh data
-      if (lastSession.sleepScore) return lastSession.sleepScore;
-    }
-
-    const qualityScore = sleepStats.averageQuality * 10;
+    // Fallback: calculate from quality + duration
+    const qualityScore = (lastSession.quality || 0) * 10;
     const idealDuration = 480;
-    const durationScore = Math.min(100, (sleepStats.averageDuration / idealDuration) * 100);
+    const durationScore = Math.min(100, ((lastSession.duration || 0) / idealDuration) * 100);
     return Math.round((qualityScore * 0.6) + (durationScore * 0.4));
   }, [sleepStats, sleepHistory]);
 
@@ -337,13 +329,12 @@ export default function HomeScreen() {
         <View style={themedStyles.header}>
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
             <TouchableOpacity
-              style={[themedStyles.iconButton, { marginRight: 12, marginLeft: -10, backgroundColor: 'rgba(255, 255, 255, 0.08)', width: 'auto', paddingHorizontal: 16, borderRadius: 24, flexDirection: 'row', gap: 8 }]}
+              style={themedStyles.curvedMenuButton}
               onPress={() => setIsSidebarVisible(true)}
             >
-              <Menu size={20} color="#FFFFFF" />
-              <Text style={{ color: '#FFFFFF', fontSize: 14, fontWeight: '700' }}>Menu</Text>
+              <MoreVertical size={22} color="#FFFFFF" />
             </TouchableOpacity>
-            <View>
+            <View style={{ marginLeft: 16 }}>
               <Text style={themedStyles.greeting}>
                 {displayMode === 'morning' ? 'Good Morning' :
                   displayMode === 'daytime' ? 'Good Afternoon' : 'Good Evening'},
@@ -352,95 +343,29 @@ export default function HomeScreen() {
             </View>
           </View>
           <View style={themedStyles.headerActions}>
+            {/* App Logo - clickable, navigates to Settings */}
+            <TouchableOpacity
+              onPress={() => navigation.navigate('Settings' as never)}
+              style={{ marginRight: 12 }}
+              activeOpacity={0.75}
+            >
+              <Image
+                source={require('../assets/app_logo.png')}
+                style={{ width: 34, height: 34, borderRadius: 8 }}
+                resizeMode="contain"
+              />
+            </TouchableOpacity>
             <View style={themedStyles.liveStatus}>
               <View style={themedStyles.liveDot} />
               <Text style={themedStyles.liveText}>
                 {displayMode === 'evening' ? 'Optimal Window' : 'Tracking On'}
               </Text>
             </View>
-            <TouchableOpacity
-              style={themedStyles.iconButton}
-              onPress={() => setIsSearchVisible(true)}
-            >
-              <Search size={22} color="#FFFFFF" />
-            </TouchableOpacity>
           </View>
         </View>
 
         {/* Search Modal */}
-        <Modal
-          visible={isSearchVisible}
-          animationType="fade"
-          transparent={true}
-          onRequestClose={() => setIsSearchVisible(false)}
-        >
-          <GlassView intensity={90} tint="dark" style={themedStyles.searchModalContainer}>
-            <View style={[themedStyles.searchHeader, { paddingTop: insets.top + 20 }]}>
-              <View style={themedStyles.searchInputContainer}>
-                <Search size={20} color="#A0AEC0" />
-                <TextInput
-                  style={themedStyles.searchInput}
-                  placeholder="Search sounds, articles, routines..."
-                  placeholderTextColor="#A0AEC0"
-                  value={searchQuery}
-                  onChangeText={setSearchQuery}
-                  autoFocus
-                />
-                {searchQuery.length > 0 && (
-                  <TouchableOpacity onPress={() => setSearchQuery('')}>
-                    <X size={20} color="#A0AEC0" />
-                  </TouchableOpacity>
-                )}
-              </View>
-              <TouchableOpacity
-                style={themedStyles.closeSearchButton}
-                onPress={() => setIsSearchVisible(false)}
-              >
-                <Text style={themedStyles.closeSearchText}>Cancel</Text>
-              </TouchableOpacity>
-            </View>
 
-            <ScrollView style={themedStyles.searchResults}>
-              {searchQuery.length === 0 ? (
-                <View style={themedStyles.searchSuggestions}>
-                  <Text style={themedStyles.suggestionTitle}>Suggested</Text>
-                  {['Deep Sleep', 'Rain Sounds', 'Morning Routine', 'Anxiety Relief'].map((item) => (
-                    <TouchableOpacity
-                      key={item}
-                      style={themedStyles.suggestionItem}
-                      onPress={() => setSearchQuery(item)}
-                    >
-                      <TrendingUp size={16} color="#8B5CF6" />
-                      <Text style={themedStyles.suggestionText}>{item}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              ) : searchResults.length > 0 ? (
-                <View style={themedStyles.searchSuggestions}>
-                  <Text style={themedStyles.suggestionTitle}>Results</Text>
-                  {searchResults.map((item) => (
-                    <TouchableOpacity
-                      key={item.screen}
-                      style={themedStyles.suggestionItem}
-                      onPress={() => {
-                        setIsSearchVisible(false);
-                        setSearchQuery('');
-                        navigation.navigate(item.screen as never);
-                      }}
-                    >
-                      <ChevronRight size={16} color="#8B5CF6" />
-                      <Text style={themedStyles.suggestionText}>{item.label}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              ) : (
-                <View style={themedStyles.searchNoResults}>
-                  <Text style={themedStyles.noResultsText}>No results for "{searchQuery}"</Text>
-                </View>
-              )}
-            </ScrollView>
-          </GlassView>
-        </Modal>
 
         {/* Sidebar/Menu Modal */}
         <Modal
@@ -462,12 +387,61 @@ export default function HomeScreen() {
               />
               <View style={[themedStyles.sidebarHeader, { paddingTop: insets.top + 20 }]}>
                 <Text style={themedStyles.sidebarTitle}>Tools & Support</Text>
-                <TouchableOpacity onPress={() => setIsSidebarVisible(false)}>
+                <TouchableOpacity onPress={() => {
+                  setIsSidebarVisible(false);
+                  setSearchQuery('');
+                }}>
                   <X size={24} color="#A0AEC0" />
                 </TouchableOpacity>
               </View>
 
+              <View style={themedStyles.sidebarSearchContainer}>
+                <View style={themedStyles.sidebarSearchInputWrapper}>
+                  <Search size={18} color="#94A3B8" />
+                  <TextInput
+                    style={themedStyles.sidebarSearchInput}
+                    placeholder="Search tools, sounds..."
+                    placeholderTextColor="#64748B"
+                    value={searchQuery}
+                    onChangeText={setSearchQuery}
+                  />
+                  {searchQuery.length > 0 && (
+                    <TouchableOpacity onPress={() => setSearchQuery('')}>
+                      <X size={16} color="#94A3B8" />
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </View>
+
               <ScrollView style={themedStyles.sidebarContent} showsVerticalScrollIndicator={false}>
+                {searchQuery.length > 0 ? (
+                  <View style={{ marginBottom: 20 }}>
+                    <Text style={themedStyles.sidebarSectionTitle}>Search Results</Text>
+                    {searchResults.length > 0 ? (
+                      searchResults.map((item, index) => (
+                        <TouchableOpacity
+                          key={index}
+                          style={themedStyles.sidebarItem}
+                          onPress={() => {
+                            setIsSidebarVisible(false);
+                            setSearchQuery('');
+                            navigation.navigate(item.screen as never);
+                          }}
+                        >
+                          <View style={themedStyles.sidebarIconContainer}>
+                            <Zap size={20} color={theme.colors.accent} />
+                          </View>
+                          <Text style={themedStyles.sidebarItemText}>{item.label}</Text>
+                          <ChevronRight size={16} color="#475569" />
+                        </TouchableOpacity>
+                      ))
+                    ) : (
+                      <Text style={themedStyles.sidebarNoResults}>No matches found</Text>
+                    )}
+                    <View style={themedStyles.sidebarDivider} />
+                  </View>
+                ) : null}
+
                 <Text style={themedStyles.sidebarSectionTitle}>Wellness & Analysis</Text>
                 {[
                   { label: 'Bedtime Routine', icon: <CheckCircle2 size={22} color="#9D4EDD" />, screen: 'BedtimeRoutine' },
@@ -594,7 +568,7 @@ export default function HomeScreen() {
                   <View style={themedStyles.statIconContainer}>
                     <Zap size={20} color="#F59E0B" />
                   </View>
-                  <Text style={themedStyles.statValue}>{Math.round(sleepStats.averageQuality * 10)}%</Text>
+                  <Text style={themedStyles.statValue}>{Math.round((sleepStats.lastNightQuality || sleepStats.averageQuality) * 10)}%</Text>
                   <Text style={themedStyles.statLabel}>Efficiency</Text>
                 </View>
                 <View style={themedStyles.statDivider} />
@@ -1674,5 +1648,49 @@ const styles = (theme: any, width: number) => StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.05)',
     marginVertical: 16,
     marginHorizontal: 4,
+  },
+  curvedMenuButton: {
+    width: 50,
+    height: 50,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: -20,
+    paddingLeft: 10,
+    borderTopRightRadius: 25,
+    borderBottomRightRadius: 25,
+    borderWidth: 1,
+    borderLeftWidth: 0,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+  },
+  sidebarSearchContainer: {
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  sidebarSearchInputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    height: 44,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  sidebarSearchInput: {
+    flex: 1,
+    color: '#FFFFFF',
+    fontSize: 14,
+    marginLeft: 10,
+    fontFamily: theme.typography.fontFamily.regular,
+  },
+  sidebarNoResults: {
+    color: '#64748B',
+    fontSize: 13,
+    textAlign: 'center',
+    paddingVertical: 20,
+    fontFamily: theme.typography.fontFamily.medium,
   },
 });

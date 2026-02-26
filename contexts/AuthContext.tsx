@@ -177,12 +177,16 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       });
 
       const pushToken = pushTokenData.data;
-      console.log('📱 Expo Push Token:', pushToken);
+      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      console.log('📱 Expo Push Token:', pushToken, 'Timezone:', timezone);
 
       // Save to database
       const { error } = await supabase
         .from('user_profiles')
-        .update({ expo_push_token: pushToken })
+        .update({
+          expo_push_token: pushToken,
+          timezone: timezone
+        })
         .eq('id', userId);
 
       if (error) {

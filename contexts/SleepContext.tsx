@@ -419,8 +419,10 @@ export function SleepProvider({ children }: { children: ReactNode }) {
 
   const startSleepSession = async (sleepSoundsEnabled: boolean, smartAlarmEnabled: boolean, sleepRecorderEnabled: boolean, targetAlarmTime?: Date) => {
     try {
+      // Use a consistent UUID for the session to link recordings correctly
+      const sessionId = `session_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
       const newSession: SleepSession = {
-        id: Date.now().toString(),
+        id: sessionId,
         startTime: new Date(),
         endTime: null,
         duration: 0,
@@ -601,7 +603,7 @@ export function SleepProvider({ children }: { children: ReactNode }) {
         }
 
         const sleepData = {
-          // Don't include id - let Supabase generate UUID automatically
+          id: session.id, // Include the ID so it matches local recordings
           user_id: user.id,
           start_time: session.startTime.toISOString(),
           end_time: session.endTime?.toISOString(),
@@ -651,7 +653,7 @@ export function SleepProvider({ children }: { children: ReactNode }) {
             savedSessions.push(session.id);
             await AsyncStorage.setItem(savedSessionsKey, JSON.stringify(savedSessions));
             setSyncStatus('success');
-            
+
             // Check for milestones (async, don't wait)
             if (user && user.id !== 'guest') {
               const { default: welcomeService } = await import('../services/welcomeService');
@@ -659,7 +661,7 @@ export function SleepProvider({ children }: { children: ReactNode }) {
                 console.error('Failed to check milestones:', err)
               );
             }
-            
+
             // Reset status after 2 seconds
             setTimeout(() => setSyncStatus('idle'), 2000);
           }

@@ -61,6 +61,7 @@ import notificationService from '../services/notificationService';
 import revenueCatService from '../services/revenueCatService';
 import Constants from 'expo-constants';
 import * as Notifications from 'expo-notifications';
+import * as Updates from 'expo-updates';
 import PushNotificationPrompt from '../components/PushNotificationPrompt';
 
 // Android-safe BlurView wrapper
@@ -132,6 +133,7 @@ export default function SettingsScreen() {
     } | null>(null);
     const [pushPermissionStatus, setPushPermissionStatus] = useState<'granted' | 'denied' | 'undetermined'>('undetermined');
     const [showPushPrompt, setShowPushPrompt] = useState(false);
+    const [isCheckingUpdates, setIsCheckingUpdates] = useState(false);
 
     // Animated values for fluid background
     const animatedValue1 = useRef(new Animated.Value(0)).current;
@@ -446,6 +448,51 @@ export default function SettingsScreen() {
             console.error('Export error:', error);
         }
     }
+
+    const handleCheckForUpdates = async () => {
+        if (__DEV__) {
+            Alert.alert('Development Mode', 'OTA updates are not available in development mode.');
+            return;
+        }
+
+        setIsCheckingUpdates(true);
+        try {
+            const update = await Updates.checkForUpdateAsync();
+            if (update.isAvailable) {
+                Alert.alert(
+                    'Update Available',
+                    'A new version is available. Would you like to download and install it now?',
+                    [
+                        { text: 'Cancel', style: 'cancel', onPress: () => setIsCheckingUpdates(false) },
+                        {
+                            text: 'Update Now',
+                            onPress: async () => {
+                                try {
+                                    await Updates.fetchUpdateAsync();
+                                    Alert.alert(
+                                        'Update Ready',
+                                        'The update has been downloaded. The app will now restart to apply changes.',
+                                        [{ text: 'Restart', onPress: () => Updates.reloadAsync() }]
+                                    );
+                                } catch (err) {
+                                    Alert.alert('Error', 'Failed to download update. Please try again later.');
+                                } finally {
+                                    setIsCheckingUpdates(false);
+                                }
+                            }
+                        }
+                    ]
+                );
+            } else {
+                Alert.alert('Up to Date', 'You are already running the latest version of Sleep Architect.');
+                setIsCheckingUpdates(false);
+            }
+        } catch (error) {
+            console.error('Update check error:', error);
+            Alert.alert('Error', 'Failed to check for updates. Please check your internet connection and try again.');
+            setIsCheckingUpdates(false);
+        }
+    };
 
     const showConfirm = (config: any) => {
         setConfirmConfig(config);
@@ -846,6 +893,18 @@ export default function SettingsScreen() {
                             <View style={styles.settingInfo}>
                                 <Share2 size={24} color="#3B82F6" />
                                 <Text style={styles.settingLabel}>Share App</Text>
+                            </View>
+                            <ChevronRight size={20} color="#A0AEC0" />
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                            style={styles.settingItem}
+                            onPress={handleCheckForUpdates}
+                            disabled={isCheckingUpdates}
+                        >
+                            <View style={styles.settingInfo}>
+                                <RefreshCw size={24} color={theme.colors.accent} style={{ opacity: isCheckingUpdates ? 0.5 : 1 }} />
+                                <Text style={styles.settingLabel}>{isCheckingUpdates ? 'Checking for updates...' : 'Check for Updates'}</Text>
                             </View>
                             <ChevronRight size={20} color="#A0AEC0" />
                         </TouchableOpacity>
