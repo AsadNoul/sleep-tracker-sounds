@@ -321,6 +321,21 @@ export function SleepProvider({ children }: { children: ReactNode }) {
         const session = JSON.parse(sessionData);
         session.startTime = new Date(session.startTime);
         session.endTime = session.endTime ? new Date(session.endTime) : null;
+
+        // 🛡️ SECURITY: Maximum Duration Check (Prevent Zombie Sessions)
+        // If the session started > 16 hours ago and has no end time, it's likely a "ghost" tracking
+        // session that was never stopped. We should clear it to prevent the UI from being stuck.
+        const now = new Date();
+        const sessionAgeHours = (now.getTime() - session.startTime.getTime()) / (1000 * 60 * 60);
+
+        if (session.endTime === null && sessionAgeHours > 16) {
+          console.warn(`🕒 [Session Recovery] Stale session detected (${Math.round(sessionAgeHours)}h old). Clearing zombie session.`);
+          await AsyncStorage.removeItem('@current_sleep_session');
+          setCurrentSession(null);
+          setIsTracking(false);
+          return;
+        }
+
         setCurrentSession(session);
         setIsTracking(session.endTime === null);
       }
@@ -485,7 +500,7 @@ export function SleepProvider({ children }: { children: ReactNode }) {
       const recordingSession = await sleepRecorderService.stopRecording();
 
       // Stop accelerometer tracking and get data
-      const movementData = sleepTrackingService.stopTracking();
+      const movementData = await sleepTrackingService.stopTracking();
       const stages = sleepTrackingService.calculateSleepStages(movementData);
 
       // Validate end time is after start time

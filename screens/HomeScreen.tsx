@@ -303,6 +303,24 @@ export default function HomeScreen() {
     );
   }
 
+  if (isLoading && !refreshing) {
+    return (
+      <View style={[themedStyles.container, { paddingTop: insets.top }]}>
+        <StatusBar barStyle="light-content" />
+        <View style={{ paddingHorizontal: 25, marginTop: 20 }}>
+          <SkeletonCard />
+          <View style={{ height: 20 }} />
+          <View style={{ flexDirection: 'row', gap: 15 }}>
+            <SkeletonStatCard />
+            <SkeletonStatCard />
+          </View>
+          <View style={{ height: 30 }} />
+          <SkeletonCard />
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={themedStyles.container}>
       <LinearGradient colors={bgColors} style={StyleSheet.absoluteFillObject} />

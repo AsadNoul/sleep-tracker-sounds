@@ -1,5 +1,6 @@
 import { Accelerometer } from 'expo-sensors';
 import { Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export type SleepStage = 'awake' | 'light' | 'deep' | 'rem';
 
@@ -14,17 +15,21 @@ export interface SleepStageSegment {
   stage: SleepStage;
 }
 
+const STORAGE_KEY_RECOVERY = '@sleep_tracking_recovery_data';
+
 class SleepTrackingService {
   private static instance: SleepTrackingService;
   private subscription: any = null;
   private movementData: MovementData[] = [];
+  private aggregatedData: MovementData[] = [];
   private lastX = 0;
   private lastY = 0;
   private lastZ = 0;
   private isTracking = false;
   private updateInterval = 1000; // 1 second
+  private flushInterval: NodeJS.Timeout | null = null;
 
-  private constructor() {}
+  private constructor() { }
 
   static getInstance(): SleepTrackingService {
     if (!SleepTrackingService.instance) {
@@ -43,13 +48,24 @@ class SleepTrackingService {
     }
 
     this.movementData = [];
+    this.aggregatedData = [];
     this.isTracking = true;
     Accelerometer.setUpdateInterval(this.updateInterval);
 
+    // Try to load recovery data if it exists (in case of crash)
+    const recovery = await AsyncStorage.getItem(STORAGE_KEY_RECOVERY);
+    if (recovery) {
+      try {
+        this.aggregatedData = JSON.parse(recovery);
+        console.log(`✅ Recovered ${this.aggregatedData.length} minutes of tracking data`);
+      } catch (e) {
+        console.error('Failed to parse recovery data', e);
+      }
+    }
+
     this.subscription = Accelerometer.addListener(data => {
       const { x, y, z } = data;
-      
-      // Calculate movement intensity (delta from last position)
+
       const delta = Math.sqrt(
         Math.pow(x - this.lastX, 2) +
         Math.pow(y - this.lastY, 2) +
@@ -60,29 +76,72 @@ class SleepTrackingService {
       this.lastY = y;
       this.lastZ = z;
 
-      // Only record significant movements or every minute to save memory
-      // For MVP, we'll record intensity every second and aggregate later
       this.movementData.push({
         timestamp: Date.now(),
         intensity: delta
       });
+
+      // Every 60 seconds, aggregate raw data into 1 summary point to save memory
+      if (this.movementData.length >= 60) {
+        this.aggregateLastMinute();
+      }
     });
+
+    // Periodically save aggregated data to storage for crash recovery
+    this.flushInterval = setInterval(() => {
+      this.saveRecoveryData();
+    }, 5 * 60 * 1000); // Every 5 minutes
   }
 
-  stopTracking(): MovementData[] {
+  private aggregateLastMinute() {
+    if (this.movementData.length === 0) return;
+
+    const avgIntensity = this.movementData.reduce((acc, d) => acc + d.intensity, 0) / this.movementData.length;
+    const midTimestamp = this.movementData[Math.floor(this.movementData.length / 2)].timestamp;
+
+    this.aggregatedData.push({
+      timestamp: midTimestamp,
+      intensity: avgIntensity
+    });
+
+    this.movementData = []; // Clear raw buffer
+  }
+
+  private async saveRecoveryData() {
+    if (this.aggregatedData.length > 0) {
+      await AsyncStorage.setItem(STORAGE_KEY_RECOVERY, JSON.stringify(this.aggregatedData));
+    }
+  }
+
+  async stopTracking(): Promise<MovementData[]> {
+    if (this.flushInterval) {
+      clearInterval(this.flushInterval);
+      this.flushInterval = null;
+    }
+
     if (this.subscription) {
       this.subscription.remove();
       this.subscription = null;
     }
+
+    this.aggregateLastMinute(); // Final aggregation
     this.isTracking = false;
-    return this.movementData;
+
+    const finalData = [...this.aggregatedData];
+
+    // Clear recovery data on clean stop
+    await AsyncStorage.removeItem(STORAGE_KEY_RECOVERY);
+    this.aggregatedData = [];
+
+    return finalData;
   }
 
   getCurrentStage(): SleepStage {
-    if (this.movementData.length < 60) return 'awake'; // Not enough data yet
+    const data = this.aggregatedData.length > 0 ? this.aggregatedData : this.movementData;
+    if (data.length < 5) return 'awake';
 
-    const last5Minutes = this.movementData.slice(-300); // Last 5 mins (at 1s interval)
-    const avgIntensity = last5Minutes.reduce((acc, d) => acc + d.intensity, 0) / last5Minutes.length;
+    const lastRange = data.slice(-10);
+    const avgIntensity = lastRange.reduce((acc, d) => acc + d.intensity, 0) / (lastRange.length || 1);
 
     if (avgIntensity > 0.15) return 'awake';
     if (avgIntensity > 0.05) return 'light';
@@ -90,10 +149,6 @@ class SleepTrackingService {
     return 'deep';
   }
 
-  /**
-   * Basic Sleep Stage Classification Algorithm
-   * Based on movement intensity over time windows
-   */
   calculateSleepStages(data: MovementData[]): SleepStageSegment[] {
     if (data.length === 0) return [];
 
@@ -107,8 +162,7 @@ class SleepTrackingService {
       const avgIntensity = windowData.reduce((acc, d) => acc + d.intensity, 0) / (windowData.length || 1);
 
       let stage: SleepStage = 'light';
-      
-      // Simple threshold-based classification
+
       if (avgIntensity > 0.15) {
         stage = 'awake';
       } else if (avgIntensity > 0.05) {
@@ -130,12 +184,11 @@ class SleepTrackingService {
   }
 
   getActivityLevel(): number {
-    if (this.movementData.length === 0) return 0;
-    // Return average intensity of last 2 minutes
-    const now = Date.now();
-    const recentData = this.movementData.filter(d => d.timestamp > now - 120000);
-    if (recentData.length === 0) return 0;
-    return recentData.reduce((acc, d) => acc + d.intensity, 0) / recentData.length;
+    const data = this.movementData.length > 0 ? this.movementData : this.aggregatedData;
+    if (data.length === 0) return 0;
+
+    const recentData = data.slice(-60);
+    return recentData.reduce((acc, d) => acc + d.intensity, 0) / (recentData.length || 1);
   }
 }
 
