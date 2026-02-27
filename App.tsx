@@ -232,6 +232,7 @@ function AppNavigator() {
             <Stack.Screen name="RoomEnvironment" component={RoomEnvironmentScreen} />
             <Stack.Screen name="SleepAnalysis" component={SafeSleepAnalysisScreen} />
             <Stack.Screen name="FeatureRequest" component={FeatureRequestScreen} />
+            <Stack.Screen name="Alarms" component={AlarmsScreen} />
             <Stack.Screen name="SleepStages" component={SleepStagesScreen} />
             <Stack.Screen name="SnoreDetection" component={SnoreDetectionScreen} />
             <Stack.Screen name="HealthTracking" component={HealthTrackingScreen} />

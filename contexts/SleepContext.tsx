@@ -45,6 +45,7 @@ export interface SleepSession {
   deepSleepQuality?: number;     // 0-100 score - calculated from sleep stages
   snoringIntensity?: string;     // 'None' | 'Low' | 'Moderate' | 'High'
   disruptionScore?: string;      // 'Low' | 'Moderate' | 'High'
+  isNap?: boolean;
 }
 
 interface SleepContextType {
@@ -54,7 +55,7 @@ interface SleepContextType {
   isLoading: boolean;
   syncStatus: 'idle' | 'syncing' | 'success' | 'error';
   syncError: string | null;
-  startSleepSession: (sleepSoundsEnabled: boolean, smartAlarmEnabled: boolean, sleepRecorderEnabled: boolean, targetAlarmTime?: Date) => Promise<void>;
+  startSleepSession: (sleepSoundsEnabled: boolean, smartAlarmEnabled: boolean, sleepRecorderEnabled: boolean, targetAlarmTime?: Date, tags?: string[], isNap?: boolean) => Promise<void>;
   endSleepSession: (wakeUps: number, notes?: string, userRating?: number) => Promise<void>;
   getSleepStats: () => {
     averageQuality: number;
@@ -390,6 +391,7 @@ export function SleepProvider({ children }: { children: ReactNode }) {
             deepSleepQuality: record.deep_sleep_quality,
             snoringIntensity: record.snoring_intensity,
             disruptionScore: record.disruption_score,
+            isNap: record.is_nap,
           }));
 
           setSleepHistory(history);
@@ -432,7 +434,7 @@ export function SleepProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const startSleepSession = async (sleepSoundsEnabled: boolean, smartAlarmEnabled: boolean, sleepRecorderEnabled: boolean, targetAlarmTime?: Date) => {
+  const startSleepSession = async (sleepSoundsEnabled: boolean, smartAlarmEnabled: boolean, sleepRecorderEnabled: boolean, targetAlarmTime?: Date, tags: string[] = [], isNap: boolean = false) => {
     try {
       // Use a consistent UUID for the session to link recordings correctly
       const sessionId = `session_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
@@ -445,6 +447,8 @@ export function SleepProvider({ children }: { children: ReactNode }) {
         wakeUps: 0,
         sleepSoundsEnabled,
         smartAlarmEnabled,
+        tags,
+        isNap,
       };
 
       if (smartAlarmEnabled && targetAlarmTime) {
@@ -472,9 +476,17 @@ export function SleepProvider({ children }: { children: ReactNode }) {
 
       // Auto-stop sleep session after 12 hours (43200000 ms)
       autoStopTimeout.current = setTimeout(async () => {
-        const session = await AsyncStorage.getItem('@current_sleep_session');
-        if (session) {
+        const storedSession = await AsyncStorage.getItem('@current_sleep_session');
+        if (storedSession) {
           console.log('⏰ Auto-stopping sleep session after 12 hours');
+          // Warn the user before auto-stopping
+          try {
+            await notificationService.sendImmediateNotification(
+              '⏰ Sleep Session Auto-Ended',
+              'Your sleep session ran for 12 hours and was automatically saved. Open the app to review your data.',
+              { type: 'auto_stop' }
+            );
+          } catch (_) { }
           await endSleepSession(0, 'Auto-stopped after 12 hours');
         }
       }, 12 * 60 * 60 * 1000);
@@ -553,13 +565,12 @@ export function SleepProvider({ children }: { children: ReactNode }) {
         console.log('🤖 AI Insights generated:', insights.length);
       }
 
-      // Add to local history (optimistic, only for guest users without Supabase)
-      // For authenticated users, loadSleepHistory will fetch the canonical data
-      if (!user || user.id === 'guest') {
-        const updatedHistory = [completedSession, ...sleepHistory];
-        setSleepHistory(updatedHistory);
-        await AsyncStorage.setItem('@sleep_history', JSON.stringify(updatedHistory));
-      }
+      // Add to local history (optimistic update for both guest and authenticated users)
+      // For authenticated users, loadSleepHistory will fetch the canonical data shortly after
+      const updatedHistory = [completedSession, ...sleepHistory];
+      setSleepHistory(updatedHistory);
+      // Always persist locally — guests rely on this exclusively
+      await AsyncStorage.setItem('@sleep_history', JSON.stringify(updatedHistory));
 
       // Clear current session
       setCurrentSession(null);
@@ -576,20 +587,26 @@ export function SleepProvider({ children }: { children: ReactNode }) {
       // Track sleep session completion
       await analyticsService.trackSleepSessionComplete(durationMinutes, quality, scoreResult.score);
 
-      // Send immediate sleep summary notification
-      await sendImmediateSleepSummary(completedSession);
+      // Schedule morning notification (skip for naps — no 'Good Morning' for a 20-min power nap)
+      if (!completedSession.isNap) {
+        await scheduleMorningNotification(completedSession);
+      } else {
+        // For naps: send a short immediate summary instead
+        const napMins = durationMinutes;
+        await notificationService.sendImmediateNotification(
+          '⚡ Nap Complete!',
+          `Your ${napMins}-minute power nap scored ${scoreResult.score}/100. Ready to take on the day!`,
+          { type: 'nap_complete', score: scoreResult.score }
+        );
+      }
 
-      // Schedule morning notification for 5 min after wake
-      await scheduleMorningNotification(completedSession);
-
-      // Send sleep session complete notification with app icon
-      const hours = Math.floor(durationMinutes / 60);
-      const mins = durationMinutes % 60;
-      await notificationService.sendImmediateNotification(
-        '😴 Sleep Session Complete!',
-        `You slept for ${hours}h ${mins}m with a sleep score of ${scoreResult.score}/100. Great job!`,
-        { type: 'session_complete', score: scoreResult.score }
-      );
+      // Schedule weekly summary every 7th session
+      const { scheduleWeeklySummary } = await import('../services/morningNotificationService');
+      const updatedHistoryForWeekly = [completedSession, ...sleepHistory];
+      if (updatedHistoryForWeekly.length % 7 === 0) {
+        const lastSevenSessions = updatedHistoryForWeekly.slice(0, 7);
+        await scheduleWeeklySummary(lastSevenSessions).catch(() => { });
+      }
     } catch (error) {
       console.error('Error ending sleep session:', error);
       throw error;
@@ -646,6 +663,7 @@ export function SleepProvider({ children }: { children: ReactNode }) {
           deep_sleep_quality: session.deepSleepQuality || null,
           snoring_intensity: session.snoringIntensity || null,
           disruption_score: session.disruptionScore || null,
+          is_nap: session.isNap || false,
         };
 
         if (isOnline) {
@@ -707,6 +725,7 @@ export function SleepProvider({ children }: { children: ReactNode }) {
         averageQuality: 0,
         averageDuration: 0,
         totalSessions: 0,
+        napCount: 0,
         lastNightQuality: 0,
         lastNightDuration: 0,
         lastNightWakeUps: 0,
@@ -715,15 +734,21 @@ export function SleepProvider({ children }: { children: ReactNode }) {
       };
     }
 
-    const totalQuality = sleepHistory.reduce((sum, session) => sum + session.quality, 0);
-    const totalDuration = sleepHistory.reduce((sum, session) => sum + session.duration, 0);
-    const lastSession = sleepHistory[0];
+    const baselineHistory = sleepHistory.filter(s => !s.isNap);
+    const naps = sleepHistory.filter(s => s.isNap);
+
+    const totalQuality = baselineHistory.reduce((sum, session) => sum + session.quality, 0);
+    const totalDuration = baselineHistory.reduce((sum, session) => sum + session.duration, 0);
+    const lastSession = sleepHistory[0]; // Keep the very last session (could be a nap) as the 'last night' record
     const previousSession = sleepHistory[1];
 
+    const baselineCount = baselineHistory.length || 1; // avoid divide by zero
+
     return {
-      averageQuality: Math.round((totalQuality / sleepHistory.length) * 10) / 10,
-      averageDuration: Math.round(totalDuration / sleepHistory.length),
-      totalSessions: sleepHistory.length,
+      averageQuality: Math.round((totalQuality / baselineCount) * 10) / 10,
+      averageDuration: Math.round(totalDuration / baselineCount),
+      totalSessions: baselineHistory.length,
+      napCount: naps.length,
       lastNightQuality: lastSession.quality,
       lastNightDuration: lastSession.duration,
       lastNightWakeUps: lastSession.wakeUps,

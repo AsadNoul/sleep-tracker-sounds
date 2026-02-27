@@ -61,8 +61,7 @@ import {
   Droplets,
   Layout,
   RefreshCw,
-  Battery,
-  Sparkles
+  Battery
 } from 'lucide-react-native';
 import { useSleep } from '../contexts/SleepContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -73,12 +72,9 @@ import { SkeletonCard, SkeletonList } from '../components/SkeletonLoader';
 import CircularProgress from '../components/CircularProgress';
 import FluidBackground from '../components/FluidBackground';
 import { formatDuration, format12HourTime } from '../utils/dateFormatting';
-import { isPremiumActive } from '../utils/subscriptionHelpers';
-import sleepRecorderService from '../services/sleepRecorderService';
 import Svg, { Path, Circle, Rect, Line, Text as SvgText, G, Defs, LinearGradient as SvgLinearGradient, Stop, Polyline } from 'react-native-svg';
 import { Audio } from 'expo-av';
 import * as FileSystem from 'expo-file-system/legacy';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import SleepAnalysisScreen from './SleepAnalysisScreen';
 
 export default function JournalScreen() {
@@ -105,13 +101,10 @@ export default function JournalScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [journalEntries, setJournalEntries] = useState<Array<{ id: string, entry_text: string, entry_date: string, created_at: string, mood?: string, tags?: string[] }>>([]);
   const [disruptions, setDisruptions] = useState<Array<{ id: string, event_type: string, timestamp: string, loudness_db: number, audio_file_url?: string, audio_offset_ms?: number, duration_seconds?: number }>>([]);
-  const [localRecordings, setLocalRecordings] = useState<Array<{ id: string, event_type: string, timestamp: string, loudness_db: number, audio_file_url?: string, audio_offset_ms?: number, duration_seconds?: number }>>([]);
   const [playingAudioId, setPlayingAudioId] = useState<string | null>(null);
   const [currentSound, setCurrentSound] = useState<Audio.Sound | null>(null);
   const [showAllEntries, setShowAllEntries] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
-
-  const isPremium = useMemo(() => isPremiumActive(user?.subscription_status, user?.subscription_end_date, user?.role, user?.email), [user]);
 
   const stats = getSleepStats();
 
@@ -254,103 +247,6 @@ export default function JournalScreen() {
     };
   }, [selectedDaySession]);
 
-  // Score Breakdown: weighted components
-  const scoreBreakdown = useMemo(() => {
-    if (!selectedDaySession) return null;
-    const duration = selectedDaySession.duration || 0;
-    const idealDuration = 480; // 8 hours
-    const durationScore = Math.min(100, Math.round((duration / idealDuration) * 100));
-
-    const stages = selectedDaySession.sleepStages || [];
-    const deepMins = stages.filter((s: any) => s.stage === 'deep').reduce((sum: number, s: any) => sum + (new Date(s.endTime).getTime() - new Date(s.startTime).getTime()) / 60000, 0);
-    const remMins = stages.filter((s: any) => s.stage === 'rem').reduce((sum: number, s: any) => sum + (new Date(s.endTime).getTime() - new Date(s.startTime).getTime()) / 60000, 0);
-    const qualityScore = Math.min(100, Math.round(((deepMins + remMins) / Math.max(duration, 1)) * 250));
-
-    // Consistency from recent history
-    const recentBedtimes = sleepHistory.slice(0, 7).map(s => {
-      const d = new Date(s.startTime);
-      return d.getHours() * 60 + d.getMinutes();
-    });
-    const avgBedtime = recentBedtimes.length > 0 ? recentBedtimes.reduce((a: number, b: number) => a + b, 0) / recentBedtimes.length : 0;
-    const variance = recentBedtimes.length > 1 ? recentBedtimes.reduce((sum: number, t: number) => sum + Math.abs(t - avgBedtime), 0) / recentBedtimes.length : 0;
-    const consistencyScore = Math.max(0, Math.min(100, 100 - Math.round(variance / 1.2)));
-
-    const wakeUps = selectedDaySession.wakeUps || 0;
-    const disruptionScore = Math.max(0, 100 - wakeUps * 20);
-
-    return {
-      duration: { label: 'Duration', score: durationScore, weight: 40, color: '#8B5CF6' },
-      quality: { label: 'Quality', score: qualityScore, weight: 30, color: '#10B981' },
-      consistency: { label: 'Consistency', score: consistencyScore, weight: 20, color: '#F59E0B' },
-      disruptions: { label: 'Disruptions', score: disruptionScore, weight: 10, color: '#EC4899' },
-    };
-  }, [selectedDaySession, sleepHistory]);
-
-  // Trends comparison vs last week
-  const trendsComparison = useMemo(() => {
-    if (sleepHistory.length < 2) return null;
-    const thisWeek = sleepHistory.slice(0, 7);
-    const lastWeek = sleepHistory.slice(7, 14);
-    if (lastWeek.length === 0) return null;
-
-    const thisAvgDuration = thisWeek.reduce((sum, s) => sum + (s.duration || 0), 0) / thisWeek.length;
-    const lastAvgDuration = lastWeek.reduce((sum, s) => sum + (s.duration || 0), 0) / lastWeek.length;
-    const durationDiff = Math.round(thisAvgDuration - lastAvgDuration);
-
-    const thisAvgScore = thisWeek.reduce((sum, s) => sum + (s.sleepScore || 0), 0) / thisWeek.length;
-    const lastAvgScore = lastWeek.reduce((sum, s) => sum + (s.sleepScore || 0), 0) / lastWeek.length;
-    const scoreDiff = Math.round(thisAvgScore - lastAvgScore);
-
-    return { durationDiff, scoreDiff };
-  }, [sleepHistory]);
-
-  // Smart recommendations based on tags and session
-  const smartTip = useMemo(() => {
-    const tips: string[] = [];
-    if (selectedTags.includes('Caffeine')) tips.push('\u2615 You tagged caffeine. Try cutting it 6+ hours before bed for better deep sleep.');
-    if (selectedTags.includes('Stressful')) tips.push('\ud83e\uddd8 Stress detected. A 5-min breathing exercise before bed can lower cortisol by 23%.');
-    if (selectedDaySession && (selectedDaySession.wakeUps || 0) >= 3) tips.push('\ud83d\udca1 You had multiple wake-ups. Try keeping your room at 65-68\u00b0F for fewer disruptions.');
-    if (selectedDaySession && (selectedDaySession.duration || 0) < 360) tips.push('\u23f0 Short sleep detected. Aim for 7-8 hours \u2014 even 30 mins more can boost your score by 10+ points.');
-    if (selectedMood === '\ud83d\ude14') tips.push('\ud83c\udf19 Feeling down? Research shows consistent sleep timing improves mood by 30% over 2 weeks.');
-    if (tips.length === 0 && selectedDaySession) tips.push('\u2728 Your sleep looks on track! Keep up the good habits.');
-    return tips[0] || null;
-  }, [selectedTags, selectedDaySession, selectedMood]);
-
-  // Weekly summary data
-  const weeklySummary = useMemo(() => {
-    const weekEntries = journalEntries.filter(e => {
-      const entryDate = new Date(e.entry_date);
-      const weekAgo = new Date();
-      weekAgo.setDate(weekAgo.getDate() - 7);
-      return entryDate >= weekAgo;
-    });
-    const allTags = weekEntries.flatMap(e => e.tags || []);
-    const tagCounts: Record<string, number> = {};
-    allTags.forEach(tag => { tagCounts[tag] = (tagCounts[tag] || 0) + 1; });
-    const topTags = Object.entries(tagCounts).sort((a, b) => b[1] - a[1]).slice(0, 3);
-
-    const moodCounts: Record<string, number> = {};
-    weekEntries.forEach(e => { if (e.mood) moodCounts[e.mood] = (moodCounts[e.mood] || 0) + 1; });
-    const topMood = Object.entries(moodCounts).sort((a, b) => b[1] - a[1])[0];
-
-    const weekSessions = sleepHistory.slice(0, 7);
-    const avgScore = weekSessions.length > 0 ? Math.round(weekSessions.reduce((s, sess) => s + (sess.sleepScore || 0), 0) / weekSessions.length) : 0;
-
-    return { entriesCount: weekEntries.length, topTags, topMood, avgScore, sessionsCount: weekSessions.length };
-  }, [journalEntries, sleepHistory]);
-
-  // Sleep environment score
-  const environmentScore = useMemo(() => {
-    if (!selectedDaySession) return null;
-    const noiseLevel = selectedDaySession.ambientNoise || 0;
-    const wakeUps = selectedDaySession.wakeUps || 0;
-    const movements = selectedDaySession.movementEvents || 0;
-    const noiseScore = Math.max(0, 100 - ((noiseLevel - 20) * 2));
-    const disruptionPenalty = (wakeUps * 10) + (movements * 2);
-    const envScore = Math.max(0, Math.min(100, Math.round((noiseScore + Math.max(0, 100 - disruptionPenalty)) / 2)));
-    return { score: envScore, noise: noiseLevel, wakeUps, movements };
-  }, [selectedDaySession]);
-
   const architectureData = useMemo(() => {
     if (!selectedDaySession || !selectedDaySession.sleepStages || selectedDaySession.sleepStages.length === 0) {
       return [
@@ -434,7 +330,7 @@ export default function JournalScreen() {
             filter: `user_id=eq.${user.id}`,
           },
           () => {
-            loadLocalRecordings(selectedDaySession?.id);
+            loadDisruptions(selectedDaySession?.id);
           }
         )
         .subscribe();
@@ -465,52 +361,11 @@ export default function JournalScreen() {
     }
   };
 
-  // Load recordings from LOCAL AsyncStorage (where sleepRecorderService saves them)
-  const loadLocalRecordings = async (sessionId?: string) => {
-    if (!sessionId) {
-      setLocalRecordings([]);
+  const loadDisruptions = async (sessionId?: string) => {
+    if (!user || user.id === 'guest' || !sessionId) {
       setDisruptions([]);
       return;
     }
-
-    try {
-      const storageKey = `@recording_events_${sessionId}`;
-      const dataStr = await AsyncStorage.getItem(storageKey);
-
-      if (dataStr) {
-        const data = JSON.parse(dataStr);
-        console.log(`\u2705 Loaded ${data.length} local recordings for session ${sessionId}`);
-
-        const formatted = data.map((record: any, index: number) => ({
-          id: record.id || `local_${sessionId}_${index}`,
-          event_type: record.event_type,
-          timestamp: record.timestamp,
-          loudness_db: record.loudness_db || 0,
-          audio_file_url: record.audio_file_url || null,
-          audio_offset_ms: record.audio_offset_ms || 0,
-          duration_seconds: record.duration_seconds || 0,
-        }));
-
-        setLocalRecordings(formatted);
-        // Also set disruptions (snoring, sleep_talk, noise, dreaming)
-        setDisruptions(formatted.filter((r: any) =>
-          ['snoring', 'sleep_talk', 'noise', 'dreaming'].includes(r.event_type)
-        ));
-      } else {
-        setLocalRecordings([]);
-        setDisruptions([]);
-        console.log('\ud83d\udcdd No local recordings for session:', sessionId);
-      }
-    } catch (error) {
-      console.error('Error loading local recordings:', error);
-      setLocalRecordings([]);
-      setDisruptions([]);
-    }
-  };
-
-  // Also try Supabase for cloud recordings
-  const loadCloudDisruptions = async (sessionId?: string) => {
-    if (!user || user.id === 'guest' || !sessionId) return;
 
     try {
       const { data, error } = await supabase
@@ -518,36 +373,24 @@ export default function JournalScreen() {
         .select('id, event_type, timestamp, loudness_db, audio_file_url, audio_offset_ms, duration_seconds')
         .eq('user_id', user.id)
         .eq('session_id', sessionId)
+        .in('event_type', ['snoring', 'sleep_talk', 'noise', 'dreaming'])
         .order('timestamp', { ascending: true });
 
-      if (!error && data && data.length > 0) {
-        console.log(`\u2601\ufe0f Loaded ${data.length} cloud recordings for session ${sessionId}`);
-        // Add to localRecordings if they don't exist locally
-        setLocalRecordings(prev => {
-          if (prev.length === 0) return data;
-          const existingIds = new Set(prev.map(d => d.timestamp));
-          const newOnes = data.filter(d => !existingIds.has(d.timestamp));
-          return [...prev, ...newOnes];
-        });
-        // Also add disruption types to disruptions
-        const disruptionTypes = ['snoring', 'sleep_talk', 'noise', 'dreaming'];
-        setDisruptions(prev => {
-          const existingTimestamps = new Set(prev.map(d => d.timestamp));
-          const newOnes = data.filter(d => !existingTimestamps.has(d.timestamp) && disruptionTypes.includes(d.event_type));
-          return [...prev, ...newOnes];
-        });
+      if (!error && data) {
+        // Ensure response matches current session
+        if (selectedDaySession?.id === sessionId) {
+          setDisruptions(data);
+        }
       }
     } catch (error) {
-      console.error('Error loading cloud disruptions:', error);
+      console.error('Error loading disruptions:', error);
     }
   };
 
   useEffect(() => {
     setDisruptions([]);
-    setLocalRecordings([]);
     if (selectedDaySession?.id) {
-      loadLocalRecordings(selectedDaySession.id);
-      loadCloudDisruptions(selectedDaySession.id);
+      loadDisruptions(selectedDaySession.id);
     }
   }, [selectedDaySession?.id]);
 
@@ -601,19 +444,18 @@ export default function JournalScreen() {
   // Audio playback functions
   const playAudio = async (disruption: typeof disruptions[0]) => {
     try {
-
       // If already playing this audio, pause it
-      if (playingAudioId === disruption.id && sound) {
-        await sound.pauseAsync();
+      if (playingAudioId === disruption.id && currentSound) {
+        await currentSound.pauseAsync();
         setPlayingAudioId(null);
         return;
       }
 
       // Stop any currently playing audio
-      if (sound) {
+      if (currentSound) {
         await currentSound.stopAsync();
         await currentSound.unloadAsync();
-        setSound(null);
+        setCurrentSound(null);
       }
 
       // Check if audio file URL exists
@@ -676,7 +518,7 @@ export default function JournalScreen() {
         }
       );
 
-      setSound(sound);
+      setCurrentSound(sound);
       setPlayingAudioId(disruption.id);
 
       // Auto-stop after event duration
@@ -720,7 +562,7 @@ export default function JournalScreen() {
   useEffect(() => {
     return () => {
       if (currentSound) {
-        currentSound.stopAsync().catch(() => { }).then(() => currentSound.unloadAsync().catch(() => { }));
+        currentSound.stopAsync().catch(() => {}).then(() => currentSound.unloadAsync().catch(() => {}));
       }
     };
   }, [currentSound]);
@@ -776,12 +618,7 @@ export default function JournalScreen() {
               setActiveTab('entries');
             }}
           >
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-              <Text style={[styles(theme).tabText, activeTab === 'entries' && styles(theme).activeTabText]}>Journal</Text>
-              {(localRecordings.length > 0 || disruptions.length > 0) && (
-                <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#10B981' }} />
-              )}
-            </View>
+            <Text style={[styles(theme).tabText, activeTab === 'entries' && styles(theme).activeTabText]}>Entries</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles(theme).tabButton, activeTab === 'stats' && styles(theme).activeTabButton]}
@@ -790,7 +627,7 @@ export default function JournalScreen() {
               setActiveTab('stats');
             }}
           >
-            <Text style={[styles(theme).tabText, activeTab === 'stats' && styles(theme).activeTabText]}>Analysis</Text>
+            <Text style={[styles(theme).tabText, activeTab === 'stats' && styles(theme).activeTabText]}>Sleep Stages</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -807,7 +644,7 @@ export default function JournalScreen() {
                 setRefreshing(true);
                 await loadSleepHistory();
                 await loadJournalEntries();
-                if (selectedDaySession?.id) await loadLocalRecordings(selectedDaySession.id);
+                if (selectedDaySession?.id) await loadDisruptions(selectedDaySession.id);
                 setRefreshing(false);
               }}
               tintColor="#8B5CF6"
@@ -953,152 +790,7 @@ export default function JournalScreen() {
             </BlurView>
           </View>
 
-          {/* Score Breakdown */}
-          {scoreBreakdown && selectedDaySession && (
-            <BlurView intensity={20} tint="dark" style={styles(theme).disruptionsCard}>
-              <View style={styles(theme).sectionHeader}>
-                <Zap size={20} color="#F59E0B" />
-                <Text style={styles(theme).sectionTitle}>Score Breakdown</Text>
-              </View>
-              {Object.values(scoreBreakdown).map((item, idx) => (
-                <View key={idx} style={{ marginBottom: 12 }}>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
-                    <Text style={{ color: '#CBD5E1', fontSize: 13, fontWeight: '500' }}>{item.label} ({item.weight}%)</Text>
-                    <Text style={{ color: item.color, fontSize: 13, fontWeight: '700' }}>{item.score}/100</Text>
-                  </View>
-                  <View style={{ height: 6, backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 3 }}>
-                    <View style={{ height: 6, width: `${item.score}%`, backgroundColor: item.color, borderRadius: 3 }} />
-                  </View>
-                </View>
-              ))}
-            </BlurView>
-          )}
-
-          {/* Trends Comparison */}
-          {trendsComparison && (
-            <BlurView intensity={20} tint="dark" style={styles(theme).disruptionsCard}>
-              <View style={styles(theme).sectionHeader}>
-                <TrendingUp size={20} color="#10B981" />
-                <Text style={styles(theme).sectionTitle}>vs Last Week</Text>
-              </View>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-around', paddingVertical: 8 }}>
-                <View style={{ alignItems: 'center' }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                    {trendsComparison.durationDiff >= 0 ? (
-                      <TrendingUp size={16} color="#10B981" />
-                    ) : (
-                      <TrendingDown size={16} color="#EF4444" />
-                    )}
-                    <Text style={{ color: trendsComparison.durationDiff >= 0 ? '#10B981' : '#EF4444', fontSize: 18, fontWeight: '700' }}>
-                      {trendsComparison.durationDiff > 0 ? '+' : ''}{trendsComparison.durationDiff}m
-                    </Text>
-                  </View>
-                  <Text style={{ color: '#94A3B8', fontSize: 11, marginTop: 4 }}>Avg Duration</Text>
-                </View>
-                <View style={{ width: 1, backgroundColor: 'rgba(255,255,255,0.08)' }} />
-                <View style={{ alignItems: 'center' }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                    {trendsComparison.scoreDiff >= 0 ? (
-                      <TrendingUp size={16} color="#10B981" />
-                    ) : (
-                      <TrendingDown size={16} color="#EF4444" />
-                    )}
-                    <Text style={{ color: trendsComparison.scoreDiff >= 0 ? '#10B981' : '#EF4444', fontSize: 18, fontWeight: '700' }}>
-                      {trendsComparison.scoreDiff > 0 ? '+' : ''}{trendsComparison.scoreDiff}
-                    </Text>
-                  </View>
-                  <Text style={{ color: '#94A3B8', fontSize: 11, marginTop: 4 }}>Avg Score</Text>
-                </View>
-              </View>
-            </BlurView>
-          )}
-
-          {/* Environment Score */}
-          {environmentScore && selectedDaySession && (
-            <BlurView intensity={20} tint="dark" style={styles(theme).disruptionsCard}>
-              <View style={styles(theme).sectionHeader}>
-                <Thermometer size={20} color="#6366F1" />
-                <Text style={styles(theme).sectionTitle}>Sleep Environment</Text>
-              </View>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-around', paddingVertical: 8 }}>
-                <View style={{ alignItems: 'center' }}>
-                  <Text style={{ color: environmentScore.score >= 70 ? '#10B981' : environmentScore.score >= 40 ? '#F59E0B' : '#EF4444', fontSize: 28, fontWeight: '800' }}>{environmentScore.score}</Text>
-                  <Text style={{ color: '#94A3B8', fontSize: 11, marginTop: 2 }}>Environment Score</Text>
-                </View>
-                <View style={{ width: 1, backgroundColor: 'rgba(255,255,255,0.08)' }} />
-                <View style={{ alignItems: 'center' }}>
-                  <Text style={{ color: '#CBD5E1', fontSize: 16, fontWeight: '600' }}>{environmentScore.noise > 0 ? `${environmentScore.noise}dB` : '—'}</Text>
-                  <Text style={{ color: '#94A3B8', fontSize: 11, marginTop: 2 }}>Noise Level</Text>
-                </View>
-                <View style={{ width: 1, backgroundColor: 'rgba(255,255,255,0.08)' }} />
-                <View style={{ alignItems: 'center' }}>
-                  <Text style={{ color: '#CBD5E1', fontSize: 16, fontWeight: '600' }}>{environmentScore.wakeUps}</Text>
-                  <Text style={{ color: '#94A3B8', fontSize: 11, marginTop: 2 }}>Wake-ups</Text>
-                </View>
-              </View>
-            </BlurView>
-          )}
-
-
-
-          {/* Sleep Recordings — Local + Cloud */}
-          {localRecordings.length > 0 && (
-            <BlurView intensity={20} tint="dark" style={styles(theme).disruptionsCard}>
-              <View style={styles(theme).sectionHeader}>
-                <Mic size={20} color="#8B5CF6" />
-                <Text style={styles(theme).sectionTitle}>Sleep Recordings ({localRecordings.length})</Text>
-              </View>
-              <View style={styles(theme).disruptionsList}>
-                {localRecordings.map((recording) => {
-                  const timestamp = new Date(recording.timestamp);
-                  const time = timestamp.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-
-                  let icon = Volume2;
-                  let title = 'Sound detected';
-                  let color = '#F59E0B';
-
-                  if (recording.event_type === 'snoring') { title = 'Snoring'; color = '#F59E0B'; }
-                  else if (recording.event_type === 'sleep_talk') { title = 'Sleep Talking'; color = '#33C6FF'; }
-                  else if (recording.event_type === 'dreaming') { icon = Cloud; title = 'Dreaming (REM)'; color = '#BE4BDB'; }
-                  else if (recording.event_type === 'noise') { title = 'Noise'; color = '#FFD700'; }
-                  else if (recording.event_type === 'breathing') { icon = Wind; title = 'Breathing'; color = '#10B981'; }
-
-                  const hasDuration = recording.duration_seconds && recording.duration_seconds > 0;
-
-                  return (
-                    <View key={recording.id} style={styles(theme).disruptionItem}>
-                      <View style={[styles(theme).disruptionIcon, { backgroundColor: color + '20' }]}>
-                        {React.createElement(icon, { size: 18, color })}
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles(theme).disruptionTitle}>{title}</Text>
-                        <Text style={styles(theme).disruptionTime}>
-                          {time}{hasDuration ? ` \u2022 ${recording.duration_seconds}s` : ''}
-                        </Text>
-                      </View>
-                      {recording.loudness_db > 0 && (
-                        <Text style={[styles(theme).disruptionVolume, { color }]}>
-                          {Math.round(recording.loudness_db)}%
-                        </Text>
-                      )}
-                      <TouchableOpacity
-                        onPress={() => playAudio(recording)}
-                        style={styles(theme).playButton}
-                      >
-                        {playingAudioId === recording.id ? (
-                          <Pause size={20} color={color} />
-                        ) : (
-                          <Play size={20} color={color} />
-                        )}
-                      </TouchableOpacity>
-                    </View>
-                  );
-                })}
-              </View>
-            </BlurView>
-          )}
-
-          {/* Disruptions Summary */}
+          {/* Disruptions */}
           {disruptions.length > 0 && (
             <BlurView intensity={20} tint="dark" style={styles(theme).disruptionsCard}>
               <View style={styles(theme).sectionHeader}>
@@ -1106,7 +798,7 @@ export default function JournalScreen() {
                 <Text style={styles(theme).sectionTitle}>Disruptions ({disruptions.length})</Text>
               </View>
               <View style={styles(theme).disruptionsList}>
-                {disruptions.slice(0, 10).map((disruption) => {
+                {disruptions.map((disruption) => {
                   const timestamp = new Date(disruption.timestamp);
                   const time = timestamp.toLocaleTimeString('en-US', {
                     hour: 'numeric',
@@ -1118,10 +810,23 @@ export default function JournalScreen() {
                   let title = 'Noise detected';
                   let color = '#F59E0B';
 
-                  if (disruption.event_type === 'snoring') { title = 'Snoring detected'; color = '#F59E0B'; }
-                  else if (disruption.event_type === 'sleep_talk') { title = 'Sleep talking'; color = '#33C6FF'; }
-                  else if (disruption.event_type === 'dreaming') { icon = Cloud; title = 'Dreaming (REM)'; color = '#BE4BDB'; }
-                  else if (disruption.event_type === 'noise') { title = 'Noise detected'; color = '#FFD700'; }
+                  if (disruption.event_type === 'snoring') {
+                    icon = Volume2;
+                    title = 'Snoring detected';
+                    color = '#F59E0B';
+                  } else if (disruption.event_type === 'sleep_talk') {
+                    icon = Volume2;
+                    title = 'Sleep talking';
+                    color = '#33C6FF';
+                  } else if (disruption.event_type === 'dreaming') {
+                    icon = Cloud;
+                    title = 'Dreaming (REM)';
+                    color = '#BE4BDB';
+                  } else if (disruption.event_type === 'noise') {
+                    icon = Volume2;
+                    title = 'Noise detected';
+                    color = '#FFD700';
+                  }
 
                   return (
                     <View key={disruption.id} style={styles(theme).disruptionItem}>
@@ -1137,178 +842,22 @@ export default function JournalScreen() {
                           {Math.round(disruption.loudness_db)}%
                         </Text>
                       )}
-                      <TouchableOpacity
-                        onPress={() => playAudio(disruption)}
-                        style={styles(theme).playButton}
-                      >
-                        {playingAudioId === disruption.id ? (
-                          <Pause size={20} color={color} />
-                        ) : (
-                          <Play size={20} color={color} />
-                        )}
-                      </TouchableOpacity>
-                    </View>
-                  );
-                })}
-                {disruptions.length > 10 && (
-                  <Text style={{ color: '#94A3B8', fontSize: 12, textAlign: 'center', marginTop: 8 }}>
-                    +{disruptions.length - 10} more disruptions
-                  </Text>
-                )}
-              </View>
-            </BlurView>
-          )}
-
-          {/* ── SLEEP STAGES CHART ── */}
-          <BlurView intensity={20} tint="dark" style={[styles(theme).chartCard, { marginTop: 8 }]}>
-            <View style={styles(theme).sectionHeader}>
-              <Activity size={20} color="#8B5CF6" />
-              <Text style={styles(theme).sectionTitle}>Sleep Stages</Text>
-            </View>
-            {!selectedDaySession ? (
-              <View style={{ paddingVertical: 40, alignItems: 'center' }}>
-                <Activity size={40} color="#64748B" style={{ marginBottom: 12, opacity: 0.5 }} />
-                <Text style={styles(theme).noResultsText}>No stage data for this date</Text>
-              </View>
-            ) : (
-              <View>
-                <View style={[styles(theme).barChartContainer, { height: 140 }]}>
-                  <View style={styles(theme).yAxis}>
-                    <Text style={styles(theme).yAxisText}>Awake</Text>
-                    <Text style={styles(theme).yAxisText}>REM</Text>
-                    <Text style={styles(theme).yAxisText}>Light</Text>
-                    <Text style={styles(theme).yAxisText}>Deep</Text>
-                  </View>
-                  <View style={styles(theme).barsContainer}>
-                    {architectureData?.map((bar, i) => (
-                      <View key={i} style={[styles(theme).chartBar, { height: bar.h, backgroundColor: bar.c }]} />
-                    ))}
-                  </View>
-                </View>
-                <View style={styles(theme).chartLegend}>
-                  <View style={styles(theme).legendItem}><View style={[styles(theme).legendDot, { backgroundColor: '#EF4444' }]} /><Text style={styles(theme).legendText}>Awake</Text></View>
-                  <View style={styles(theme).legendItem}><View style={[styles(theme).legendDot, { backgroundColor: '#8B5CF6' }]} /><Text style={styles(theme).legendText}>REM</Text></View>
-                  <View style={styles(theme).legendItem}><View style={[styles(theme).legendDot, { backgroundColor: '#6366F1' }]} /><Text style={styles(theme).legendText}>Light</Text></View>
-                  <View style={styles(theme).legendItem}><View style={[styles(theme).legendDot, { backgroundColor: '#4F46E5' }]} /><Text style={styles(theme).legendText}>Deep</Text></View>
-                </View>
-              </View>
-            )}
-          </BlurView>
-
-          {/* ── SLEEP RECORDINGS ── */}
-          {localRecordings.length > 0 && (
-            <BlurView intensity={20} tint="dark" style={styles(theme).disruptionsCard}>
-              <View style={styles(theme).sectionHeader}>
-                <Mic size={20} color="#8B5CF6" />
-                <Text style={styles(theme).sectionTitle}>Sleep Recordings ({localRecordings.length})</Text>
-              </View>
-              <View style={styles(theme).disruptionsList}>
-                {localRecordings.slice(0, 10).map((recording) => {
-                  const timestamp = new Date(recording.timestamp);
-                  const time = timestamp.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-                  let icon = Volume2;
-                  let title = 'Sound detected';
-                  let color = '#F59E0B';
-                  if (recording.event_type === 'snoring') { title = 'Snoring'; color = '#F59E0B'; }
-                  else if (recording.event_type === 'sleep_talk') { title = 'Sleep Talking'; color = '#33C6FF'; }
-                  else if (recording.event_type === 'dreaming') { icon = Cloud; title = 'Dreaming (REM)'; color = '#BE4BDB'; }
-                  else if (recording.event_type === 'noise') { title = 'Noise'; color = '#FFD700'; }
-                  else if (recording.event_type === 'breathing') { icon = Wind; title = 'Breathing'; color = '#10B981'; }
-                  const hasDuration = recording.duration_seconds && recording.duration_seconds > 0;
-                  return (
-                    <View key={recording.id} style={styles(theme).disruptionItem}>
-                      <View style={[styles(theme).disruptionIcon, { backgroundColor: color + '20' }]}>
-                        {React.createElement(icon, { size: 18, color })}
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles(theme).disruptionTitle}>{title}</Text>
-                        <Text style={styles(theme).disruptionTime}>
-                          {time}{hasDuration ? ` • ${recording.duration_seconds}s` : ''}
-                        </Text>
-                      </View>
-                      {recording.loudness_db > 0 && (
-                        <Text style={[styles(theme).disruptionVolume, { color }]}>
-                          {Math.round(recording.loudness_db)}%
-                        </Text>
+                      {disruption.audio_file_url && (
+                        <TouchableOpacity
+                          onPress={() => playAudio(disruption)}
+                          style={styles(theme).playButton}
+                        >
+                          {playingAudioId === disruption.id ? (
+                            <Pause size={20} color={color} />
+                          ) : (
+                            <Play size={20} color={color} />
+                          )}
+                        </TouchableOpacity>
                       )}
-                      <TouchableOpacity onPress={() => playAudio(recording)} style={styles(theme).playButton}>
-                        {playingAudioId === recording.id ? (
-                          <Pause size={20} color={color} />
-                        ) : (
-                          <Play size={20} color={color} />
-                        )}
-                      </TouchableOpacity>
                     </View>
                   );
                 })}
-                {localRecordings.length > 10 && (
-                  <Text style={{ color: '#94A3B8', fontSize: 12, textAlign: 'center', marginTop: 8 }}>
-                    +{localRecordings.length - 10} more events
-                  </Text>
-                )}
               </View>
-            </BlurView>
-          )}
-
-          {/* ── DISRUPTIONS ── */}
-          {disruptions.length > 0 && (
-            <BlurView intensity={20} tint="dark" style={styles(theme).disruptionsCard}>
-              <View style={styles(theme).sectionHeader}>
-                <Bell size={20} color="#F59E0B" />
-                <Text style={styles(theme).sectionTitle}>Disruptions ({disruptions.length})</Text>
-              </View>
-              <View style={styles(theme).disruptionsList}>
-                {disruptions.slice(0, 10).map((disruption) => {
-                  const timestamp = new Date(disruption.timestamp);
-                  const time = timestamp.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-                  let icon = Volume2;
-                  let title = 'Noise detected';
-                  let color = '#F59E0B';
-                  if (disruption.event_type === 'snoring') { title = 'Snoring detected'; color = '#F59E0B'; }
-                  else if (disruption.event_type === 'sleep_talk') { title = 'Sleep talking'; color = '#33C6FF'; }
-                  else if (disruption.event_type === 'dreaming') { icon = Cloud; title = 'Dreaming (REM)'; color = '#BE4BDB'; }
-                  else if (disruption.event_type === 'noise') { title = 'Noise detected'; color = '#FFD700'; }
-                  return (
-                    <View key={disruption.id} style={styles(theme).disruptionItem}>
-                      <View style={[styles(theme).disruptionIcon, { backgroundColor: color + '20' }]}>
-                        {React.createElement(icon, { size: 18, color })}
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles(theme).disruptionTitle}>{title}</Text>
-                        <Text style={styles(theme).disruptionTime}>{time}</Text>
-                      </View>
-                      {disruption.loudness_db > 0 && (
-                        <Text style={[styles(theme).disruptionVolume, { color }]}>
-                          {Math.round(disruption.loudness_db)}%
-                        </Text>
-                      )}
-                      <TouchableOpacity onPress={() => playAudio(disruption)} style={styles(theme).playButton}>
-                        {playingAudioId === disruption.id ? (
-                          <Pause size={20} color={color} />
-                        ) : (
-                          <Play size={20} color={color} />
-                        )}
-                      </TouchableOpacity>
-                    </View>
-                  );
-                })}
-                {disruptions.length > 10 && (
-                  <Text style={{ color: '#94A3B8', fontSize: 12, textAlign: 'center', marginTop: 8 }}>
-                    +{disruptions.length - 10} more disruptions
-                  </Text>
-                )}
-              </View>
-            </BlurView>
-          )}
-
-          {/* Smart Recommendation */}
-          {smartTip && selectedDaySession && (
-            <BlurView intensity={20} tint="dark" style={[styles(theme).disruptionsCard, { borderColor: 'rgba(139, 92, 246, 0.2)', borderWidth: 1 }]}>
-              <View style={styles(theme).sectionHeader}>
-                <Sparkles size={20} color="#8B5CF6" />
-                <Text style={styles(theme).sectionTitle}>Smart Insight</Text>
-              </View>
-              <Text style={{ color: '#CBD5E1', fontSize: 14, lineHeight: 22 }}>{smartTip}</Text>
             </BlurView>
           )}
 
@@ -1317,6 +866,22 @@ export default function JournalScreen() {
             <View style={styles(theme).sectionHeader}>
               <BookOpen size={20} color="#EC4899" />
               <Text style={styles(theme).sectionTitle}>Journal Entry</Text>
+            </View>
+
+            <Text style={styles(theme).inputLabel}>How do you feel?</Text>
+            <View style={styles(theme).moodGrid}>
+              {['😊', '😴', '😌', '😐', '😔'].map((mood) => (
+                <TouchableOpacity
+                  key={mood}
+                  onPress={() => setSelectedMood(mood)}
+                  style={[
+                    styles(theme).moodButton,
+                    selectedMood === mood && styles(theme).selectedMoodButton
+                  ]}
+                >
+                  <Text style={styles(theme).moodEmoji}>{mood}</Text>
+                </TouchableOpacity>
+              ))}
             </View>
 
             <TextInput
@@ -1362,45 +927,6 @@ export default function JournalScreen() {
               </Text>
             </TouchableOpacity>
           </BlurView>
-
-          {/* Weekly Summary */}
-          {weeklySummary.entriesCount > 0 && (
-            <BlurView intensity={20} tint="dark" style={styles(theme).disruptionsCard}>
-              <View style={styles(theme).sectionHeader}>
-                <LayoutGrid size={20} color="#EC4899" />
-                <Text style={styles(theme).sectionTitle}>This Week</Text>
-              </View>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-around', paddingVertical: 8 }}>
-                <View style={{ alignItems: 'center' }}>
-                  <Text style={{ color: '#FFFFFF', fontSize: 22, fontWeight: '800' }}>{weeklySummary.sessionsCount}</Text>
-                  <Text style={{ color: '#94A3B8', fontSize: 11, marginTop: 2 }}>Sessions</Text>
-                </View>
-                <View style={{ width: 1, backgroundColor: 'rgba(255,255,255,0.08)' }} />
-                <View style={{ alignItems: 'center' }}>
-                  <Text style={{ color: '#FFFFFF', fontSize: 22, fontWeight: '800' }}>{weeklySummary.avgScore}</Text>
-                  <Text style={{ color: '#94A3B8', fontSize: 11, marginTop: 2 }}>Avg Score</Text>
-                </View>
-                <View style={{ width: 1, backgroundColor: 'rgba(255,255,255,0.08)' }} />
-                <View style={{ alignItems: 'center' }}>
-                  <Text style={{ fontSize: 22 }}>{weeklySummary.topMood?.[0] || '—'}</Text>
-                  <Text style={{ color: '#94A3B8', fontSize: 11, marginTop: 2 }}>Top Mood</Text>
-                </View>
-              </View>
-              {weeklySummary.topTags.length > 0 && (
-                <View style={{ marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.05)' }}>
-                  <Text style={{ color: '#94A3B8', fontSize: 11, fontWeight: '600', marginBottom: 8 }}>RECURRING TAGS</Text>
-                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                    {weeklySummary.topTags.map(([tag, count]) => (
-                      <View key={tag} style={{ backgroundColor: 'rgba(139, 92, 246, 0.1)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                        <Text style={{ color: '#CBD5E1', fontSize: 12 }}>{tag}</Text>
-                        <Text style={{ color: '#8B5CF6', fontSize: 11, fontWeight: '700' }}>{count}x</Text>
-                      </View>
-                    ))}
-                  </View>
-                </View>
-              )}
-            </BlurView>
-          )}
 
           {/* Previous Journal Entries */}
           {journalEntries.length > 0 && (

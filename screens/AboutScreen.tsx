@@ -13,12 +13,24 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
-import { ChevronLeft, Moon, Info, Mail, Globe, Shield, FileText, Star, Github, Twitter, Share2, X } from 'lucide-react-native';
+import { ChevronLeft, Moon, Info, Mail, Globe, Shield, FileText, Star, Github, Twitter, Share2, X, ChevronRight } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Modal } from 'react-native';
 import * as Application from 'expo-application';
 import * as Device from 'expo-device';
 import Constants from 'expo-constants';
+
+const GlassCard = ({ children, intensity = 20, tint = 'dark', style }: any) => {
+  if (Platform.OS === 'ios') {
+    return (
+      <BlurView intensity={intensity} tint={tint as any} style={style}>
+        {children}
+      </BlurView>
+    );
+  }
+  return <View style={[style, { backgroundColor: 'rgba(30, 41, 59, 0.7)', borderRadius: 24, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' }]}>{children}</View>;
+};
+
 
 export default function AboutScreen() {
   const { theme, isDark } = useAppTheme();
@@ -185,363 +197,104 @@ Please describe your issue below:
             <Text style={styles(theme).tagline}>VIP Personalized Sleep Intelligence</Text>
           </View>
 
-          {/* Version Info */}
-          {Platform.OS === 'ios' ? (
-            <BlurView intensity={20} tint="dark" style={styles(theme).card}>
-              <Text style={styles(theme).cardTitle}>Version Information</Text>
-
-              <View style={styles(theme).infoRow}>
-                <Text style={styles(theme).infoLabel}>Version</Text>
-                <Text style={styles(theme).infoValue}>{appVersion}</Text>
-              </View>
-
-              <View style={styles(theme).infoRow}>
-                <Text style={styles(theme).infoLabel}>Build Number</Text>
-                <Text style={styles(theme).infoValue}>{buildNumber}</Text>
-              </View>
-
-              <View style={styles(theme).infoRow}>
-                <Text style={styles(theme).infoLabel}>Release Date</Text>
-                <Text style={styles(theme).infoValue}>December 2025</Text>
-              </View>
-
-              <View style={styles(theme).infoRow}>
-                <Text style={styles(theme).infoLabel}>Platform</Text>
-                <Text style={styles(theme).infoValue}>
-                  {Constants.platform?.ios
-                    ? 'iOS'
-                    : Constants.platform?.android
-                      ? 'Android'
-                      : 'Mobile'}
-                </Text>
-              </View>
-
-              <View style={styles(theme).infoRow}>
-                <Text style={styles(theme).infoLabel}>SDK Version</Text>
-                <Text style={styles(theme).infoValue}>Expo SDK 54</Text>
-              </View>
-            </BlurView>
-          ) : (
-            <View style={styles(theme).card}>
-              <Text style={styles(theme).cardTitle}>Version Information</Text>
-
-              <View style={styles(theme).infoRow}>
-                <Text style={styles(theme).infoLabel}>Version</Text>
-                <Text style={styles(theme).infoValue}>{appVersion}</Text>
-              </View>
-
-              <View style={styles(theme).infoRow}>
-                <Text style={styles(theme).infoLabel}>Build Number</Text>
-                <Text style={styles(theme).infoValue}>{buildNumber}</Text>
-              </View>
-
-              <View style={styles(theme).infoRow}>
-                <Text style={styles(theme).infoLabel}>Release Date</Text>
-                <Text style={styles(theme).infoValue}>December 2025</Text>
-              </View>
-
-              <View style={styles(theme).infoRow}>
-                <Text style={styles(theme).infoLabel}>Platform</Text>
-                <Text style={styles(theme).infoValue}>
-                  {Constants.platform?.ios
-                    ? 'iOS'
-                    : Constants.platform?.android
-                      ? 'Android'
-                      : 'Mobile'}
-                </Text>
-              </View>
-
-              <View style={styles(theme).infoRow}>
-                <Text style={styles(theme).infoLabel}>SDK Version</Text>
-                <Text style={styles(theme).infoValue}>Expo SDK 54</Text>
-              </View>
+          {/* Mission Card */}
+          <GlassCard intensity={30} tint="dark" style={styles(theme).card}>
+            <View style={styles(theme).sectionHeader}>
+              <Info size={22} color={theme.colors.accent} />
+              <Text style={styles(theme).cardTitle}>Our Mission</Text>
             </View>
-          )}
-          <TouchableOpacity onPress={() => {
-            throw new Error('Test crash - delete this button after testing');
-          }}>
-            <Text>Test Crash</Text>
-          </TouchableOpacity>
-          {/* About App */}
-          {Platform.OS === 'ios' ? (
-            <BlurView intensity={20} tint="dark" style={styles(theme).card}>
-              <Text style={styles(theme).cardTitle}>About This App</Text>
-              <Text style={styles(theme).description}>
-                Sleep Architect is your comprehensive sleep companion, designed to help you
-                achieve better sleep through tracking, ambient sounds, and mindfulness
-                exercises.
-              </Text>
-              <Text style={styles(theme).description}>
-                Our mission is to improve your sleep quality and overall well-being by
-                providing you with the tools and insights you need to understand and
-                optimize your sleep patterns.
-              </Text>
-            </BlurView>
-          ) : (
-            <View style={styles(theme).card}>
-              <Text style={styles(theme).cardTitle}>About This App</Text>
-              <Text style={styles(theme).description}>
-                Sleep Architect is your comprehensive sleep companion, designed to help you
-                achieve better sleep through tracking, ambient sounds, and mindfulness
-                exercises.
-              </Text>
-              <Text style={styles(theme).description}>
-                Our mission is to improve your sleep quality and overall well-being by
-                providing you with the tools and insights you need to understand and
-                optimize your sleep patterns.
-              </Text>
+            <Text style={styles(theme).description}>
+              Sleep Architect is built to be your ultimate sleep sanctuary. Our mission is to transform your life by optimizing the one-third of it usually spent in the dark.
+            </Text>
+            <Text style={styles(theme).description}>
+              Using advanced biometric analysis and non-invasive acoustic tracking, we provide the insights you need to wake up as the best version of yourself.
+            </Text>
+          </GlassCard>
+
+          {/* Links & Resources */}
+          <GlassCard intensity={20} tint="dark" style={styles(theme).card}>
+            <Text style={styles(theme).cardTitle}>Legal & Support</Text>
+
+            <TouchableOpacity
+              style={styles(theme).linkItem}
+              onPress={() => handleOpenLink('https://github.com/AsadNoul/sleep-tracker-sounds/blob/main/privacy.md')}
+            >
+              <Shield size={22} color={theme.colors.accent} />
+              <Text style={styles(theme).linkText}>Read full Privacy Policy</Text>
+              <ChevronRight size={20} color={theme.colors.textSecondary} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles(theme).linkItem}
+              onPress={() => handleOpenLink('https://github.com/AsadNoul/sleep-tracker-sounds/blob/main/terms.md')}
+            >
+              <FileText size={22} color={theme.colors.highlight} />
+              <Text style={styles(theme).linkText}>Read full Terms of Service</Text>
+              <ChevronRight size={20} color={theme.colors.textSecondary} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles(theme).linkItem}
+              onPress={handleContactSupport}
+            >
+              <Mail size={22} color={theme.colors.premium} />
+              <Text style={styles(theme).linkText}>Contact Support</Text>
+              <ChevronRight size={20} color={theme.colors.textSecondary} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles(theme).linkItem, { borderBottomWidth: 0 }]}
+              onPress={() => handleOpenLink('https://github.com/AsadNoul/sleep-tracker-sounds')}
+            >
+              <Github size={22} color={theme.colors.textPrimary} />
+              <Text style={styles(theme).linkText}>GitHub Repository</Text>
+              <ChevronRight size={20} color={theme.colors.textSecondary} />
+            </TouchableOpacity>
+          </GlassCard>
+
+          {/* Version Info Table */}
+          <View style={styles(theme).card}>
+            <Text style={styles(theme).cardTitle}>System Information</Text>
+
+            <View style={styles(theme).infoRow}>
+              <Text style={styles(theme).infoLabel}>App Version</Text>
+              <Text style={styles(theme).infoValue}>{appVersion}</Text>
             </View>
-          )}
 
-          {/* Features */}
-          {Platform.OS === 'ios' ? (
-            <BlurView intensity={20} tint="dark" style={styles(theme).card}>
-              <Text style={styles(theme).cardTitle}>Key Features</Text>
-
-              <View style={styles(theme).featureItem}>
-                <View style={styles(theme).featureIcon}>
-                  <Moon size={24} color={theme.colors.accent} />
-                </View>
-                <View style={styles(theme).featureText}>
-                  <Text style={styles(theme).featureTitle}>Sleep Tracking</Text>
-                  <Text style={styles(theme).featureDescription}>
-                    Monitor your sleep duration and quality
-                  </Text>
-                </View>
-              </View>
-
-              <View style={styles(theme).featureItem}>
-                <View style={styles(theme).featureIcon}>
-                  <Globe size={24} color={theme.colors.highlight} />
-                </View>
-                <View style={styles(theme).featureText}>
-                  <Text style={styles(theme).featureTitle}>Ambient Sounds</Text>
-                  <Text style={styles(theme).featureDescription}>
-                    Relax with nature sounds and white noise
-                  </Text>
-                </View>
-              </View>
-
-              <View style={styles(theme).featureItem}>
-                <View style={styles(theme).featureIcon}>
-                  <Info size={24} color="#9D4EDD" />
-                </View>
-                <View style={styles(theme).featureText}>
-                  <Text style={styles(theme).featureTitle}>Mindfulness</Text>
-                  <Text style={styles(theme).featureDescription}>
-                    Guided meditation and breathing exercises
-                  </Text>
-                </View>
-              </View>
-
-              <View style={styles(theme).featureItem}>
-                <View style={styles(theme).featureIcon}>
-                  <Star size={24} color={theme.colors.premium} />
-                </View>
-                <View style={styles(theme).featureText}>
-                  <Text style={styles(theme).featureTitle}>Analytics</Text>
-                  <Text style={styles(theme).featureDescription}>
-                    Visualize your sleep patterns and trends
-                  </Text>
-                </View>
-              </View>
-
-              <View style={styles(theme).featureItem}>
-                <View style={styles(theme).featureIcon}>
-                  <Shield size={24} color="#32CD32" />
-                </View>
-                <View style={styles(theme).featureText}>
-                  <Text style={styles(theme).featureTitle}>Privacy First</Text>
-                  <Text style={styles(theme).featureDescription}>
-                    Your data is encrypted and secure
-                  </Text>
-                </View>
-              </View>
-            </BlurView>
-          ) : (
-            <View style={styles(theme).card}>
-              <Text style={styles(theme).cardTitle}>Key Features</Text>
-
-              <View style={styles(theme).featureItem}>
-                <View style={styles(theme).featureIcon}>
-                  <Moon size={24} color={theme.colors.accent} />
-                </View>
-                <View style={styles(theme).featureText}>
-                  <Text style={styles(theme).featureTitle}>Sleep Tracking</Text>
-                  <Text style={styles(theme).featureDescription}>
-                    Monitor your sleep duration and quality
-                  </Text>
-                </View>
-              </View>
-
-              <View style={styles(theme).featureItem}>
-                <View style={styles(theme).featureIcon}>
-                  <Globe size={24} color={theme.colors.highlight} />
-                </View>
-                <View style={styles(theme).featureText}>
-                  <Text style={styles(theme).featureTitle}>Ambient Sounds</Text>
-                  <Text style={styles(theme).featureDescription}>
-                    Relax with nature sounds and white noise
-                  </Text>
-                </View>
-              </View>
-
-              <View style={styles(theme).featureItem}>
-                <View style={styles(theme).featureIcon}>
-                  <Info size={24} color="#9D4EDD" />
-                </View>
-                <View style={styles(theme).featureText}>
-                  <Text style={styles(theme).featureTitle}>Mindfulness</Text>
-                  <Text style={styles(theme).featureDescription}>
-                    Guided meditation and breathing exercises
-                  </Text>
-                </View>
-              </View>
-
-              <View style={styles(theme).featureItem}>
-                <View style={styles(theme).featureIcon}>
-                  <Star size={24} color={theme.colors.premium} />
-                </View>
-                <View style={styles(theme).featureText}>
-                  <Text style={styles(theme).featureTitle}>Analytics</Text>
-                  <Text style={styles(theme).featureDescription}>
-                    Visualize your sleep patterns and trends
-                  </Text>
-                </View>
-              </View>
-
-              <View style={styles(theme).featureItem}>
-                <View style={styles(theme).featureIcon}>
-                  <Shield size={24} color="#32CD32" />
-                </View>
-                <View style={styles(theme).featureText}>
-                  <Text style={styles(theme).featureTitle}>Privacy First</Text>
-                  <Text style={styles(theme).featureDescription}>
-                    Your data is encrypted and secure
-                  </Text>
-                </View>
-              </View>
+            <View style={styles(theme).infoRow}>
+              <Text style={styles(theme).infoLabel}>Build Identity</Text>
+              <Text style={styles(theme).infoValue}>#{buildNumber}</Text>
             </View>
-          )}
 
-          {/* Links */}
-          {Platform.OS === 'ios' ? (
-            <BlurView intensity={20} tint="dark" style={styles(theme).card}>
-              <Text style={styles(theme).cardTitle}>Links & Resources</Text>
-
-              <TouchableOpacity
-                style={styles(theme).linkItem}
-                onPress={() => handleOpenLink('https://github.com/AsadNoul/sleep-tracker-sounds')}
-              >
-                <Github size={24} color={theme.colors.textPrimary} />
-                <Text style={styles(theme).linkText}>GitHub Repository</Text>
-                <Share2 size={20} color={theme.colors.textSecondary} />
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles(theme).linkItem}
-                onPress={() => handleOpenLink('https://raw.githubusercontent.com/AsadNoul/sleep-tracker-sounds/main/privacy.md')}
-              >
-                <FileText size={24} color={theme.colors.accent} />
-                <Text style={styles(theme).linkText}>Privacy Policy</Text>
-                <Share2 size={20} color={theme.colors.textSecondary} />
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles(theme).linkItem}
-                onPress={() => handleOpenLink('https://raw.githubusercontent.com/AsadNoul/sleep-tracker-sounds/main/terms.md')}
-              >
-                <FileText size={24} color={theme.colors.highlight} />
-                <Text style={styles(theme).linkText}>Terms of Service</Text>
-                <Share2 size={20} color={theme.colors.textSecondary} />
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles(theme).linkItem}
-                onPress={handleContactSupport}
-              >
-                <Mail size={24} color={theme.colors.premium} />
-                <Text style={styles(theme).linkText}>Contact Support</Text>
-                <Share2 size={20} color={theme.colors.textSecondary} />
-              </TouchableOpacity>
-            </BlurView>
-          ) : (
-            <View style={styles(theme).card}>
-              <Text style={styles(theme).cardTitle}>Links & Resources</Text>
-
-              <TouchableOpacity
-                style={styles(theme).linkItem}
-                onPress={() => handleOpenLink('https://github.com/AsadNoul/sleep-tracker-sounds')}
-              >
-                <Github size={24} color={theme.colors.textPrimary} />
-                <Text style={styles(theme).linkText}>GitHub Repository</Text>
-                <Share2 size={20} color={theme.colors.textSecondary} />
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles(theme).linkItem}
-                onPress={() => handleOpenLink('https://raw.githubusercontent.com/AsadNoul/sleep-tracker-sounds/main/privacy.md')}
-              >
-                <FileText size={24} color={theme.colors.accent} />
-                <Text style={styles(theme).linkText}>Privacy Policy</Text>
-                <Share2 size={20} color={theme.colors.textSecondary} />
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles(theme).linkItem}
-                onPress={() => handleOpenLink('https://raw.githubusercontent.com/AsadNoul/sleep-tracker-sounds/main/terms.md')}
-              >
-                <FileText size={24} color={theme.colors.highlight} />
-                <Text style={styles(theme).linkText}>Terms of Service</Text>
-                <Share2 size={20} color={theme.colors.textSecondary} />
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles(theme).linkItem}
-                onPress={handleContactSupport}
-              >
-                <Mail size={24} color={theme.colors.premium} />
-                <Text style={styles(theme).linkText}>Contact Support</Text>
-                <Share2 size={20} color={theme.colors.textSecondary} />
-              </TouchableOpacity>
+            <View style={styles(theme).infoRow}>
+              <Text style={styles(theme).infoLabel}>Platform</Text>
+              <Text style={styles(theme).infoValue}>{Platform.OS} {Platform.Version}</Text>
             </View>
-          )}
+
+            <View style={[styles(theme).infoRow, { borderBottomWidth: 0 }]}>
+              <Text style={styles(theme).infoLabel}>Release Cycle</Text>
+              <Text style={styles(theme).infoValue}>Stable (v2.1)</Text>
+            </View>
+          </View>
 
           {/* Credits */}
-          {Platform.OS === 'ios' ? (
-            <BlurView intensity={20} tint="dark" style={styles(theme).card}>
-              <Text style={styles(theme).cardTitle}>Credits</Text>
-              <Text style={styles(theme).creditText}>
-                Developed with React Native & Expo
-              </Text>
-              <Text style={styles(theme).creditText}>Icons by Lucide</Text>
-              <Text style={styles(theme).creditText}>Sound library by various artists</Text>
-              <Text style={styles(theme).creditText}>
-                Built with Love By NaulX Agency
-              </Text>
-            </BlurView>
-          ) : (
-            <View style={styles(theme).card}>
-              <Text style={styles(theme).cardTitle}>Credits</Text>
-              <Text style={styles(theme).creditText}>
-                Developed with React Native & Expo
-              </Text>
-              <Text style={styles(theme).creditText}>Icons by Lucide</Text>
-              <Text style={styles(theme).creditText}>Sound library by various artists</Text>
-              <Text style={styles(theme).creditText}>
-                Built with Love By NaulX Agency
-              </Text>
+          <View style={styles(theme).creditsSection}>
+            <View style={styles(theme).divider} />
+            <Text style={styles(theme).creditText}>Developed with React Native & Expo</Text>
+            <Text style={styles(theme).creditText}>Icons by Lucide • Acoustic analysis by NaulX Engine</Text>
+            <View style={styles(theme).agencyContainer}>
+              <Text style={styles(theme).agencyText}>Proudly Crafted By</Text>
+              <Text style={styles(theme).agencyName}>NaulX Agency</Text>
             </View>
-          )}
+          </View>
 
           {/* Copyright */}
           <View style={styles(theme).copyright}>
             <Text style={styles(theme).copyrightText}>
-              © {new Date().getFullYear()} Sleep Architect
+              © {new Date().getFullYear()} Sleep Architect. All rights reserved.
             </Text>
-            <Text style={styles(theme).copyrightText}>All rights reserved</Text>
             <Text style={styles(theme).copyrightSubtext}>
-              Made with ❤️© for better sleep
+              Made with ❤️ for better sleep
             </Text>
           </View>
 
@@ -573,214 +326,230 @@ Please describe your issue below:
   );
 }
 
-const styles = (theme: any) => StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: theme.colors.background,
-  },
-  gradient: {
-    flex: 1,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingBottom: 20,
-    paddingTop: Platform.OS === 'ios' ? 0 : 10, // insets.top is handled by the container if needed, but here we add some breathing room
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: theme.colors.textPrimary,
-  },
-  content: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingHorizontal: 20,
-  },
-  appInfoContainer: {
-    alignItems: 'center',
-    marginBottom: 30,
-  },
-  iconContainer: {
-    marginBottom: 20,
-  },
-  iconGradient: {
-    width: 120,
-    height: 120,
-    borderRadius: 30,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: theme.colors.accent,
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.4,
-    shadowRadius: 20,
-    elevation: 15,
-  },
-  appName: {
-    fontSize: 32,
-    fontWeight: '700',
-    color: theme.colors.textPrimary,
-    marginBottom: 8,
-  },
-  tagline: {
-    fontSize: 16,
-    color: theme.colors.textSecondary,
-    fontStyle: 'italic',
-  },
-  card: {
-    backgroundColor: 'rgba(27, 29, 42, 0.7)',
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-    overflow: 'hidden',
-  },
-  cardTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: theme.colors.textPrimary,
-    marginBottom: 16,
-  },
-  infoRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.05)',
-  },
-  infoLabel: {
-    fontSize: 15,
-    color: theme.colors.textSecondary,
-  },
-  infoValue: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: theme.colors.textPrimary,
-  },
-  description: {
-    fontSize: 15,
-    color: theme.colors.textSecondary,
-    lineHeight: 24,
-    marginBottom: 12,
-  },
-  featureItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  featureIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
-    backgroundColor: 'rgba(0, 255, 209, 0.1)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 16,
-  },
-  featureText: {
-    flex: 1,
-  },
-  featureTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: theme.colors.textPrimary,
-    marginBottom: 4,
-  },
-  featureDescription: {
-    fontSize: 13,
-    color: theme.colors.textSecondary,
-  },
-  linkItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.05)',
-  },
-  linkText: {
-    flex: 1,
-    fontSize: 15,
-    color: theme.colors.textPrimary,
-    marginLeft: 12,
-  },
-  creditText: {
-    fontSize: 14,
-    color: theme.colors.textSecondary,
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  copyright: {
-    alignItems: 'center',
-    marginTop: 20,
-    marginBottom: 10,
-  },
-  copyrightText: {
-    fontSize: 13,
-    color: theme.colors.textSecondary,
-    marginBottom: 4,
-  },
-  copyrightSubtext: {
-    fontSize: 13,
-    color: theme.colors.textSecondary,
-    fontStyle: 'italic',
-    marginTop: 8,
-  },
-  bottomSpacing: {
-    height: 30,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.8)',
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
-    height: '90%',
-    borderTopLeftRadius: 32,
-    borderTopRightRadius: 32,
-    paddingTop: 20,
-    backgroundColor: '#1A1A2E',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingBottom: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.1)',
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#FFF',
-  },
-  closeButtonModal: {
-    position: 'absolute',
-    left: 20,
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalBody: {
-    padding: 24,
-  },
-  legalText: {
-    color: '#A0AEC0',
-    fontSize: 15,
-    lineHeight: 24,
-    paddingBottom: 40,
-  },
-});
+const styles = (theme: any) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: theme.colors.background,
+    },
+    gradient: {
+      flex: 1,
+    },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 20,
+      paddingBottom: 15,
+    },
+    backButton: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      backgroundColor: 'rgba(255, 255, 255, 0.1)',
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    headerTitle: {
+      fontSize: 20,
+      fontWeight: '700',
+      color: '#FFFFFF',
+      fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif-medium',
+    },
+    scrollView: {
+      flex: 1,
+    },
+    content: {
+      flex: 1,
+    },
+    scrollContent: {
+      paddingHorizontal: 20,
+      paddingBottom: 40,
+    },
+    appInfoContainer: {
+      alignItems: 'center',
+      marginTop: 20,
+      marginBottom: 30,
+    },
+    iconContainer: {
+      width: 120,
+      height: 120,
+      borderRadius: 30,
+      padding: 3,
+      backgroundColor: 'rgba(255, 255, 255, 0.1)',
+      shadowColor: theme.colors.accent,
+      shadowOffset: { width: 0, height: 10 },
+      shadowOpacity: 0.3,
+      shadowRadius: 20,
+      elevation: 10,
+    },
+    iconGradient: {
+      flex: 1,
+      borderRadius: 28,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    appName: {
+      fontSize: 32,
+      fontWeight: '800',
+      color: '#FFFFFF',
+      marginTop: 20,
+      letterSpacing: 1,
+    },
+    tagline: {
+      fontSize: 16,
+      color: theme.colors.textSecondary,
+      marginTop: 5,
+      fontWeight: '500',
+    },
+    card: {
+      borderRadius: 24,
+      padding: 24,
+      marginBottom: 20,
+      borderWidth: 1,
+      borderColor: 'rgba(255, 255, 255, 0.1)',
+      overflow: 'hidden',
+    },
+    sectionHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: 16,
+    },
+    cardTitle: {
+      fontSize: 18,
+      fontWeight: '700',
+      color: '#FFFFFF',
+      marginLeft: 10,
+    },
+    description: {
+      fontSize: 15,
+      color: theme.colors.textSecondary,
+      lineHeight: 24,
+      marginBottom: 12,
+    },
+    linkItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: 16,
+      borderBottomWidth: 1,
+      borderBottomColor: 'rgba(255, 255, 255, 0.05)',
+    },
+    linkText: {
+      flex: 1,
+      fontSize: 16,
+      color: '#FFFFFF',
+      marginLeft: 15,
+      fontWeight: '500',
+    },
+    infoRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingVertical: 14,
+      borderBottomWidth: 1,
+      borderBottomColor: 'rgba(255, 255, 255, 0.05)',
+    },
+    infoLabel: {
+      fontSize: 15,
+      color: theme.colors.textSecondary,
+    },
+    infoValue: {
+      fontSize: 15,
+      color: '#FFFFFF',
+      fontWeight: '600',
+    },
+    creditsSection: {
+      marginTop: 10,
+      marginBottom: 20,
+      alignItems: 'center',
+    },
+    divider: {
+      width: 40,
+      height: 4,
+      backgroundColor: 'rgba(255, 255, 255, 0.1)',
+      borderRadius: 2,
+      marginBottom: 20,
+    },
+    creditText: {
+      fontSize: 13,
+      color: theme.colors.textSecondary,
+      marginBottom: 6,
+      textAlign: 'center',
+    },
+    agencyContainer: {
+      marginTop: 15,
+      alignItems: 'center',
+    },
+    agencyText: {
+      fontSize: 12,
+      color: theme.colors.textSecondary,
+      textTransform: 'uppercase',
+      letterSpacing: 2,
+      marginBottom: 4,
+    },
+    agencyName: {
+      fontSize: 20,
+      fontWeight: '800',
+      color: theme.colors.accent,
+      letterSpacing: 1,
+    },
+    copyright: {
+      alignItems: 'center',
+      paddingBottom: 20,
+    },
+    copyrightText: {
+      fontSize: 12,
+      color: theme.colors.textSecondary,
+      textAlign: 'center',
+    },
+    copyrightSubtext: {
+      fontSize: 11,
+      color: 'rgba(255, 255, 255, 0.3)',
+      marginTop: 4,
+    },
+    bottomSpacing: {
+      height: 30,
+    },
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0, 0, 0, 0.9)',
+    },
+    modalContent: {
+      flex: 1,
+      marginTop: 50,
+      borderTopLeftRadius: 32,
+      borderTopRightRadius: 32,
+      overflow: 'hidden',
+    },
+    modalHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 25,
+      paddingVertical: 20,
+      borderBottomWidth: 1,
+      borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+    },
+    modalTitle: {
+      fontSize: 22,
+      fontWeight: '800',
+      color: '#FFFFFF',
+    },
+    closeButtonModal: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: 'rgba(255, 255, 255, 0.1)',
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    modalBody: {
+      padding: 25,
+    },
+    legalText: {
+      fontSize: 15,
+      lineHeight: 24,
+      color: '#E2E8F0',
+      paddingBottom: 40,
+    },
+  });

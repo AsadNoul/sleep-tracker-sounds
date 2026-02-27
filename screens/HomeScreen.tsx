@@ -61,6 +61,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { formatDuration, format12HourTime } from '../utils/dateFormatting';
 import { Modal, TextInput } from 'react-native';
 import alarmService from '../services/alarmService';
+import { isPremiumActive } from '../utils/subscriptionHelpers';
 
 const isIOS = Platform.OS === 'ios';
 
@@ -89,11 +90,10 @@ export default function HomeScreen() {
   const { width, height } = useWindowDimensions();
   const themedStyles = useMemo(() => styles(theme, width), [theme, width]);
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [isSearchVisible, setIsSearchVisible] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
   const [nextAlarm, setNextAlarm] = useState<any>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [isSidebarVisible, setIsSidebarVisible] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const sleepStats = useMemo(() => getSleepStats(), [sleepHistory]);
   const currentStreak = useMemo(() => getCurrentStreak(), [sleepHistory]);
@@ -146,13 +146,13 @@ export default function HomeScreen() {
       const m = totalMins % 60;
       const ampm = h >= 12 ? 'PM' : 'AM';
       const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
-      bedtimeStr = `${h12}:${m.toString().padStart(2, '0')} ${ampm}`;
+      bedtimeStr = `${h12}:${m.toString().padStart(2, '0')} ${ampm} `;
     }
 
     // Format duration
     const durationH = Math.floor(avgDuration / 60);
     const durationM = avgDuration % 60;
-    const durationStr = avgDuration > 0 ? `${durationH}h ${durationM.toString().padStart(2, '0')}m` : '0h 00m';
+    const durationStr = avgDuration > 0 ? `${durationH}h ${durationM.toString().padStart(2, '0')} m` : '0h 00m';
 
     // Daily chart data (last 7 days, score 0-100)
     const chartData: number[] = [];
@@ -226,15 +226,24 @@ export default function HomeScreen() {
   const sleepScore = useMemo(() => {
     if (sleepStats.totalSessions === 0) return 0;
     const lastSession = sleepHistory[0];
-    if (!lastSession) return 0;
 
-    // Always show the most recent session score — never hide it
-    if (lastSession.sleepScore && lastSession.sleepScore > 0) return lastSession.sleepScore;
+    // Check if last session is within 24 hours
+    if (lastSession) {
+      const sessionTime = lastSession.endTime || lastSession.startTime;
+      const hoursSinceSession = (new Date().getTime() - new Date(sessionTime).getTime()) / (1000 * 60 * 60);
 
-    // Fallback: calculate from quality + duration
-    const qualityScore = (lastSession.quality || 0) * 10;
+      // If session is older than 24 hours, show 0 (stale data)
+      if (hoursSinceSession > 24) {
+        return 0;
+      }
+
+      // Show actual score if fresh data
+      if (lastSession.sleepScore) return lastSession.sleepScore;
+    }
+
+    const qualityScore = sleepStats.averageQuality * 10;
     const idealDuration = 480;
-    const durationScore = Math.min(100, ((lastSession.duration || 0) / idealDuration) * 100);
+    const durationScore = Math.min(100, (sleepStats.averageDuration / idealDuration) * 100);
     return Math.round((qualityScore * 0.6) + (durationScore * 0.4));
   }, [sleepStats, sleepHistory]);
 
@@ -303,24 +312,6 @@ export default function HomeScreen() {
     );
   }
 
-  if (isLoading && !refreshing) {
-    return (
-      <View style={[themedStyles.container, { paddingTop: insets.top }]}>
-        <StatusBar barStyle="light-content" />
-        <View style={{ paddingHorizontal: 25, marginTop: 20 }}>
-          <SkeletonCard />
-          <View style={{ height: 20 }} />
-          <View style={{ flexDirection: 'row', gap: 15 }}>
-            <SkeletonStatCard />
-            <SkeletonStatCard />
-          </View>
-          <View style={{ height: 30 }} />
-          <SkeletonCard />
-        </View>
-      </View>
-    );
-  }
-
   return (
     <View style={themedStyles.container}>
       <LinearGradient colors={bgColors} style={StyleSheet.absoluteFillObject} />
@@ -357,7 +348,22 @@ export default function HomeScreen() {
                 {displayMode === 'morning' ? 'Good Morning' :
                   displayMode === 'daytime' ? 'Good Afternoon' : 'Good Evening'},
               </Text>
-              <Text style={themedStyles.userName}>{user?.email?.split('@')[0] || 'Dreamer'}</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Text style={themedStyles.userName}>{user?.email?.split('@')[0] || 'Dreamer'}</Text>
+                {isPremiumActive(user?.subscription_status, user?.subscription_end_date, user?.role, user?.email) &&
+                  user?.role !== 'admin' &&
+                  user?.email !== 'admin@naulx.com' && (
+                    <LinearGradient
+                      colors={['#FFD700', '#FDB931', '#FFD700']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={themedStyles.vipBadge}
+                    >
+                      <Star size={10} color="#000" fill="#000" />
+                      <Text style={themedStyles.vipBadgeText}>VIP</Text>
+                    </LinearGradient>
+                  )}
+              </View>
             </View>
           </View>
           <View style={themedStyles.headerActions}>
@@ -381,9 +387,6 @@ export default function HomeScreen() {
             </View>
           </View>
         </View>
-
-        {/* Search Modal */}
-
 
         {/* Sidebar/Menu Modal */}
         <Modal
@@ -512,6 +515,7 @@ export default function HomeScreen() {
           </View>
         </Modal>
 
+
         {/* Hero Section - Dynamic Based on Mode */}
         <TouchableOpacity
           activeOpacity={0.9}
@@ -538,35 +542,27 @@ export default function HomeScreen() {
                 </Text>
               </View>
 
-              <View style={[themedStyles.scoreContainer, { width: Math.max(120, Math.min(width * 0.4, 150)), height: Math.max(120, Math.min(width * 0.4, 150)) }]}>
+              <View style={themedStyles.scoreContainer}>
                 {/* Visual Glow behind progress */}
-                <View style={[themedStyles.scoreGlow, {
-                  backgroundColor: scoreQuality.color,
-                  opacity: 0.15,
-                  width: Math.max(120, Math.min(width * 0.4, 150)) - 20,
-                  height: Math.max(120, Math.min(width * 0.4, 150)) - 20,
-                  borderRadius: (Math.max(120, Math.min(width * 0.4, 150)) - 20) / 2
-                }]} />
+                <View style={[themedStyles.scoreGlow, { backgroundColor: scoreQuality.color, opacity: 0.15 }]} />
                 <CircularProgress
                   score={isTracking ? 0 : (displayMode === 'daytime' ? readinessScore : sleepScore)}
-                  size={Math.max(120, Math.min(width * 0.4, 150))}
-                  strokeWidth={10}
+                  size={Math.max(140, Math.min(width * 0.45, 180))}
+                  strokeWidth={12}
                   showText={false}
                   color={displayMode === 'morning' ? lastNightQuality.color : scoreQuality.color}
                 />
                 <View style={themedStyles.scoreInnerContent}>
                   <Text style={[themedStyles.scoreValue, {
-                    fontSize: isTracking ? 36 : 42,
-                    lineHeight: isTracking ? 40 : 46,
                     color: isTracking ? '#F59E0B' : (displayMode === 'daytime' ? (readinessScore >= 75 ? '#10B981' : '#F59E0B') : scoreQuality.color)
                   }]}>
                     {isTracking ? '⏱️' : (displayMode === 'daytime' ? readinessScore : sleepScore)}
                   </Text>
-                  <Text style={[themedStyles.scoreLabel, { fontSize: 10, marginTop: 0 }]}>
+                  <Text style={themedStyles.scoreLabel}>
                     {isTracking ? 'TRACKING' : (sleepScore === 0 ? 'NO DATA' : (displayMode === 'daytime' ? 'READINESS' : 'SLEEP SCORE'))}
                   </Text>
-                  <Text style={[themedStyles.scoreQualityLabel, { fontSize: 12, marginTop: 0, color: scoreQuality.color }]}>
-                    {isTracking ? 'In Progress' : (sleepScore === 0 ? 'Start tracking' : (displayMode === 'daytime' ? (readinessScore >= 85 ? '👑 Peak' : '⚡ Good') : `${scoreQuality.emoji} ${scoreQuality.label}`))}
+                  <Text style={[themedStyles.scoreQualityLabel, { color: scoreQuality.color }]}>
+                    {isTracking ? 'In Progress' : (sleepScore === 0 ? 'Start tracking' : (displayMode === 'daytime' ? (readinessScore >= 85 ? '👑 Peak' : '⚡ Good') : `${scoreQuality.emoji} ${scoreQuality.label} `))}
                   </Text>
                 </View>
               </View>
@@ -586,7 +582,7 @@ export default function HomeScreen() {
                   <View style={themedStyles.statIconContainer}>
                     <Zap size={20} color="#F59E0B" />
                   </View>
-                  <Text style={themedStyles.statValue}>{Math.round((sleepStats.lastNightQuality || sleepStats.averageQuality) * 10)}%</Text>
+                  <Text style={themedStyles.statValue}>{Math.round(sleepStats.averageQuality * 10)}%</Text>
                   <Text style={themedStyles.statLabel}>Efficiency</Text>
                 </View>
                 <View style={themedStyles.statDivider} />
@@ -832,7 +828,7 @@ export default function HomeScreen() {
             colors={['rgba(139, 92, 246, 0.15)', 'rgba(99, 102, 241, 0.05)']}
             style={themedStyles.tipGradient}
           >
-            <View style={{ marginRight: 8 }}>
+            <View style={themedStyles.iconButton}>
               <Zap size={20} color="#8B5CF6" />
             </View>
             <View style={themedStyles.tipContent}>
@@ -974,7 +970,7 @@ const styles = (theme: any, width: number) => StyleSheet.create({
   },
   mainCardContainer: {
     marginBottom: 24,
-    borderRadius: 24,
+    borderRadius: 32,
     overflow: Platform.OS === 'android' ? 'hidden' : 'visible',
     ...Platform.select({
       ios: {
@@ -989,12 +985,12 @@ const styles = (theme: any, width: number) => StyleSheet.create({
     }),
   },
   mainCardBlur: {
-    borderRadius: 24,
+    borderRadius: 32,
     overflow: 'hidden',
   },
   mainCard: {
-    padding: 16,
-    paddingVertical: 16,
+    padding: 20,
+    paddingVertical: 24,
     alignItems: 'center',
   },
   cardHeader: {
@@ -1028,7 +1024,8 @@ const styles = (theme: any, width: number) => StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginVertical: 16,
-    alignSelf: 'center',
+    height: 180,
+    width: 180,
   },
   scoreGlow: {
     position: 'absolute',
@@ -1211,7 +1208,7 @@ const styles = (theme: any, width: number) => StyleSheet.create({
     marginLeft: 8,
   },
   seeAllText: {
-    color: '#FFFFFF',
+    color: '#8B5CF6',
     fontSize: 14,
     fontWeight: '600',
     fontFamily: theme.typography.fontFamily.semibold,
@@ -1371,6 +1368,7 @@ const styles = (theme: any, width: number) => StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
+    backgroundColor: 'rgba(139, 92, 246, 0.15)',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -1582,9 +1580,6 @@ const styles = (theme: any, width: number) => StyleSheet.create({
   aiFabGradient: {
     flex: 1,
     borderRadius: 30,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.2)',
   },
   sidebarOverlay: {
@@ -1710,5 +1705,25 @@ const styles = (theme: any, width: number) => StyleSheet.create({
     textAlign: 'center',
     paddingVertical: 20,
     fontFamily: theme.typography.fontFamily.medium,
+  },
+  vipBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 12,
+    marginLeft: 10,
+    shadowColor: '#FFD700',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  vipBadgeText: {
+    color: '#000',
+    fontSize: 10,
+    fontWeight: '800',
+    marginLeft: 3,
+    fontFamily: theme.typography.fontFamily.bold,
   },
 });

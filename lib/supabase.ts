@@ -62,6 +62,7 @@ export interface SleepRecord {
   wake_ups: number | null;
   notes: string | null;
   tags: string[] | null;
+  is_nap: boolean | null;
   created_at: string;
   updated_at: string;
 }
@@ -141,7 +142,7 @@ export const isPremiumUser = (profile: UserProfile | null): boolean => {
   // Admin users get all premium features by default
   if (profile.role === 'admin') return true;
   return profile.subscription_status === 'premium_monthly' ||
-         profile.subscription_status === 'premium_yearly';
+    profile.subscription_status === 'premium_yearly';
 };
 
 export const canAccessPremiumContent = (profile: UserProfile | null): boolean => {
