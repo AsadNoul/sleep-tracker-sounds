@@ -1,6 +1,6 @@
 import { useAppTheme } from '../hooks/useAppTheme';
 import { isPremiumActive } from '../utils/subscriptionHelpers';
-import React, { useState, useMemo, memo, useEffect } from 'react';
+import React, { useState, useMemo, memo, useEffect, useRef } from 'react';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import {
   View,
@@ -14,8 +14,11 @@ import {
   RefreshControl,
   ActivityIndicator,
   Modal,
+  Animated,
 } from 'react-native';
 import { Audio } from 'expo-av';
+import * as Print from 'expo-print';
+import * as Sharing from 'expo-sharing';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import {
@@ -432,6 +435,11 @@ export default function SleepAnalysisScreen({ hideHeader = false, isSubcomponent
   const [sound, setSound] = useState<Audio.Sound | null>(null);
   const [playingAudio, setPlayingAudio] = useState<string | null>(null);
   const [playbackStatus, setPlaybackStatus] = useState<{ position: number, duration: number } | null>(null);
+  const [fullRecordingSound, setFullRecordingSound] = useState<Audio.Sound | null>(null);
+  const [fullRecordingPlaying, setFullRecordingPlaying] = useState(false);
+  const [fullRecordingStatus, setFullRecordingStatus] = useState<{ position: number, duration: number } | null>(null);
+  const [isGeneratingReport, setIsGeneratingReport] = useState(false);
+  const progressAnim = useRef(new Animated.Value(0)).current;
 
   const isPremium = useMemo(() => isPremiumActive(user?.subscription_status, user?.subscription_end_date, user?.role, user?.email), [user]);
 
@@ -511,18 +519,27 @@ export default function SleepAnalysisScreen({ hideHeader = false, isSubcomponent
     const loadRecordings = async () => {
       if (latestSession?.id) {
         const events = await getSessionRecordings(latestSession.id);
-        // Filter for audio events only
         setRecordings(events.filter(e => e.audioUri || e.type === 'snoring' || e.type === 'sleep_talk'));
+        // Attach full recording URI to session object for the player
+        if (events.length > 0 && events[0].audioUri && !latestSession.sessionAudioUri) {
+          latestSession.sessionAudioUri = events[0].audioUri;
+        }
       } else {
         setRecordings([]);
       }
     };
     loadRecordings();
 
-    // Cleanup sound on unmount or session change
+    // Cleanup sounds on unmount or session change
     return () => {
       if (sound) {
         sound.unloadAsync();
+      }
+      if (fullRecordingSound) {
+        fullRecordingSound.unloadAsync();
+        setFullRecordingSound(null);
+        setFullRecordingPlaying(false);
+        setFullRecordingStatus(null);
       }
     };
   }, [latestSession?.id]);
@@ -567,6 +584,157 @@ export default function SleepAnalysisScreen({ hideHeader = false, isSubcomponent
     } catch (error) {
       console.error('Error playing sound:', error);
       showToast('Could not play recording', 'error');
+    }
+  };
+
+  const handleFullRecordingPlay = async (uri: string) => {
+    try {
+      if (fullRecordingPlaying && fullRecordingSound) {
+        await fullRecordingSound.pauseAsync();
+        setFullRecordingPlaying(false);
+        return;
+      }
+      if (fullRecordingSound && !fullRecordingPlaying) {
+        await fullRecordingSound.playAsync();
+        setFullRecordingPlaying(true);
+        return;
+      }
+      if (fullRecordingSound) {
+        await fullRecordingSound.unloadAsync();
+      }
+      const { sound: newSound } = await Audio.Sound.createAsync({ uri }, { shouldPlay: true });
+      setFullRecordingSound(newSound);
+      setFullRecordingPlaying(true);
+      newSound.setOnPlaybackStatusUpdate((status) => {
+        if (status.isLoaded) {
+          const pos = status.positionMillis;
+          const dur = status.durationMillis || 1;
+          setFullRecordingStatus({ position: pos, duration: dur });
+          Animated.timing(progressAnim, {
+            toValue: pos / dur,
+            duration: 200,
+            useNativeDriver: false,
+          }).start();
+          if (status.didJustFinish) {
+            setFullRecordingPlaying(false);
+          }
+        }
+      });
+    } catch (e) {
+      showToast('Could not play recording', 'error');
+    }
+  };
+
+  const handleFullRecordingSeek = async (ratio: number) => {
+    if (fullRecordingSound && fullRecordingStatus) {
+      const seekMs = ratio * fullRecordingStatus.duration;
+      await fullRecordingSound.setPositionAsync(seekMs);
+    }
+  };
+
+  const handleGenerateReport = async () => {
+    if (!isPremium) {
+      navigation.navigate('Subscription');
+      return;
+    }
+    if (!latestSession) {
+      showToast('No sleep session data to generate report', 'error');
+      return;
+    }
+    setIsGeneratingReport(true);
+    try {
+      const session = latestSession;
+      const dateStr = new Date(session.startTime).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+      const durationH = Math.floor((session.duration || 0) / 60);
+      const durationM = (session.duration || 0) % 60;
+      const sleepScore = session.sleepScore || 0;
+      const efficiency = session.efficiency ? `${session.efficiency}%` : '—';
+      const wakeUps = session.wakeUps || 0;
+      const deepQ = session.deepSleepQuality ? `${session.deepSleepQuality}%` : '—';
+      const snoring = session.snoringIntensity || 'None';
+      const disruption = session.disruptionScore || '—';
+      const avgScore = stats.avgScore || 0;
+
+      const stagesHtml = session.sleepStages && session.sleepStages.length > 0
+        ? session.sleepStages.map((s: any) => {
+            const dur = Math.round((new Date(s.endTime).getTime() - new Date(s.startTime).getTime()) / 60000);
+            return `<tr><td style="padding:6px 12px;border-bottom:1px solid #1e1e3a;text-transform:capitalize;">${s.stage}</td><td style="padding:6px 12px;border-bottom:1px solid #1e1e3a;">${dur} min</td></tr>`;
+          }).join('')
+        : '<tr><td colspan="2" style="padding:6px 12px;color:#64748b;">No stage data recorded</td></tr>';
+
+      const insightsHtml = insights.slice(0, 3).map(i =>
+        `<div style="margin-bottom:12px;padding:12px;background:#0f0f2e;border-radius:8px;border-left:3px solid #8b5cf6;">
+          <b style="color:#fff;">${i.title}</b>
+          <p style="color:#a8b5c7;margin:4px 0 0;">${i.description}</p>
+        </div>`
+      ).join('') || '<p style="color:#64748b;">No AI insights available yet.</p>';
+
+      const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8"/>
+        <style>
+          body { font-family: -apple-system, sans-serif; background: #0a0a1a; color: #e2e8f0; margin: 0; padding: 32px; }
+          h1 { font-size: 28px; font-weight: 900; color: #fff; margin-bottom: 4px; }
+          h2 { font-size: 16px; color: #8b5cf6; font-weight: 700; margin: 24px 0 12px; border-bottom: 1px solid #1e1e3a; padding-bottom: 8px; }
+          .header { background: linear-gradient(135deg, #1a0533, #0f0f2e); padding: 24px; border-radius: 16px; margin-bottom: 24px; }
+          .subtitle { color: #64748b; font-size: 14px; margin-top: 4px; }
+          .score-circle { display: inline-block; width: 80px; height: 80px; border-radius: 50%; background: #8b5cf6; text-align: center; line-height: 80px; font-size: 28px; font-weight: 900; color: #fff; float: right; margin-top: -10px; }
+          .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+          .card { background: #111127; border-radius: 12px; padding: 16px; border: 1px solid #1e1e3a; }
+          .card-label { color: #64748b; font-size: 12px; margin-bottom: 4px; }
+          .card-value { color: #fff; font-size: 22px; font-weight: 800; }
+          table { width: 100%; border-collapse: collapse; background: #111127; border-radius: 8px; overflow: hidden; }
+          th { background: #1e1e3a; color: #a8b5c7; font-size: 12px; text-align: left; padding: 10px 12px; }
+          .footer { margin-top: 32px; text-align: center; color: #334155; font-size: 11px; }
+          .badge { display: inline-block; padding: 2px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; background: rgba(139,92,246,0.15); color: #8b5cf6; margin-left: 8px; }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div class="score-circle">${sleepScore}</div>
+          <h1>Sleep Report</h1>
+          <div class="subtitle">${dateStr}</div>
+          <div class="subtitle" style="margin-top:8px;">Generated by Sleep App Pro<span class="badge">PREMIUM</span></div>
+        </div>
+
+        <h2>Session Overview</h2>
+        <div class="grid">
+          <div class="card"><div class="card-label">Duration</div><div class="card-value">${durationH}h ${durationM}m</div></div>
+          <div class="card"><div class="card-label">Efficiency</div><div class="card-value">${efficiency}</div></div>
+          <div class="card"><div class="card-label">Wake Ups</div><div class="card-value">${wakeUps}</div></div>
+          <div class="card"><div class="card-label">Avg Score (${selectedTimeframe === 'week' ? '7D' : selectedTimeframe === 'month' ? '30D' : '90D'})</div><div class="card-value">${avgScore}</div></div>
+        </div>
+
+        <h2>Sleep Vitals</h2>
+        <div class="grid">
+          <div class="card"><div class="card-label">Deep Sleep Quality</div><div class="card-value">${deepQ}</div></div>
+          <div class="card"><div class="card-label">Snoring Level</div><div class="card-value">${snoring}</div></div>
+          <div class="card"><div class="card-label">Sleep Disruption</div><div class="card-value">${disruption}</div></div>
+          <div class="card"><div class="card-label">Sleep Score</div><div class="card-value">${sleepScore}/100</div></div>
+        </div>
+
+        <h2>Sleep Stages</h2>
+        <table>
+          <thead><tr><th>Stage</th><th>Duration</th></tr></thead>
+          <tbody>${stagesHtml}</tbody>
+        </table>
+
+        <h2>AI Insights</h2>
+        ${insightsHtml}
+
+        <div class="footer">Generated on ${new Date().toLocaleString()} • Sleep App Pro • All data is private and stored on your device.</div>
+      </body>
+      </html>`;
+
+      const { uri } = await Print.printToFileAsync({ html, base64: false });
+      await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: 'Share Sleep Report' });
+    } catch (e) {
+      console.error('Report generation error:', e);
+      showToast('Failed to generate report. Please try again.', 'error');
+    } finally {
+      setIsGeneratingReport(false);
     }
   };
 
@@ -850,23 +1018,39 @@ export default function SleepAnalysisScreen({ hideHeader = false, isSubcomponent
           <>
             {/* Timeframe Selection */}
             <View style={styles(theme, isDark).timeframeRow}>
-              {(['week', 'month', '3months'] as TimeFrame[]).map((tf) => (
-                <TouchableOpacity
-                  key={tf}
-                  onPress={() => setSelectedTimeframe(tf)}
-                  style={[
-                    styles(theme, isDark).timeframeTab,
-                    selectedTimeframe === tf && styles(theme, isDark).timeframeTabActive
-                  ]}
-                >
-                  <Text style={[
-                    styles(theme, isDark).timeframeTabText,
-                    selectedTimeframe === tf && styles(theme, isDark).timeframeTabTextActive
-                  ]}>
-                    {tf === 'week' ? '7D' : tf === 'month' ? '30D' : '90D'}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+              {(['week', 'month', '3months'] as TimeFrame[]).map((tf) => {
+                const isPremiumTf = tf !== 'week';
+                const isLocked = isPremiumTf && !isPremium;
+                const isActive = selectedTimeframe === tf;
+                return (
+                  <TouchableOpacity
+                    key={tf}
+                    onPress={() => {
+                      if (isLocked) {
+                        navigation.navigate('Subscription');
+                        return;
+                      }
+                      setSelectedTimeframe(tf);
+                    }}
+                    style={[
+                      styles(theme, isDark).timeframeTab,
+                      isActive && styles(theme, isDark).timeframeTabActive,
+                      isLocked && styles(theme, isDark).timeframeTabLocked,
+                    ]}
+                  >
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                      {isLocked && <Lock size={10} color="#64748B" />}
+                      <Text style={[
+                        styles(theme, isDark).timeframeTabText,
+                        isActive && styles(theme, isDark).timeframeTabTextActive,
+                        isLocked && { color: '#475569' },
+                      ]}>
+                        {tf === 'week' ? '7D' : tf === 'month' ? '30D' : '90D'}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
 
             {/* Hero Score Card */}
@@ -916,66 +1100,116 @@ export default function SleepAnalysisScreen({ hideHeader = false, isSubcomponent
             </GlassModule>
 
             {/* Sleep Recordings Section */}
-            {(recordings.length > 0 || latestSession?.snoringDuration > 0) && (
+            {(recordings.length > 0 || latestSession?.sessionAudioUri) && (
               <GlassModule title="Sleep Recordings" icon={Mic} theme={theme} isDark={isDark}>
-                <View style={styles(theme, isDark).recordingsList}>
-                  {recordings.length > 0 ? recordings.map((rec, i) => (
-                    <View key={i} style={styles(theme, isDark).recordingItem}>
-                      <View style={styles(theme, isDark).recordingIconObj}>
-                        {rec.type === 'snoring' ? <Mic size={16} color="#F59E0B" /> :
-                          rec.type === 'sleep_talk' ? <Mic size={16} color="#8B5CF6" /> :
-                            rec.type === 'breathing' ? <Wind size={16} color="#10B981" /> :
-                              rec.type === 'dreaming' ? <Sparkles size={16} color="#6366F1" /> :
-                                <Mic size={16} color="#A8B5C7" />}
+                {/* Full Night Recording Player */}
+                {latestSession?.sessionAudioUri && (
+                  <View style={styles(theme, isDark).fullPlayerCard}>
+                    <View style={styles(theme, isDark).fullPlayerHeader}>
+                      <View style={styles(theme, isDark).fullPlayerIconWrap}>
+                        <Mic size={18} color="#8B5CF6" />
                       </View>
                       <View style={{ flex: 1 }}>
-                        <Text style={styles(theme, isDark).recordingTitle}>
-                          {rec.type === 'snoring' ? 'Snoring Detected' :
-                            rec.type === 'sleep_talk' ? 'Sleep Talking' :
-                              rec.type === 'breathing' ? 'Deep Breathing' :
-                                rec.type === 'dreaming' ? 'Possible Dreaming' :
-                                  'Noise Event'}
+                        <Text style={styles(theme, isDark).fullPlayerTitle}>Full Night Recording</Text>
+                        <Text style={styles(theme, isDark).fullPlayerSub}>
+                          {fullRecordingStatus
+                            ? `${Math.floor(fullRecordingStatus.position / 60000)}:${String(Math.floor((fullRecordingStatus.position % 60000) / 1000)).padStart(2, '0')} / ${Math.floor(fullRecordingStatus.duration / 60000)}:${String(Math.floor((fullRecordingStatus.duration % 60000) / 1000)).padStart(2, '0')}`
+                            : `${Math.floor((latestSession.duration || 0) / 60)}h ${(latestSession.duration || 0) % 60}m recorded`
+                          }
                         </Text>
-                        <Text style={styles(theme, isDark).recordingTime}>
-                          {new Date(rec.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • {Math.round(rec.duration)}s
-                        </Text>
-                        {playingAudio === `rec_${i}` && playbackStatus && (
-                          <View style={{ height: 3, backgroundColor: 'rgba(255,255,255,0.1)', marginTop: 8, borderRadius: 2, overflow: 'hidden', width: '90%' }}>
-                            <View style={{ height: '100%', backgroundColor: '#8B5CF6', width: `${(playbackStatus.position / playbackStatus.duration) * 100}%` }} />
+                      </View>
+                      <TouchableOpacity
+                        style={styles(theme, isDark).fullPlayBtn}
+                        onPress={() => handleFullRecordingPlay(latestSession.sessionAudioUri)}
+                      >
+                        {fullRecordingPlaying
+                          ? <Pause size={18} color="#FFF" fill="#FFF" />
+                          : <Play size={18} color="#FFF" fill="#FFF" />
+                        }
+                      </TouchableOpacity>
+                    </View>
+                    {/* Scrubber */}
+                    <View style={styles(theme, isDark).scrubberTrack}>
+                      <Animated.View style={[
+                        styles(theme, isDark).scrubberFill,
+                        {
+                          width: progressAnim.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: ['0%', '100%'],
+                          })
+                        }
+                      ]} />
+                      {/* Event markers on timeline */}
+                      {recordings.map((rec, i) => {
+                        if (!fullRecordingStatus || !latestSession?.startTime) return null;
+                        const sessionStart = new Date(latestSession.startTime).getTime();
+                        const eventTime = new Date(rec.timestamp).getTime();
+                        const totalDur = fullRecordingStatus.duration || (latestSession.duration * 60000);
+                        const pos = Math.min(1, Math.max(0, (eventTime - sessionStart) / totalDur));
+                        return (
+                          <View
+                            key={i}
+                            style={[styles(theme, isDark).scrubberMarker, { left: `${pos * 100}%` }]}
+                          />
+                        );
+                      })}
+                    </View>
+                    {recordings.length > 0 && (
+                      <Text style={{ color: '#64748B', fontSize: 11, marginTop: 6, fontFamily: theme.typography.fontFamily.medium }}>
+                        {recordings.length} event{recordings.length !== 1 ? 's' : ''} marked on timeline
+                      </Text>
+                    )}
+                  </View>
+                )}
+
+                {/* Event List */}
+                {recordings.length > 0 && (
+                  <View style={styles(theme, isDark).recordingsList}>
+                    <Text style={styles(theme, isDark).recordingsSubtitle}>
+                      {recordings.length} event{recordings.length !== 1 ? 's' : ''} detected
+                    </Text>
+                    {recordings.map((rec, i) => {
+                      const isPlaying = playingAudio === `rec_${i}`;
+                      const typeLabel = rec.type === 'snoring' ? 'Snoring' :
+                        rec.type === 'sleep_talk' ? 'Sleep Talk' :
+                        rec.type === 'breathing' ? 'Breathing' :
+                        rec.type === 'dreaming' ? 'Dreaming' : 'Noise';
+                      const typeColor = rec.type === 'snoring' ? '#F59E0B' :
+                        rec.type === 'sleep_talk' ? '#8B5CF6' :
+                        rec.type === 'breathing' ? '#10B981' :
+                        rec.type === 'dreaming' ? '#6366F1' : '#A8B5C7';
+                      return (
+                        <View key={i} style={[styles(theme, isDark).recordingItem, isPlaying && styles(theme, isDark).recordingItemActive]}>
+                          <View style={[styles(theme, isDark).recordingIconObj, { backgroundColor: `${typeColor}22` }]}>
+                            <Mic size={14} color={typeColor} />
                           </View>
-                        )}
-                      </View>
-                      <TouchableOpacity
-                        style={styles(theme, isDark).playBtn}
-                        onPress={() => handlePlayAudio(rec.audioUri, `rec_${i}`)}
-                      >
-                        {playingAudio === `rec_${i}` ? (
-                          <Pause size={14} color="#FFF" fill="#FFF" />
-                        ) : (
-                          <Play size={14} color="#FFF" fill="#FFF" />
-                        )}
-                      </TouchableOpacity>
-                    </View>
-                  )) : (
-                    <View style={styles(theme, isDark).recordingItem}>
-                      <View style={styles(theme, isDark).recordingIconObj}>
-                        <Mic size={16} color="#F59E0B" />
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles(theme, isDark).recordingTitle}>Snoring Event</Text>
-                        <Text style={styles(theme, isDark).recordingTime}>
-                          {latestSession?.startTime ? new Date(new Date(latestSession.startTime).getTime() + 7200000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '02:00 AM'} • {latestSession?.snoringDuration || 5} min
-                        </Text>
-                      </View>
-                      <TouchableOpacity
-                        style={styles(theme, isDark).playBtn}
-                        onPress={handleUnlock}
-                      >
-                        <Play size={14} color="#FFF" fill="#FFF" />
-                      </TouchableOpacity>
-                    </View>
-                  )}
-                </View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles(theme, isDark).recordingTitle}>{typeLabel}</Text>
+                            <Text style={styles(theme, isDark).recordingTime}>
+                              {new Date(rec.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              {rec.duration ? ` • ${Math.round(rec.duration)}s` : ''}
+                            </Text>
+                            {isPlaying && playbackStatus && (
+                              <View style={{ height: 2, backgroundColor: 'rgba(255,255,255,0.08)', marginTop: 6, borderRadius: 1, overflow: 'hidden', width: '90%' }}>
+                                <View style={{ height: '100%', backgroundColor: typeColor, width: `${(playbackStatus.position / playbackStatus.duration) * 100}%` }} />
+                              </View>
+                            )}
+                          </View>
+                          <TouchableOpacity
+                            style={[styles(theme, isDark).playBtn, { backgroundColor: typeColor }]}
+                            onPress={() => handlePlayAudio(rec.audioUri, `rec_${i}`)}
+                            disabled={!rec.audioUri}
+                          >
+                            {isPlaying
+                              ? <Pause size={12} color="#FFF" fill="#FFF" />
+                              : <Play size={12} color="#FFF" fill="#FFF" />
+                            }
+                          </TouchableOpacity>
+                        </View>
+                      );
+                    })}
+                  </View>
+                )}
               </GlassModule>
             )}
 
@@ -1306,91 +1540,28 @@ export default function SleepAnalysisScreen({ hideHeader = false, isSubcomponent
               </View>
             </GlassModule>
 
-            {/* Sleep Recordings */}
-            {recordings.length > 0 && (
-              <GlassModule title="Sleep Recordings" icon={Mic} pro={false} theme={theme} isDark={isDark}>
-                <View style={styles(theme, isDark).recordingsContainer}>
-                  <Text style={styles(theme, isDark).recordingsSubtitle}>
-                    {recordings.length} event{recordings.length !== 1 ? 's' : ''} recorded during this session
-                  </Text>
-                  {recordings.map((recording, index) => {
-                    const isPlaying = playingAudio === recording.id;
-                    const eventTypeLabel = recording.event_type === 'snoring' ? '🔊 Snoring' :
-                      recording.event_type === 'sleep_talk' ? '💬 Sleep Talk' :
-                        recording.event_type === 'noise' ? '🔔 Noise' :
-                          recording.event_type === 'dreaming' ? '💭 Dreaming' : '🎤 Recording';
-
-                    return (
-                      <TouchableOpacity
-                        key={recording.id || index}
-                        style={[
-                          styles(theme, isDark).recordingItem,
-                          isPlaying && styles(theme, isDark).recordingItemActive
-                        ]}
-                        onPress={() => recording.audio_file_url && handlePlayAudio(recording.audio_file_url, recording.id)}
-                        disabled={!recording.audio_file_url}
-                      >
-                        <View style={styles(theme, isDark).recordingLeft}>
-                          <View style={[
-                            styles(theme, isDark).recordingIconWrapper,
-                            isPlaying && { backgroundColor: 'rgba(139, 92, 246, 0.3)' }
-                          ]}>
-                            {isPlaying ? (
-                              <Pause size={16} color="#8B5CF6" />
-                            ) : (
-                              <Play size={16} color={recording.audio_file_url ? '#8B5CF6' : '#64748B'} />
-                            )}
-                          </View>
-                          <View style={styles(theme, isDark).recordingInfo}>
-                            <Text style={styles(theme, isDark).recordingType}>{eventTypeLabel}</Text>
-                            <Text style={styles(theme, isDark).recordingTime}>
-                              {new Date(recording.timestamp).toLocaleTimeString('en-US', {
-                                hour: '2-digit',
-                                minute: '2-digit'
-                              })}
-                              {recording.duration_seconds && ` • ${Math.round(recording.duration_seconds)}s`}
-                              {recording.loudness_db && ` • ${Math.round(recording.loudness_db)}dB`}
-                            </Text>
-                          </View>
-                        </View>
-                        {isPlaying && playbackStatus && (
-                          <View style={styles(theme, isDark).recordingProgress}>
-                            <View style={styles(theme, isDark).recordingProgressBar}>
-                              <View
-                                style={[
-                                  styles(theme, isDark).recordingProgressFill,
-                                  { width: `${(playbackStatus.position / playbackStatus.duration) * 100}%` }
-                                ]}
-                              />
-                            </View>
-                          </View>
-                        )}
-                        {!recording.audio_file_url && (
-                          <Text style={styles(theme, isDark).recordingUnavailable}>No audio</Text>
-                        )}
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              </GlassModule>
-            )}
-
             {/* Report Generation CTA */}
             <TouchableOpacity
-              style={styles(theme, isDark).mainCTA}
-              onPress={() => {
-                showToast("Generating your premium sleep report...", "info");
-                console.log("Generating sleep report...");
-              }}
+              style={[styles(theme, isDark).mainCTA, isGeneratingReport && { opacity: 0.7 }]}
+              onPress={handleGenerateReport}
+              disabled={isGeneratingReport}
             >
               <LinearGradient
-                colors={['#8B5CF6', '#7C3AED']}
+                colors={isPremium ? ['#8B5CF6', '#7C3AED'] : ['#334155', '#1e293b']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
                 style={StyleSheet.absoluteFill}
               />
-              <FileText size={20} color="#FFF" />
-              <Text style={styles(theme, isDark).mainCTAText}>Generate Full Sleep Report</Text>
+              {isGeneratingReport ? (
+                <ActivityIndicator size="small" color="#FFF" />
+              ) : isPremium ? (
+                <FileText size={20} color="#FFF" />
+              ) : (
+                <Lock size={20} color="#FFF" />
+              )}
+              <Text style={styles(theme, isDark).mainCTAText}>
+                {isGeneratingReport ? 'Generating Report...' : isPremium ? 'Generate Full Sleep Report' : 'Unlock Report (Pro)'}
+              </Text>
             </TouchableOpacity>
           </>
         )}
@@ -2373,6 +2544,72 @@ function styles(theme: any, isDark: boolean) {
       fontSize: 13,
       fontWeight: '700',
       fontFamily: theme.typography.fontFamily.bold,
+    },
+    timeframeTabLocked: {
+      opacity: 0.5,
+    },
+    fullPlayerCard: {
+      backgroundColor: 'rgba(139, 92, 246, 0.08)',
+      borderRadius: 16,
+      padding: 16,
+      borderWidth: 1,
+      borderColor: 'rgba(139, 92, 246, 0.2)',
+      marginBottom: 16,
+    },
+    fullPlayerHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: 14,
+      gap: 12,
+    },
+    fullPlayerIconWrap: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: 'rgba(139, 92, 246, 0.15)',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    fullPlayerTitle: {
+      color: '#FFF',
+      fontSize: 14,
+      fontWeight: '700',
+      fontFamily: theme.typography.fontFamily.bold,
+    },
+    fullPlayerSub: {
+      color: '#64748B',
+      fontSize: 12,
+      fontFamily: theme.typography.fontFamily.medium,
+      marginTop: 2,
+    },
+    fullPlayBtn: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: '#8B5CF6',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    scrubberTrack: {
+      height: 4,
+      backgroundColor: 'rgba(255,255,255,0.08)',
+      borderRadius: 2,
+      overflow: 'visible',
+      position: 'relative',
+    },
+    scrubberFill: {
+      height: '100%',
+      backgroundColor: '#8B5CF6',
+      borderRadius: 2,
+    },
+    scrubberMarker: {
+      position: 'absolute',
+      top: -3,
+      width: 3,
+      height: 10,
+      borderRadius: 1.5,
+      backgroundColor: '#F59E0B',
+      marginLeft: -1.5,
     },
   });
 }

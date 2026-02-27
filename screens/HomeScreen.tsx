@@ -50,8 +50,11 @@ import {
 } from 'lucide-react-native';
 
 import CircularProgress from '../components/CircularProgress';
+import AnimatedScoreRing from '../components/AnimatedScoreRing';
+import AnimatedPressable from '../components/AnimatedPressable';
+import MoodRingCard from '../components/MoodRingCard';
 import LoadingSpinner from '../components/LoadingSpinner';
-import { SkeletonCard, SkeletonStatCard } from '../components/SkeletonLoader';
+import { SkeletonCard, SkeletonStatCard, ShimmerCard, ShimmerStatCard } from '../components/SkeletonLoader';
 import { useAppTheme } from '../hooks/useAppTheme';
 import { useSafeBottomMargin } from '../hooks/useSafeBottomMargin';
 import { useSleep } from '../contexts/SleepContext';
@@ -301,12 +304,12 @@ export default function HomeScreen() {
         <StatusBar barStyle="light-content" />
         <View style={[themedStyles.scrollContent, { paddingTop: insets.top + 10 }]}>
           <View style={themedStyles.header}>
-            <SkeletonStatCard style={{ width: '48%' }} />
-            <SkeletonStatCard style={{ width: '48%' }} />
+            <ShimmerStatCard style={{ width: '48%' }} />
+            <ShimmerStatCard style={{ width: '48%' }} />
           </View>
-          <SkeletonCard style={{ marginTop: 20 }} />
-          <SkeletonCard style={{ marginTop: 16 }} />
-          <SkeletonCard style={{ marginTop: 16 }} />
+          <ShimmerCard style={{ marginTop: 20 }} />
+          <ShimmerCard style={{ marginTop: 16 }} />
+          <ShimmerCard style={{ marginTop: 16 }} />
         </View>
       </View>
     );
@@ -543,28 +546,24 @@ export default function HomeScreen() {
               </View>
 
               <View style={themedStyles.scoreContainer}>
-                {/* Visual Glow behind progress */}
-                <View style={[themedStyles.scoreGlow, { backgroundColor: scoreQuality.color, opacity: 0.15 }]} />
-                <CircularProgress
+                {/* Animated score ring — counts up on load, gradient shifts red→orange→green */}
+                <AnimatedScoreRing
                   score={isTracking ? 0 : (displayMode === 'daytime' ? readinessScore : sleepScore)}
-                  size={Math.max(140, Math.min(width * 0.45, 180))}
-                  strokeWidth={12}
-                  showText={false}
-                  color={displayMode === 'morning' ? lastNightQuality.color : scoreQuality.color}
+                  size={Math.max(142, Math.min(width * 0.45, 182))}
+                  strokeWidth={13}
+                  color={displayMode === 'morning' ? lastNightQuality.color : undefined}
+                  label={isTracking ? 'TRACKING' : (sleepScore === 0 ? 'NO DATA' : (displayMode === 'daytime' ? 'READINESS' : 'SLEEP SCORE'))}
+                  sublabel={
+                    isTracking ? 'In Progress'
+                    : sleepScore === 0 ? 'Start tracking'
+                    : displayMode === 'daytime'
+                      ? (readinessScore >= 85 ? '👑 Peak' : '⚡ Good')
+                      : undefined
+                  }
+                  sublabelColor={scoreQuality.color}
+                  isTracking={isTracking}
+                  delay={400}
                 />
-                <View style={themedStyles.scoreInnerContent}>
-                  <Text style={[themedStyles.scoreValue, {
-                    color: isTracking ? '#F59E0B' : (displayMode === 'daytime' ? (readinessScore >= 75 ? '#10B981' : '#F59E0B') : scoreQuality.color)
-                  }]}>
-                    {isTracking ? '⏱️' : (displayMode === 'daytime' ? readinessScore : sleepScore)}
-                  </Text>
-                  <Text style={themedStyles.scoreLabel}>
-                    {isTracking ? 'TRACKING' : (sleepScore === 0 ? 'NO DATA' : (displayMode === 'daytime' ? 'READINESS' : 'SLEEP SCORE'))}
-                  </Text>
-                  <Text style={[themedStyles.scoreQualityLabel, { color: scoreQuality.color }]}>
-                    {isTracking ? 'In Progress' : (sleepScore === 0 ? 'Start tracking' : (displayMode === 'daytime' ? (readinessScore >= 85 ? '👑 Peak' : '⚡ Good') : `${scoreQuality.emoji} ${scoreQuality.label} `))}
-                  </Text>
-                </View>
               </View>
 
               <View style={themedStyles.statsRow}>
@@ -677,6 +676,12 @@ export default function HomeScreen() {
           </View>
         </View>
 
+        {/* ── Mood Ring Card — glanceable last-night quality indicator ── */}
+        <MoodRingCard
+          score={sleepScore}
+          style={{ marginBottom: 16 }}
+        />
+
         {/* Control Center - Quick Actions */}
         <View style={[themedStyles.sectionHeader, { marginTop: 16 }]}>
           <Text style={themedStyles.sectionTitle}>🛠️ Control Center</Text>
@@ -684,9 +689,11 @@ export default function HomeScreen() {
         <View style={themedStyles.quickActionsGrid}>
           {/* Row 1 */}
           <View style={themedStyles.quickActionsRow}>
-            <TouchableOpacity
+            <AnimatedPressable
               style={themedStyles.actionCard}
               onPress={() => navigation.navigate('Sounds')}
+              haptic="light"
+              activeScale={0.94}
             >
               <LinearGradient
                 colors={['rgba(107, 114, 128, 0.28)', 'rgba(107, 114, 128, 0.10)']}
@@ -697,11 +704,13 @@ export default function HomeScreen() {
                 </View>
                 <Text style={themedStyles.actionLabel}>Sounds</Text>
               </LinearGradient>
-            </TouchableOpacity>
+            </AnimatedPressable>
 
-            <TouchableOpacity
+            <AnimatedPressable
               style={themedStyles.actionCard}
               onPress={() => navigation.navigate('Alarms')}
+              haptic="light"
+              activeScale={0.94}
             >
               <LinearGradient
                 colors={['rgba(107, 114, 128, 0.28)', 'rgba(107, 114, 128, 0.10)']}
@@ -712,14 +721,16 @@ export default function HomeScreen() {
                 </View>
                 <Text style={themedStyles.actionLabel}>Alarms</Text>
               </LinearGradient>
-            </TouchableOpacity>
+            </AnimatedPressable>
           </View>
 
           {/* Row 2 */}
           <View style={themedStyles.quickActionsRow}>
-            <TouchableOpacity
+            <AnimatedPressable
               style={themedStyles.actionCard}
               onPress={() => navigation.navigate('CaffeineCalculator')}
+              haptic="light"
+              activeScale={0.94}
             >
               <LinearGradient
                 colors={['rgba(139, 69, 19, 0.28)', 'rgba(139, 69, 19, 0.10)']}
@@ -730,11 +741,13 @@ export default function HomeScreen() {
                 </View>
                 <Text style={themedStyles.actionLabel}>Caffeine</Text>
               </LinearGradient>
-            </TouchableOpacity>
+            </AnimatedPressable>
 
-            <TouchableOpacity
+            <AnimatedPressable
               style={themedStyles.actionCard}
               onPress={() => navigation.navigate('Settings')}
+              haptic="light"
+              activeScale={0.94}
             >
               <LinearGradient
                 colors={['rgba(107, 114, 128, 0.28)', 'rgba(107, 114, 128, 0.10)']}
@@ -745,7 +758,7 @@ export default function HomeScreen() {
                 </View>
                 <Text style={themedStyles.actionLabel}>Settings</Text>
               </LinearGradient>
-            </TouchableOpacity>
+            </AnimatedPressable>
           </View>
         </View>
 
@@ -886,17 +899,17 @@ export default function HomeScreen() {
 
       </ScrollView>
 
-      {/* AI Assistant Floating Action Button */}
+      {/* Sleep Analysis Floating Button */}
       <TouchableOpacity
         activeOpacity={0.8}
         onPress={() => navigation.navigate('SleepAnalysis')}
         style={[themedStyles.aiFab, { bottom: bottomMargin + 20 }]}
       >
         <LinearGradient
-          colors={['#8B5CF6', '#6366F1']}
+          colors={['#3B82F6', '#6366F1']}
           style={themedStyles.aiFabGradient}
         >
-          <Sparkles size={24} color="#FFFFFF" strokeWidth={2.5} />
+          <TrendingUp size={22} color="#FFFFFF" strokeWidth={2.5} />
         </LinearGradient>
       </TouchableOpacity>
     </View >
@@ -1562,25 +1575,29 @@ const styles = (theme: any, width: number) => StyleSheet.create({
   aiFab: {
     position: 'absolute',
     right: 20,
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.28)',
     ...Platform.select({
       ios: {
-        shadowColor: '#8B5CF6',
+        shadowColor: '#3B82F6',
         shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.4,
+        shadowOpacity: 0.32,
         shadowRadius: 12,
       },
       android: {
-        elevation: 8,
+        elevation: 10,
       },
     }),
   },
   aiFabGradient: {
     flex: 1,
-    borderRadius: 30,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 29,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   sidebarOverlay: {
     flex: 1,

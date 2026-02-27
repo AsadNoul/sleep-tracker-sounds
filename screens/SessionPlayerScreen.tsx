@@ -1,5 +1,5 @@
 import { useAppTheme } from '../hooks/useAppTheme';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -13,6 +13,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
+import { X, Activity, Clock, Gauge, Volume2 } from 'lucide-react-native';
 
 const ICON_MAP: Record<string, any> = {
   'bed-outline': 'bed',
@@ -47,6 +48,9 @@ export default function SessionPlayerScreen() {
   const [elapsedTime, setElapsedTime] = useState(0);
   const [totalDuration, setTotalDuration] = useState(0);
   const [isSessionActive, setIsSessionActive] = useState(false);
+  const [sleepSafeMinutes, setSleepSafeMinutes] = useState(0);
+  const [sleepSafeRemainingSeconds, setSleepSafeRemainingSeconds] = useState<number | null>(null);
+  const originalVolumeRef = useRef<number | null>(null);
 
   // Session steps/instructions
   const sessionSteps: SessionStep[] = [
@@ -136,9 +140,70 @@ export default function SessionPlayerScreen() {
     };
   }, [isSessionActive, isPlaying, currentStepIndex, totalDuration]);
 
+  const restoreVolume = useCallback(async () => {
+    if (originalVolumeRef.current !== null) {
+      try {
+        await setVolume(originalVolumeRef.current);
+      } catch (_) {}
+      originalVolumeRef.current = null;
+    }
+  }, [setVolume]);
+
+  const resetSessionState = useCallback(() => {
+    setIsSessionActive(false);
+    setElapsedTime(0);
+    setCurrentStepIndex(0);
+    setSleepSafeRemainingSeconds(sleepSafeMinutes > 0 ? sleepSafeMinutes * 60 : null);
+  }, [sleepSafeMinutes]);
+
+  useEffect(() => {
+    if (!isSessionActive || !isPlaying || sleepSafeMinutes <= 0) return;
+
+    if (sleepSafeRemainingSeconds === null) {
+      setSleepSafeRemainingSeconds(sleepSafeMinutes * 60);
+      if (originalVolumeRef.current === null) {
+        originalVolumeRef.current = volume;
+      }
+      return;
+    }
+
+    const timer = setInterval(() => {
+      setSleepSafeRemainingSeconds((prev) => (prev === null ? null : Math.max(prev - 1, 0)));
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [isSessionActive, isPlaying, sleepSafeMinutes, sleepSafeRemainingSeconds, volume]);
+
+  useEffect(() => {
+    if (!isSessionActive || sleepSafeRemainingSeconds === null || sleepSafeMinutes <= 0) return;
+
+    const fadeWindowSeconds = 20;
+    if (sleepSafeRemainingSeconds > 0 && sleepSafeRemainingSeconds <= fadeWindowSeconds) {
+      const baseVolume = originalVolumeRef.current ?? volume;
+      const ratio = sleepSafeRemainingSeconds / fadeWindowSeconds;
+      const targetVolume = Math.max(0.03, Math.min(baseVolume, baseVolume * ratio));
+      setVolume(targetVolume).catch(() => {});
+    }
+
+    if (sleepSafeRemainingSeconds === 0) {
+      const stopWithFade = async () => {
+        await stopSound();
+        await restoreVolume();
+        resetSessionState();
+      };
+      stopWithFade();
+    }
+  }, [sleepSafeRemainingSeconds, isSessionActive, sleepSafeMinutes, volume, setVolume, stopSound, restoreVolume, resetSessionState]);
+
   const handleStartSession = async () => {
     try {
       if (session?.uri) {
+        if (sleepSafeMinutes > 0) {
+          originalVolumeRef.current = volume;
+          setSleepSafeRemainingSeconds(sleepSafeMinutes * 60);
+        } else {
+          setSleepSafeRemainingSeconds(null);
+        }
         await playSound(session.id, session.uri, session.title);
         setIsSessionActive(true);
       }
@@ -166,9 +231,8 @@ export default function SessionPlayerScreen() {
   const handleStop = async () => {
     try {
       await stopSound();
-      setIsSessionActive(false);
-      setElapsedTime(0);
-      setCurrentStepIndex(0);
+      await restoreVolume();
+      resetSessionState();
     } catch (error) {
       console.error('Error stopping session:', error);
     }
@@ -176,6 +240,7 @@ export default function SessionPlayerScreen() {
 
   const handleSessionComplete = async () => {
     await stopSound();
+    await restoreVolume();
     setIsSessionActive(false);
   };
 
@@ -183,7 +248,26 @@ export default function SessionPlayerScreen() {
     if (isPlaying) {
       await stopSound();
     }
+    await restoreVolume();
     navigation.goBack();
+  };
+
+  const handleSleepSafeSelect = (minutes: number) => {
+    setSleepSafeMinutes(minutes);
+    if (!isSessionActive) {
+      setSleepSafeRemainingSeconds(minutes > 0 ? minutes * 60 : null);
+      return;
+    }
+
+    if (minutes > 0) {
+      if (originalVolumeRef.current === null) {
+        originalVolumeRef.current = volume;
+      }
+      setSleepSafeRemainingSeconds(minutes * 60);
+    } else {
+      setSleepSafeRemainingSeconds(null);
+      restoreVolume();
+    }
   };
 
   const formatTime = (seconds: number) => {
@@ -208,6 +292,9 @@ export default function SessionPlayerScreen() {
   };
 
   const currentStep = sessionSteps[currentStepIndex];
+  const sleepSafeTimerText = sleepSafeRemainingSeconds === null
+    ? 'Off'
+    : formatTime(sleepSafeRemainingSeconds);
 
   return (
     <View style={styles(theme).container}>
@@ -368,6 +455,39 @@ export default function SessionPlayerScreen() {
               </View>
             </BlurView>
           )}
+
+          {/* Sleep-safe mode */}
+          <BlurView intensity={20} tint="dark" style={styles(theme).safeModeCard}>
+            <View style={styles(theme).safeModeHeader}>
+              <Text style={styles(theme).safeModeTitle}>Sleep-safe mode</Text>
+              <Text style={styles(theme).safeModeTimer}>{sleepSafeTimerText}</Text>
+            </View>
+            <Text style={styles(theme).safeModeSubtitle}>Auto-stop with gentle fade-out</Text>
+            <View style={styles(theme).safeModeOptions}>
+              {[0, 15, 30, 45].map((minutes) => {
+                const selected = sleepSafeMinutes === minutes;
+                return (
+                  <TouchableOpacity
+                    key={minutes}
+                    style={[
+                      styles(theme).safeModeOption,
+                      selected && styles(theme).safeModeOptionSelected,
+                    ]}
+                    onPress={() => handleSleepSafeSelect(minutes)}
+                  >
+                    <Text
+                      style={[
+                        styles(theme).safeModeOptionText,
+                        selected && styles(theme).safeModeOptionTextSelected,
+                      ]}
+                    >
+                      {minutes === 0 ? 'Off' : `${minutes}m`}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </BlurView>
 
           {/* Control Buttons */}
           <View style={styles(theme).controls}>
@@ -657,6 +777,60 @@ const styles = (theme: any) => StyleSheet.create({
     padding: 16,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  safeModeCard: {
+    marginHorizontal: 20,
+    marginBottom: 20,
+    backgroundColor: 'rgba(27, 29, 42, 0.6)',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  safeModeHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  safeModeTitle: {
+    fontSize: 14,
+    color: theme.colors.textPrimary,
+    fontWeight: '700',
+  },
+  safeModeTimer: {
+    fontSize: 13,
+    color: theme.colors.accent,
+    fontWeight: '700',
+  },
+  safeModeSubtitle: {
+    fontSize: 12,
+    color: theme.colors.textSecondary,
+    marginBottom: 12,
+  },
+  safeModeOptions: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  safeModeOption: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+  },
+  safeModeOptionSelected: {
+    borderColor: theme.colors.accent,
+    backgroundColor: 'rgba(0, 255, 209, 0.12)',
+  },
+  safeModeOptionText: {
+    color: theme.colors.textSecondary,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  safeModeOptionTextSelected: {
+    color: theme.colors.accent,
   },
   volumeLabel: {
     fontSize: 14,

@@ -1,6 +1,6 @@
 import { useAppTheme } from '../hooks/useAppTheme';
 import { isPremiumActive } from '../utils/subscriptionHelpers';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   Image,
   Modal,
   Alert,
+  Dimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
@@ -19,44 +20,48 @@ import {
   X,
   Clock,
   BarChart2,
-  CheckCircle2,
-  Heart,
-  Search,
-  Settings,
-  Mic,
-  Timer,
-  Pause,
-  Square,
-  ChevronDown,
-  ChevronLeft,
-  MoreHorizontal,
   Wind,
   BookOpen,
   Accessibility,
   Play,
-  AlertCircle,
   Zap,
-  Shield
+  Lock,
+  Heart,
+  Flame,
+  Brain,
+  Sun,
+  Coffee,
+  Baby,
+  Music2,
+  ChevronLeft,
+  Pause,
+  Trophy,
+  Target,
 } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAudio } from '../contexts/AudioContext';
 import { useAuth } from '../contexts/AuthContext';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   saveMindfulnessSession,
   getMindfulnessStats,
-  formatMindfulnessTime,
   type MindfulnessStats,
 } from '../utils/mindfulnessTracking';
+import { getPlayablePublicStoriesWithMeta } from '../services/storyContentService';
 import BreathingCoach from '../components/BreathingCoach';
 import { useSafeBottomMargin } from '../hooks/useSafeBottomMargin';
 
+const { width } = Dimensions.get('window');
+
 type RootStackParamList = {
   SessionPlayer: { session: any };
+  Subscription: undefined;
+  SleepAnalysis: undefined;
 };
 
-interface MindfulnessSession {
+interface MindfulnessSessionItem {
   id: string;
   title: string;
   duration: string;
@@ -65,20 +70,626 @@ interface MindfulnessSession {
   premium: boolean;
   uri: string;
   description: string;
+  tags?: string[];
 }
+
+interface Category {
+  id: string;
+  name: string;
+  icon: any;
+  premium?: boolean;
+  color: string;
+}
+
+const FAVOURITES_KEY = '@mindfulness_favourites';
+const LAST_CATEGORY_KEY = '@mindfulness_last_category';
+
+const GITHUB_BASE_URL = 'https://raw.githubusercontent.com/AsadNoul/sleep-tracker-sounds/main';
+
+// ─── ALL SESSIONS DATA ───────────────────────────────────────────────────────
+
+const ALL_SESSIONS: Record<string, MindfulnessSessionItem[]> = {
+  'quick-relief': [
+    {
+      id: 'anxiety-relief',
+      title: 'Anxiety Relief',
+      duration: '3 min',
+      difficulty: 'All Levels',
+      image: 'https://images.unsplash.com/photo-1506126613408-eca07ce68773?w=400&q=80',
+      premium: false,
+      uri: `${GITHUB_BASE_URL}/meditation-calm.mp3`,
+      description: 'Rapid calming technique to reduce anxiety in just 3 minutes using grounding and breath.',
+      tags: ['anxiety', 'fast', 'grounding'],
+    },
+    {
+      id: 'panic-help',
+      title: 'Panic Attack Help',
+      duration: '5 min',
+      difficulty: 'All Levels',
+      image: 'https://images.unsplash.com/photo-1528715471579-d1bcf0ba5e83?w=400&q=80',
+      premium: false,
+      uri: `${GITHUB_BASE_URL}/meditation-deep.mp3`,
+      description: '5-4-3-2-1 grounding exercise to anchor you through a panic attack.',
+      tags: ['panic', 'grounding', 'emergency'],
+    },
+    {
+      id: 'stress-release',
+      title: 'Stress Release',
+      duration: '4 min',
+      difficulty: 'All Levels',
+      image: 'https://images.unsplash.com/photo-1593811167562-9cef47bfc4d7?w=400&q=80',
+      premium: false,
+      uri: `${GITHUB_BASE_URL}/meditation-calm.mp3`,
+      description: 'Quick body scan to release accumulated stress from head to toe.',
+      tags: ['stress', 'body scan'],
+    },
+    {
+      id: 'thought-defusion',
+      title: 'Thought Defusion',
+      duration: '5 min',
+      difficulty: 'All Levels',
+      image: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=400&q=80',
+      premium: false,
+      uri: `${GITHUB_BASE_URL}/meditation-calm.mp3`,
+      description: 'ACT technique to detach from anxious thoughts and observe them without judgment.',
+      tags: ['thoughts', 'ACT', 'anxiety'],
+    },
+    {
+      id: 'worry-postponement',
+      title: 'Worry Postponement',
+      duration: '6 min',
+      difficulty: 'All Levels',
+      image: 'https://images.unsplash.com/photo-1434493789847-2f02dc6ca35d?w=400&q=80',
+      premium: false,
+      uri: `${GITHUB_BASE_URL}/meditation-deep.mp3`,
+      description: 'CBT technique to schedule your worries so they stop invading bedtime.',
+      tags: ['CBT', 'worry', 'sleep'],
+    },
+  ],
+
+  'breathing-coach': [
+    {
+      id: 'box-breathing',
+      title: 'Box Breathing',
+      duration: '5 min',
+      difficulty: 'Beginner',
+      image: 'https://images.unsplash.com/photo-1506126613408-eca07ce68773?w=400&q=80',
+      premium: false,
+      uri: '',
+      description: '4-4-4-4 pattern used by Navy SEALs for instant focus and calm.',
+    },
+    {
+      id: '4-7-8-breathing',
+      title: '4-7-8 Breathing',
+      duration: '5 min',
+      difficulty: 'Beginner',
+      image: 'https://images.unsplash.com/photo-1528715471579-d1bcf0ba5e83?w=400&q=80',
+      premium: false,
+      uri: '',
+      description: "Dr. Weil's technique for rapid relaxation — fall asleep faster.",
+    },
+    {
+      id: 'calm-breathing',
+      title: 'Calm Breathing',
+      duration: '5 min',
+      difficulty: 'Beginner',
+      image: 'https://images.unsplash.com/photo-1593811167562-9cef47bfc4d7?w=400&q=80',
+      premium: false,
+      uri: '',
+      description: 'Extended exhale pattern activates your parasympathetic nervous system.',
+    },
+    {
+      id: 'coherent-breathing',
+      title: 'Coherent Breathing',
+      duration: '10 min',
+      difficulty: 'Beginner',
+      image: 'https://images.unsplash.com/photo-1518531933037-91b2f5f229cc?w=400&q=80',
+      premium: false,
+      uri: `${GITHUB_BASE_URL}/meditation-calm.mp3`,
+      description: '5 breaths per minute to improve HRV and reduce stress long term.',
+    },
+    {
+      id: 'wim-hof',
+      title: 'Wim Hof Method',
+      duration: '20 min',
+      difficulty: 'Intermediate',
+      image: 'https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=400&q=80',
+      premium: true,
+      uri: `${GITHUB_BASE_URL}/meditation-deep.mp3`,
+      description: 'Energizing breathwork technique to boost energy, focus, and resilience.',
+    },
+    {
+      id: 'alternate-nostril',
+      title: 'Nadi Shodhana',
+      duration: '8 min',
+      difficulty: 'Beginner',
+      image: 'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=400&q=80',
+      premium: false,
+      uri: `${GITHUB_BASE_URL}/meditation-calm.mp3`,
+      description: 'Alternate nostril breathing to balance left and right brain hemispheres.',
+    },
+    {
+      id: 'bhramari',
+      title: 'Humming Bee Breath',
+      duration: '5 min',
+      difficulty: 'Beginner',
+      image: 'https://images.unsplash.com/photo-1516979187457-637abb4f9353?w=400&q=80',
+      premium: false,
+      uri: `${GITHUB_BASE_URL}/meditation-calm.mp3`,
+      description: 'Bhramari pranayama — instant anxiety relief through gentle humming vibrations.',
+    },
+  ],
+
+  meditation: [
+    {
+      id: 'meditation-gratitude',
+      title: 'Gratitude for Sleep',
+      duration: '10 min',
+      difficulty: 'Beginner',
+      image: 'https://images.unsplash.com/photo-1506126613408-eca07ce68773?w=400&q=80',
+      premium: false,
+      uri: `${GITHUB_BASE_URL}/meditation-calm.mp3`,
+      description: 'End your day with a positive reflection to calm your mind for sleep.',
+    },
+    {
+      id: 'meditation-1',
+      title: 'Deep Sleep Meditation',
+      duration: '20 min',
+      difficulty: 'Beginner',
+      image: 'https://images.unsplash.com/photo-1512438248247-f0f2a5a8b7f0?w=400&q=80',
+      premium: false,
+      uri: `${GITHUB_BASE_URL}/meditation-deep.mp3`,
+      description: 'A calming guided meditation to help you drift into deep, restful sleep.',
+    },
+    {
+      id: 'meditation-2',
+      title: 'Body Scan Relaxation',
+      duration: '15 min',
+      difficulty: 'Beginner',
+      image: 'https://images.unsplash.com/photo-1536629894121-4d162a042191?w=400&q=80',
+      premium: false,
+      uri: `${GITHUB_BASE_URL}/meditation-calm.mp3`,
+      description: 'Progressive relaxation technique to release tension from every muscle.',
+    },
+    {
+      id: 'meditation-yoga-nidra',
+      title: 'Yoga Nidra',
+      duration: '30 min',
+      difficulty: 'All Levels',
+      image: 'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=400&q=80',
+      premium: true,
+      uri: `${GITHUB_BASE_URL}/meditation-deep.mp3`,
+      description: 'Guided deep relaxation — 30 min of Yoga Nidra equals 4 hours of sleep.',
+    },
+    {
+      id: 'nsdr',
+      title: 'NSDR Protocol',
+      duration: '20 min',
+      difficulty: 'All Levels',
+      image: 'https://images.unsplash.com/photo-1497366216548-37526070297c?w=400&q=80',
+      premium: false,
+      uri: `${GITHUB_BASE_URL}/meditation-deep.mp3`,
+      description: 'Non-Sleep Deep Rest — Huberman Lab protocol for rapid mental recovery.',
+    },
+    {
+      id: 'loving-kindness',
+      title: 'Loving-Kindness (Metta)',
+      duration: '15 min',
+      difficulty: 'Beginner',
+      image: 'https://images.unsplash.com/photo-1506126613408-eca07ce68773?w=400&q=80',
+      premium: false,
+      uri: `${GITHUB_BASE_URL}/meditation-calm.mp3`,
+      description: 'Cultivate compassion for yourself and others — powerful for self-criticism.',
+    },
+    {
+      id: 'open-awareness',
+      title: 'Open Awareness',
+      duration: '10 min',
+      difficulty: 'Intermediate',
+      image: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=400&q=80',
+      premium: false,
+      uri: `${GITHUB_BASE_URL}/meditation-calm.mp3`,
+      description: 'No focus object — pure effortless awareness of the present moment.',
+    },
+    {
+      id: 'walking-meditation',
+      title: 'Walking Meditation',
+      duration: '10 min',
+      difficulty: 'Beginner',
+      image: 'https://images.unsplash.com/photo-1476611317561-60117649dd94?w=400&q=80',
+      premium: false,
+      uri: `${GITHUB_BASE_URL}/meditation-calm.mp3`,
+      description: 'Turn your evening walk into a moving meditation — no sitting required.',
+    },
+  ],
+
+  breathing: [
+    {
+      id: 'breathing-pmr',
+      title: 'Progressive Muscle Relaxation',
+      duration: '15 min',
+      difficulty: 'Beginner',
+      image: 'https://images.unsplash.com/photo-1593811167562-9cef47bfc4d7?w=400&q=80',
+      premium: false,
+      uri: `${GITHUB_BASE_URL}/meditation-calm.mp3`,
+      description: 'Step-by-step physical technique to release body tension before bed.',
+    },
+    {
+      id: 'breathing-1',
+      title: '4-7-8 Breathing',
+      duration: '10 min',
+      difficulty: 'Beginner',
+      image: 'https://images.unsplash.com/photo-1518531933037-91b2f5f229cc?w=400&q=80',
+      premium: false,
+      uri: `${GITHUB_BASE_URL}/meditation-calm.mp3`,
+      description: 'Simple breathing technique to reduce anxiety and promote relaxation.',
+    },
+    {
+      id: 'breathing-2',
+      title: 'Box Breathing',
+      duration: '8 min',
+      difficulty: 'Beginner',
+      image: 'https://images.unsplash.com/photo-1515377905703-c4788e51af15?w=400&q=80',
+      premium: false,
+      uri: `${GITHUB_BASE_URL}/meditation-deep.mp3`,
+      description: 'Structured breathing pattern used by focus-driven professionals.',
+    },
+    {
+      id: 'diaphragmatic',
+      title: 'Diaphragmatic Breathing',
+      duration: '8 min',
+      difficulty: 'Beginner',
+      image: 'https://images.unsplash.com/photo-1528715471579-d1bcf0ba5e83?w=400&q=80',
+      premium: false,
+      uri: `${GITHUB_BASE_URL}/meditation-calm.mp3`,
+      description: 'Belly breathing to activate the relaxation response and calm the nervous system.',
+    },
+  ],
+
+  stories: [],
+
+  yoga: [
+    {
+      id: 'yoga-1',
+      title: 'Bedtime Yoga Flow',
+      duration: '20 min',
+      difficulty: 'Beginner',
+      image: 'https://images.unsplash.com/photo-1552196564-97ccf6131f0a?w=400&q=80',
+      premium: true,
+      uri: `${GITHUB_BASE_URL}/meditation-calm.mp3`,
+      description: 'Gentle yoga sequence to release tension and prepare your body for sleep.',
+    },
+    {
+      id: 'legs-up-wall',
+      title: 'Legs Up the Wall',
+      duration: '10 min',
+      difficulty: 'Beginner',
+      image: 'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=400&q=80',
+      premium: true,
+      uri: `${GITHUB_BASE_URL}/meditation-calm.mp3`,
+      description: 'The single best pre-sleep yoga pose — reduces cortisol and calms the nervous system.',
+    },
+    {
+      id: 'childs-pose',
+      title: "Child's Pose Flow",
+      duration: '12 min',
+      difficulty: 'Beginner',
+      image: 'https://images.unsplash.com/photo-1588286840104-8957b019727f?w=400&q=80',
+      premium: true,
+      uri: `${GITHUB_BASE_URL}/meditation-calm.mp3`,
+      description: 'Full gentle sequence anchored by the most restorative yoga pose.',
+    },
+    {
+      id: 'restorative-yoga',
+      title: 'Restorative Yoga',
+      duration: '30 min',
+      difficulty: 'Beginner',
+      image: 'https://images.unsplash.com/photo-1506126613408-eca07ce68773?w=400&q=80',
+      premium: true,
+      uri: `${GITHUB_BASE_URL}/meditation-deep.mp3`,
+      description: 'Props-optional deeply relaxing poses held for 3–5 minutes each.',
+    },
+  ],
+
+  'cbti-course': [
+    {
+      id: 'cbti-week1',
+      title: 'Week 1 — Sleep Education',
+      duration: '15 min',
+      difficulty: 'Beginner',
+      image: 'https://images.unsplash.com/photo-1434493789847-2f02dc6ca35d?w=400&q=80',
+      premium: true,
+      uri: `${GITHUB_BASE_URL}/meditation-calm.mp3`,
+      description: 'Understand the science of sleep, why you wake up, and how CBT-i works.',
+    },
+    {
+      id: 'cbti-week2',
+      title: 'Week 2 — Sleep Restriction',
+      duration: '20 min',
+      difficulty: 'Intermediate',
+      image: 'https://images.unsplash.com/photo-1495364141860-b0d03eccd065?w=400&q=80',
+      premium: true,
+      uri: `${GITHUB_BASE_URL}/meditation-deep.mp3`,
+      description: 'Consolidate your sleep using controlled sleep restriction — the core of CBT-i.',
+    },
+    {
+      id: 'cbti-week3',
+      title: 'Week 3 — Stimulus Control',
+      duration: '15 min',
+      difficulty: 'Beginner',
+      image: 'https://images.unsplash.com/photo-1516627145497-ae6968895b74?w=400&q=80',
+      premium: true,
+      uri: `${GITHUB_BASE_URL}/meditation-calm.mp3`,
+      description: 'Retrain your brain to associate bed with sleep only — not screens or worry.',
+    },
+    {
+      id: 'cbti-week4',
+      title: 'Week 4 — Cognitive Restructuring',
+      duration: '20 min',
+      difficulty: 'Intermediate',
+      image: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&q=80',
+      premium: true,
+      uri: `${GITHUB_BASE_URL}/meditation-calm.mp3`,
+      description: 'Challenge and reframe unhelpful thoughts about sleep and wakefulness.',
+    },
+    {
+      id: 'cbti-week5',
+      title: 'Week 5 — Relaxation Training',
+      duration: '25 min',
+      difficulty: 'Beginner',
+      image: 'https://images.unsplash.com/photo-1506126613408-eca07ce68773?w=400&q=80',
+      premium: true,
+      uri: `${GITHUB_BASE_URL}/meditation-deep.mp3`,
+      description: 'Master evidence-based relaxation techniques for bedtime anxiety.',
+    },
+    {
+      id: 'cbti-week6',
+      title: 'Week 6 — Maintenance Plan',
+      duration: '20 min',
+      difficulty: 'Beginner',
+      image: 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400&q=80',
+      premium: true,
+      uri: `${GITHUB_BASE_URL}/meditation-calm.mp3`,
+      description: 'Build your personalised long-term sleep plan to stay well after CBT-i.',
+    },
+  ],
+
+  morning: [
+    {
+      id: 'morning-gratitude',
+      title: 'Gratitude Wake-Up',
+      duration: '5 min',
+      difficulty: 'Beginner',
+      image: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400&q=80',
+      premium: false,
+      uri: `${GITHUB_BASE_URL}/meditation-calm.mp3`,
+      description: 'Start the day with 3 deep breaths and a moment of genuine gratitude.',
+    },
+    {
+      id: 'morning-intention',
+      title: 'Set Your Intention',
+      duration: '5 min',
+      difficulty: 'Beginner',
+      image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&q=80',
+      premium: false,
+      uri: `${GITHUB_BASE_URL}/meditation-calm.mp3`,
+      description: 'Choose one word to guide your day. A simple but powerful morning ritual.',
+    },
+    {
+      id: 'morning-energy',
+      title: 'Energy Activation',
+      duration: '8 min',
+      difficulty: 'Beginner',
+      image: 'https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=400&q=80',
+      premium: false,
+      uri: `${GITHUB_BASE_URL}/meditation-calm.mp3`,
+      description: 'Breathwork + gentle movement to wake up your body without coffee.',
+    },
+    {
+      id: 'morning-focus',
+      title: 'Focus Meditation',
+      duration: '10 min',
+      difficulty: 'Beginner',
+      image: 'https://images.unsplash.com/photo-1497366216548-37526070297c?w=400&q=80',
+      premium: false,
+      uri: `${GITHUB_BASE_URL}/meditation-deep.mp3`,
+      description: 'Single-pointed concentration practice to sharpen morning focus.',
+    },
+    {
+      id: 'morning-sun-salutation',
+      title: 'Sun Salutation Breath',
+      duration: '12 min',
+      difficulty: 'Beginner',
+      image: 'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=400&q=80',
+      premium: true,
+      uri: `${GITHUB_BASE_URL}/meditation-calm.mp3`,
+      description: 'A flowing breathwork sequence inspired by the traditional yoga sun salutation.',
+    },
+  ],
+
+  'power-nap': [
+    {
+      id: 'nap-10min',
+      title: '10-Min NASA Nap',
+      duration: '10 min',
+      difficulty: 'All Levels',
+      image: 'https://images.unsplash.com/photo-1531353826977-0941b4779a1c?w=400&q=80',
+      premium: false,
+      uri: `${GITHUB_BASE_URL}/meditation-calm.mp3`,
+      description: 'NASA-researched 10-minute nap — maximum alertness boost, no grogginess.',
+    },
+    {
+      id: 'nap-20min',
+      title: '20-Min Power Restore',
+      duration: '20 min',
+      difficulty: 'All Levels',
+      image: 'https://images.unsplash.com/photo-1504701954957-2010ec3bcec1?w=400&q=80',
+      premium: false,
+      uri: `${GITHUB_BASE_URL}/meditation-deep.mp3`,
+      description: 'Stage 1–2 sleep nap with gentle wake-up. Restores focus and mood.',
+    },
+    {
+      id: 'nap-90min',
+      title: '90-Min Full Cycle',
+      duration: '90 min',
+      difficulty: 'All Levels',
+      image: 'https://images.unsplash.com/photo-1511295742362-92c96b1cf484?w=400&q=80',
+      premium: true,
+      uri: `${GITHUB_BASE_URL}/ocean-waves.mp3`,
+      description: 'A full 90-min sleep cycle including REM — complete cognitive reset.',
+    },
+    {
+      id: 'nap-coffee',
+      title: 'Coffee Nap',
+      duration: '20 min',
+      difficulty: 'All Levels',
+      image: 'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=400&q=80',
+      premium: false,
+      uri: `${GITHUB_BASE_URL}/meditation-calm.mp3`,
+      description: 'Drink coffee then nap immediately — caffeine kicks in just as you wake up.',
+    },
+  ],
+
+  music: [
+    {
+      id: 'theta-waves',
+      title: 'Theta Waves (Focus)',
+      duration: '30 min',
+      difficulty: 'All Levels',
+      image: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=400&q=80',
+      premium: true,
+      uri: `${GITHUB_BASE_URL}/white-noise.mp3`,
+      description: 'Theta binaural beats (4–8 Hz) for deep focus, creativity, and meditation.',
+    },
+    {
+      id: 'delta-waves',
+      title: 'Delta Waves (Sleep)',
+      duration: '60 min',
+      difficulty: 'All Levels',
+      image: 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400&q=80',
+      premium: true,
+      uri: `${GITHUB_BASE_URL}/white-noise.mp3`,
+      description: 'Delta wave frequencies clinically linked to deep, restorative sleep.',
+    },
+    {
+      id: 'alpha-creativity',
+      title: 'Alpha Waves (Calm)',
+      duration: '30 min',
+      difficulty: 'All Levels',
+      image: 'https://images.unsplash.com/photo-1516979187457-637abb4f9353?w=400&q=80',
+      premium: false,
+      uri: `${GITHUB_BASE_URL}/white-noise.mp3`,
+      description: 'Alpha waves (8–12 Hz) for relaxed alertness, light creativity, and calm.',
+    },
+    {
+      id: 'ambient-music',
+      title: 'Sleep Ambient Music',
+      duration: '45 min',
+      difficulty: 'All Levels',
+      image: 'https://images.unsplash.com/photo-1507838153414-b4b713384a76?w=400&q=80',
+      premium: false,
+      uri: `${GITHUB_BASE_URL}/ocean-waves.mp3`,
+      description: 'Slowly evolving ambient soundscape composed specifically for sleep.',
+    },
+    {
+      id: 'solfeggio',
+      title: 'Solfeggio 528 Hz',
+      duration: '40 min',
+      difficulty: 'All Levels',
+      image: 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400&q=80',
+      premium: true,
+      uri: `${GITHUB_BASE_URL}/white-noise.mp3`,
+      description: '528 Hz "miracle tone" — associated with DNA repair and deep cellular calm.',
+    },
+  ],
+
+  kids: [
+    {
+      id: 'kids-bunny-breath',
+      title: 'Bunny Breathing',
+      duration: '3 min',
+      difficulty: 'All Levels',
+      image: 'https://images.unsplash.com/photo-1452570053594-1b985d6ea890?w=400&q=80',
+      premium: false,
+      uri: `${GITHUB_BASE_URL}/meditation-calm.mp3`,
+      description: 'Three quick sniffs in, one long out — a bunny breathing pattern kids love.',
+    },
+    {
+      id: 'kids-cloud-float',
+      title: 'Float on a Cloud',
+      duration: '10 min',
+      difficulty: 'All Levels',
+      image: 'https://images.unsplash.com/photo-1534794048419-b5b9daee8975?w=400&q=80',
+      premium: false,
+      uri: `${GITHUB_BASE_URL}/meditation-calm.mp3`,
+      description: 'A gentle visualisation — lying on a soft cloud drifting through a pink sky.',
+    },
+    {
+      id: 'kids-superhero',
+      title: 'Superhero Pose',
+      duration: '5 min',
+      difficulty: 'All Levels',
+      image: 'https://images.unsplash.com/photo-1547558902-c0e053aba3c3?w=400&q=80',
+      premium: false,
+      uri: `${GITHUB_BASE_URL}/meditation-calm.mp3`,
+      description: 'Stand tall, breathe deep — become your favourite superhero before bed.',
+    },
+    {
+      id: 'kids-sleepy-caterpillar',
+      title: 'Sleepy Caterpillar',
+      duration: '8 min',
+      difficulty: 'All Levels',
+      image: 'https://images.unsplash.com/photo-1587855049254-351f4e55fe2a?w=400&q=80',
+      premium: false,
+      uri: `${GITHUB_BASE_URL}/meditation-deep.mp3`,
+      description: 'A cosy bedtime story about a caterpillar winding down for the night.',
+    },
+    {
+      id: 'kids-magic-garden',
+      title: 'Magic Garden Dream',
+      duration: '12 min',
+      difficulty: 'All Levels',
+      image: 'https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=400&q=80',
+      premium: true,
+      uri: `${GITHUB_BASE_URL}/forest-ambience.mp3`,
+      description: 'A narrated journey through a magical, colourful garden full of friendly animals.',
+    },
+  ],
+};
+
+// ─── CATEGORIES ──────────────────────────────────────────────────────────────
+
+const CATEGORIES: Category[] = [
+  { id: 'quick-relief', name: 'Quick Relief', icon: Zap, color: '#F59E0B' },
+  { id: 'breathing-coach', name: 'Breathe', icon: Wind, color: '#60A5FA' },
+  { id: 'meditation', name: 'Meditation', icon: Sparkles, color: '#8B5CF6' },
+  { id: 'breathing', name: 'Breathing', icon: Wind, color: '#34D399' },
+  { id: 'morning', name: 'Morning', icon: Sun, color: '#FBBF24' },
+  { id: 'power-nap', name: 'Power Nap', icon: Coffee, color: '#A78BFA' },
+  { id: 'music', name: 'Music & Beats', icon: Music2, color: '#EC4899', premium: true },
+  { id: 'stories', name: 'Sleep Stories', icon: BookOpen, color: '#10B981' },
+  { id: 'yoga', name: 'Yoga', icon: Accessibility, color: '#F87171', premium: true },
+  { id: 'cbti-course', name: 'CBT-i Course', icon: Brain, color: '#6366F1', premium: true },
+  { id: 'kids', name: 'Kids Wind Down', icon: Baby, color: '#FB923C' },
+];
+
+// ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
 
 export default function MindfulnessScreen() {
   const { theme, isDark } = useAppTheme();
   const insets = useSafeAreaInsets();
   const bottomMargin = useSafeBottomMargin();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const { isPlaying, currentSound, playSound, stopSound } = useAudio();
+  const { isPlaying, stopSound } = useAudio();
   const { user } = useAuth();
+
   const [selectedCategory, setSelectedCategory] = useState('meditation');
-  const [selectedSession, setSelectedSession] = useState<MindfulnessSession | null>(null);
+  const [selectedSession, setSelectedSession] = useState<MindfulnessSessionItem | null>(null);
+  const activeSessionRef = useRef<MindfulnessSessionItem | null>(null);
   const [showSessionModal, setShowSessionModal] = useState(false);
   const [showBreathingCoach, setShowBreathingCoach] = useState(false);
   const [breathingPattern, setBreathingPattern] = useState<'box' | '4-7-8' | 'calm'>('box');
+  const [pendingBreathingSession, setPendingBreathingSession] = useState<MindfulnessSessionItem | null>(null);
   const [mindfulnessStats, setMindfulnessStats] = useState<MindfulnessStats>({
     totalSessions: 0,
     totalMinutes: 0,
@@ -86,306 +697,251 @@ export default function MindfulnessScreen() {
     lastSessionDate: null,
     sessionHistory: [],
   });
+  const [favourites, setFavourites] = useState<Set<string>>(new Set());
+  const [showFavourites, setShowFavourites] = useState(false);
+  const [publicStories, setPublicStories] = useState<MindfulnessSessionItem[]>([]);
+  const [isStoriesLoading, setIsStoriesLoading] = useState(false);
+  const [storiesLastUpdated, setStoriesLastUpdated] = useState<number | null>(null);
+  const [storiesSource, setStoriesSource] = useState<'cache' | 'network' | 'cache-stale' | 'fallback'>('network');
+  const [dailyGoal] = useState(10); // minutes
 
-  // Load mindfulness stats on mount and when session modal closes
+  const hasPremium = isPremiumActive(
+    user?.subscription_status,
+    user?.subscription_end_date,
+    user?.role,
+    user?.email,
+  );
+
+  // Load stats, favourites, and last category on mount
+  const loadStats = useCallback(async () => {
+    const stats = await getMindfulnessStats(user?.id);
+    setMindfulnessStats(stats);
+  }, [user?.id]);
+
   useEffect(() => {
     loadStats();
+    loadFavourites();
+    loadLastCategory();
+    loadPublicStories();
+  }, [loadStats]);
+
+  const loadPublicStories = useCallback(async () => {
+    setIsStoriesLoading(true);
+    try {
+      const result = await getPlayablePublicStoriesWithMeta(10);
+      const mappedStories: MindfulnessSessionItem[] = result.stories.map((story) => ({
+        id: story.id,
+        title: story.title,
+        duration: `${story.durationMinutes} min`,
+        difficulty: 'All Levels',
+        image: story.image,
+        premium: false,
+        uri: story.uri,
+        description: story.description,
+        tags: ['public-domain', 'story'],
+      }));
+      setPublicStories(mappedStories);
+      setStoriesLastUpdated(result.lastUpdated);
+      setStoriesSource(result.source);
+    } catch (_) {
+      setPublicStories([]);
+      setStoriesLastUpdated(null);
+      setStoriesSource('fallback');
+    } finally {
+      setIsStoriesLoading(false);
+    }
   }, []);
 
-  const loadStats = async () => {
-    const stats = await getMindfulnessStats();
-    setMindfulnessStats(stats);
+  const loadFavourites = async () => {
+    try {
+      const stored = await AsyncStorage.getItem(FAVOURITES_KEY);
+      if (stored) setFavourites(new Set(JSON.parse(stored)));
+    } catch (_) {}
   };
 
-  const GITHUB_BASE_URL = 'https://raw.githubusercontent.com/AsadNoul/sleep-tracker-sounds/main';
+  const loadLastCategory = async () => {
+    try {
+      const last = await AsyncStorage.getItem(LAST_CATEGORY_KEY);
+      if (last) setSelectedCategory(last);
+    } catch (_) {}
+  };
 
-  const categories = [
-    { id: 'quick-relief', name: 'Quick Relief', icon: Zap },
-    { id: 'breathing-coach', name: 'Breathing Coach', icon: Wind },
-    { id: 'meditation', name: 'Meditation', icon: Sparkles },
-    { id: 'breathing', name: 'Breathing', icon: Wind },
-    { id: 'stories', name: 'Sleep Stories', icon: BookOpen, premium: true },
-    { id: 'yoga', name: 'Yoga', icon: Accessibility, premium: true },
-  ];
+  const handleCategorySelect = useCallback(async (id: string) => {
+    setSelectedCategory(id);
+    if (id === 'stories' && publicStories.length === 0 && !isStoriesLoading) {
+      loadPublicStories();
+    }
+    try { await AsyncStorage.setItem(LAST_CATEGORY_KEY, id); } catch (_) {}
+  }, [publicStories.length, isStoriesLoading, loadPublicStories]);
 
-  const sessions = {
-    'quick-relief': [
-      {
-        id: 'anxiety-relief',
-        title: 'Anxiety Relief',
-        duration: '3 min',
-        difficulty: 'All Levels',
-        image: 'https://images.unsplash.com/photo-1506126613408-eca07ce68773?w=400&q=80',
-        premium: false,
-        uri: `${GITHUB_BASE_URL}/meditation-calm.mp3`,
-        description: 'Rapid calming technique to reduce anxiety in just 3 minutes'
-      },
-      {
-        id: 'panic-help',
-        title: 'Panic Attack Help',
-        duration: '5 min',
-        difficulty: 'All Levels',
-        image: 'https://images.unsplash.com/photo-1528715471579-d1bcf0ba5e83?w=400&q=80',
-        premium: false,
-        uri: `${GITHUB_BASE_URL}/meditation-deep.mp3`,
-        description: 'Grounding exercise to help you through a panic attack'
-      },
-      {
-        id: 'stress-release',
-        title: 'Stress Release',
-        duration: '4 min',
-        difficulty: 'All Levels',
-        image: 'https://images.unsplash.com/photo-1593811167562-9cef47bfc4d7?w=400&q=80',
-        premium: false,
-        uri: `${GITHUB_BASE_URL}/meditation-calm.mp3`,
-        description: 'Quick body scan to release accumulated stress'
-      },
-    ],
-    'breathing-coach': [
-      {
-        id: 'box-breathing',
-        title: 'Box Breathing',
-        duration: '5 min',
-        difficulty: 'Beginner',
-        image: 'https://images.unsplash.com/photo-1506126613408-eca07ce68773?w=400&q=80',
-        premium: false,
-        uri: '',
-        description: '4-4-4-4 pattern used by Navy SEALs for focus and calm'
-      },
-      {
-        id: '4-7-8-breathing',
-        title: '4-7-8 Breathing',
-        duration: '5 min',
-        difficulty: 'Beginner',
-        image: 'https://images.unsplash.com/photo-1528715471579-d1bcf0ba5e83?w=400&q=80',
-        premium: false,
-        uri: '',
-        description: 'Dr. Weil\'s technique for rapid relaxation and sleep'
-      },
-      {
-        id: 'calm-breathing',
-        title: 'Calm Breathing',
-        duration: '5 min',
-        difficulty: 'Beginner',
-        image: 'https://images.unsplash.com/photo-1593811167562-9cef47bfc4d7?w=400&q=80',
-        premium: false,
-        uri: '',
-        description: 'Extended exhale pattern for deep relaxation'
-      },
-    ],
-    meditation: [
-      {
-        id: 'meditation-yoga-nidra',
-        title: 'Yoga Nidra (Psychic Sleep)',
-        duration: '30 min',
-        difficulty: 'All Levels',
-        image: 'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=400&q=80',
-        premium: true,
-        uri: `${GITHUB_BASE_URL}/meditation-deep.mp3`,
-        description: 'Guided deep relaxation based on the ancient practice of Yoga Nidra.'
-      },
-      {
-        id: 'meditation-gratitude',
-        title: 'Gratitude for Sleep',
-        duration: '10 min',
-        difficulty: 'Beginner',
-        image: 'https://images.unsplash.com/photo-1506126613408-eca07ce68773?w=400&q=80',
-        premium: false,
-        uri: `${GITHUB_BASE_URL}/meditation-calm.mp3`,
-        description: 'End your day with a positive reflection to calm your mind.'
-      },
-      {
-        id: 'meditation-1',
-        title: 'Deep Sleep Meditation',
-        duration: '20 min',
-        difficulty: 'Beginner',
-        image: 'https://images.unsplash.com/photo-1512438248247-f0f2a5a8b7f0?w=400&q=80',
-        premium: false,
-        uri: `${GITHUB_BASE_URL}/meditation-deep.mp3`,
-        description: 'A calming guided meditation to help you drift into deep, restful sleep'
-      },
-      {
-        id: 'meditation-2',
-        title: 'Body Scan Relaxation',
-        duration: '15 min',
-        difficulty: 'Beginner',
-        image: 'https://images.unsplash.com/photo-1536629894121-4d162a042191?w=400&q=80',
-        premium: false,
-        uri: `${GITHUB_BASE_URL}/meditation-calm.mp3`,
-        description: 'Progressive relaxation technique to release tension throughout your body'
-      },
-    ],
-    breathing: [
-      {
-        id: 'breathing-pmr',
-        title: 'Progressive Muscle Relaxation',
-        duration: '15 min',
-        difficulty: 'Beginner',
-        image: 'https://images.unsplash.com/photo-1593811167562-9cef47bfc4d7?w=400&q=80',
-        premium: true,
-        uri: `${GITHUB_BASE_URL}/meditation-calm.mp3`,
-        description: 'Step-by-step physical technique to release body tension before bed.'
-      },
-      {
-        id: 'breathing-1',
-        title: '4-7-8 Breathing',
-        duration: '10 min',
-        difficulty: 'Beginner',
-        image: 'https://images.unsplash.com/photo-1518531933037-91b2f5f229cc?w=400&q=80',
-        premium: false,
-        uri: `${GITHUB_BASE_URL}/meditation-calm.mp3`,
-        description: 'Simple breathing technique to reduce anxiety and promote relaxation'
-      },
-      {
-        id: 'breathing-2',
-        title: 'Box Breathing',
-        duration: '8 min',
-        difficulty: 'Beginner',
-        image: 'https://images.unsplash.com/photo-1515377905703-c4788e51af15?w=400&q=80',
-        premium: false,
-        uri: `${GITHUB_BASE_URL}/meditation-deep.mp3`,
-        description: 'Structured breathing pattern used by focus-driven professionals'
-      },
-    ],
-    stories: [
-      {
-        id: 'binaural-zeta',
-        title: 'Binaural Beats (Zeta)',
-        duration: '60 min',
-        difficulty: 'Specialist',
-        image: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=400&q=80',
-        premium: true,
-        uri: `${GITHUB_BASE_URL}/white-noise.mp3`,
-        description: 'Advanced frequencies optimized for deep sleep and stress reduction.'
-      },
-      {
-        id: 'story-1',
-        title: 'Enchanted Forest Walk',
-        duration: '35 min',
-        difficulty: 'All Levels',
-        image: 'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=400&q=80',
-        premium: true,
-        uri: `${GITHUB_BASE_URL}/forest-ambience.mp3`,
-        description: 'A magical journey through an enchanted forest filled with wonder and peace'
-      },
-      {
-        id: 'story-2',
-        title: 'Ocean Dreams',
-        duration: '40 min',
-        difficulty: 'All Levels',
-        image: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=400&q=80',
-        premium: true,
-        uri: `${GITHUB_BASE_URL}/ocean-waves.mp3`,
-        description: 'Drift away on gentle ocean waves in this soothing bedtime story'
-      },
-    ],
-    yoga: [
-      {
-        id: 'yoga-1',
-        title: 'Bedtime Yoga Flow',
-        duration: '20 min',
-        difficulty: 'Beginner',
-        image: 'https://images.unsplash.com/photo-1552196564-97ccf6131f0a?w=400&q=80',
-        premium: true,
-        uri: `${GITHUB_BASE_URL}/meditation-calm.mp3`,
-        description: 'Gentle yoga sequence to release tension and prepare your body for sleep'
-      },
-    ],
+  const toggleFavourite = useCallback(async (sessionId: string) => {
+    setFavourites(prev => {
+      const next = new Set(prev);
+      if (next.has(sessionId)) next.delete(sessionId);
+      else next.add(sessionId);
+      AsyncStorage.setItem(FAVOURITES_KEY, JSON.stringify([...next])).catch(() => {});
+      return next;
+    });
+  }, []);
+
+  // Smart daily recommendation based on time & stats
+  const getDailyRecommendation = (): MindfulnessSessionItem => {
+    const hour = new Date().getHours();
+    if (hour < 10) {
+      return ALL_SESSIONS['morning'][0]; // Morning gratitude
+    }
+    if (hour >= 14 && hour <= 16) {
+      return ALL_SESSIONS['power-nap'][0]; // Afternoon nap
+    }
+    if (mindfulnessStats.currentStreak === 0) {
+      return ALL_SESSIONS['quick-relief'][0]; // Anxiety relief to re-engage
+    }
+    return ALL_SESSIONS['meditation'][4]; // NSDR default evening
   };
 
   const getDifficultyColor = (difficulty: string) => {
     switch (difficulty) {
-      case 'Beginner': return theme.colors.accent;
-      case 'Intermediate': return theme.colors.premium;
-      case 'Advanced': return theme.colors.danger;
-      default: return theme.colors.highlight;
+      case 'Beginner': return '#34D399';
+      case 'Intermediate': return '#F59E0B';
+      case 'Advanced': return '#EF4444';
+      case 'Specialist': return '#8B5CF6';
+      default: return theme.colors.textSecondary;
     }
   };
 
-  const handleSessionPress = (session: MindfulnessSession) => {
-    // Handle breathing coach sessions specially
+  const saveCompletedSession = useCallback(async (
+    session: MindfulnessSessionItem,
+    categoryOverride?: string,
+  ) => {
+    const durationMinutes = parseInt(session.duration.match(/\d+/)?.[0] || '15', 10);
+    const categoryForSave = categoryOverride ?? selectedCategory;
+
+    try {
+      await saveMindfulnessSession({
+        sessionId: session.id,
+        sessionTitle: session.title,
+        category: categoryForSave,
+        duration: durationMinutes,
+        userId: user?.id,
+      });
+      await loadStats();
+    } catch (_) {}
+  }, [selectedCategory, user?.id, loadStats]);
+
+  const handleSessionPress = useCallback((session: MindfulnessSessionItem) => {
+    if (session.premium && !hasPremium) {
+      Alert.alert(
+        '⭐ Premium Content',
+        `"${session.title}" is included in Sleep App Premium.\n\nUpgrade to unlock all sessions, stories, courses, and more.`,
+        [
+          { text: 'Not Now', style: 'cancel' },
+          { text: 'Upgrade', onPress: () => navigation.navigate('Subscription') },
+        ],
+      );
+      return;
+    }
+
+    // Breathing coach: launch modal directly
     if (selectedCategory === 'breathing-coach') {
-      const patternMap: { [key: string]: 'box' | '4-7-8' | 'calm' } = {
+      const patternMap: Record<string, 'box' | '4-7-8' | 'calm'> = {
         'box-breathing': 'box',
         '4-7-8-breathing': '4-7-8',
         'calm-breathing': 'calm',
+        'coherent-breathing': 'calm',
+        'alternate-nostril': 'calm',
+        bhramari: 'calm',
       };
       setBreathingPattern(patternMap[session.id] || 'box');
+      setPendingBreathingSession(session);
       setShowBreathingCoach(true);
       return;
     }
 
-    if (session.premium) {
-      // Check if user has premium subscription (including cancelled with valid end date)
-      const hasPremiumAccess = isPremiumActive(user?.subscription_status, user?.subscription_end_date, user?.role, user?.email);
-
-      if (!hasPremiumAccess) {
-        Alert.alert(
-          'Premium Content',
-          'This session is part of our premium content. Upgrade to unlock all meditation sessions, sleep stories, breathing exercises, and yoga flows.',
-          [
-            {
-              text: 'Maybe Later',
-              style: 'cancel'
-            },
-            {
-              text: 'Upgrade Now',
-              onPress: () => navigation.navigate('Subscription' as never)
-            }
-          ]
-        );
-        return;
-      }
-    }
-
     setSelectedSession(session);
     setShowSessionModal(true);
-  };
+  }, [selectedCategory, hasPremium, navigation]);
 
-  const handleStartRecommendation = () => {
-    const recommendationSession = {
-      id: 'recommendation',
-      title: 'Evening Wind Down',
-      duration: '15 min',
-      difficulty: 'Beginner',
-      image: 'https://api.a0.dev/assets/image?text=peaceful%20evening%20meditation%20scene&aspect=16:9',
-      premium: false,
-      uri: `${GITHUB_BASE_URL}/meditation-calm.mp3`,
-      description: 'Perfect for tonight\'s sleep preparation'
-    };
-    setSelectedSession(recommendationSession);
-    setShowSessionModal(true);
-  };
+  const handleStartRecommendation = useCallback(() => {
+    const rec = getDailyRecommendation();
+    handleSessionPress(rec);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mindfulnessStats.currentStreak, handleSessionPress]);
 
   const handleBeginSession = async () => {
-    if (selectedSession) {
-      // Save session completion
-      const durationMinutes = parseInt(selectedSession.duration) || 15;
+    if (!selectedSession) return;
 
-      try {
-        await saveMindfulnessSession({
-          sessionId: selectedSession.id,
-          sessionTitle: selectedSession.title,
-          category: selectedCategory,
-          duration: durationMinutes,
-          userId: user?.id,
-        });
+    setShowSessionModal(false);
 
-        // Reload stats
-        await loadStats();
-
-        setShowSessionModal(false);
-        navigation.navigate('SessionPlayer', { session: selectedSession });
-      } catch (error) {
-        console.error('Error saving mindfulness session:', error);
-        setShowSessionModal(false);
-        navigation.navigate('SessionPlayer', { session: selectedSession });
-      }
+    // Sessions with no audio URI → launch breathing coach modal instead
+    if (!selectedSession.uri) {
+      const patternMap: Record<string, 'box' | '4-7-8' | 'calm'> = {
+        'box-breathing': 'box',
+        '4-7-8-breathing': '4-7-8',
+        'calm-breathing': 'calm',
+        'coherent-breathing': 'calm',
+        'alternate-nostril': 'calm',
+        'bhramari': 'calm',
+      };
+      setPendingBreathingSession(selectedSession);
+      setBreathingPattern(patternMap[selectedSession.id] || 'box');
+      setShowBreathingCoach(true);
+      return;
     }
+
+    await saveCompletedSession(
+      selectedSession,
+      selectedCategory === 'breathing-coach' ? 'breathing' : selectedCategory,
+    );
+
+    // Keep ref so mini-player can re-open
+    activeSessionRef.current = selectedSession;
+    navigation.navigate('SessionPlayer', { session: selectedSession });
   };
 
+  // Daily goal progress (capped at 100%)
+  const todayMinutes = mindfulnessStats.sessionHistory
+    .filter(s => new Date(s.completedAt).toDateString() === new Date().toDateString())
+    .reduce((sum, s) => sum + s.duration, 0);
+  const goalProgress = Math.min(todayMinutes / dailyGoal, 1);
+
+  // All favourited sessions for the favourites tab
+  const favouriteSessions: MindfulnessSessionItem[] = [...Object.values(ALL_SESSIONS).flat(), ...publicStories]
+    .filter(s => favourites.has(s.id));
+
+  const baseSessions = selectedCategory === 'stories'
+    ? publicStories
+    : (ALL_SESSIONS[selectedCategory] || []);
+
+  const displayedSessions = showFavourites
+    ? favouriteSessions
+    : baseSessions;
+
+  const themedStyles = getThemedStyles(theme, isDark);
+  const storyStatusText = (() => {
+    if (isStoriesLoading) return 'Updating stories...';
+
+    const prefix = storiesSource === 'cache-stale'
+      ? 'Showing cached stories'
+      : storiesSource === 'cache'
+        ? 'From cache'
+        : storiesSource === 'fallback'
+          ? 'Fallback stories'
+          : 'Updated';
+
+    if (!storiesLastUpdated) return prefix;
+
+    return `${prefix} • ${new Date(storiesLastUpdated).toLocaleString()}`;
+  })();
+
+  const storyStatusColor = (() => {
+    if (isStoriesLoading) return theme.colors.textSecondary;
+    if (storiesSource === 'network' || storiesSource === 'cache') return '#10B981';
+    if (storiesSource === 'cache-stale') return '#F59E0B';
+    return theme.colors.textSecondary;
+  })();
+
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <View style={[themedStyles.container, { backgroundColor: theme.colors.background }]}>
       <LinearGradient
         colors={isDark ? ['#1a1a2e', '#16213e'] : ['#f0f4ff', '#ffffff']}
         style={StyleSheet.absoluteFill}
@@ -393,231 +949,398 @@ export default function MindfulnessScreen() {
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + 20 }]}
+        contentContainerStyle={[themedStyles.scrollContent, { paddingTop: insets.top + 16 }]}
       >
-        {/* Header */}
-        <View style={styles.header}>
+        {/* ── HEADER ── */}
+        <View style={themedStyles.header}>
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <TouchableOpacity
-              style={styles.backButton}
-              onPress={() => navigation.goBack()}
-            >
+            <TouchableOpacity style={themedStyles.backButton} onPress={() => navigation.goBack()}>
               <ChevronLeft size={24} color={theme.colors.textPrimary} />
             </TouchableOpacity>
             <View style={{ marginLeft: 12 }}>
-              <Text style={[styles.greeting, { color: theme.colors.textPrimary }]}>Mindfulness</Text>
-              <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>Find your inner peace</Text>
+              <Text style={[themedStyles.title, { color: theme.colors.textPrimary }]}>Mindfulness</Text>
+              <Text style={[themedStyles.subtitle, { color: theme.colors.textSecondary }]}>Find your inner peace</Text>
             </View>
           </View>
           <TouchableOpacity
-            style={[styles.statsButton, { backgroundColor: theme.colors.card }]}
-            onPress={() => navigation.navigate('SleepAnalysis' as never)}
+            style={[themedStyles.statsButton, { backgroundColor: theme.colors.card }]}
+            onPress={() => navigation.navigate('SleepAnalysis')}
           >
             <BarChart2 size={20} color={theme.colors.accent} />
           </TouchableOpacity>
         </View>
 
-        {/* Stats Overview */}
-        <View style={[styles.statsContainer, { backgroundColor: theme.colors.card }]}>
-          <View style={styles.statItem}>
-            <Text style={[styles.statValue, { color: theme.colors.textPrimary }]}>{mindfulnessStats.totalSessions}</Text>
-            <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Sessions</Text>
+        {/* ── STATS ROW ── */}
+        <View style={[themedStyles.statsCard, { backgroundColor: theme.colors.card }]}>
+          <View style={themedStyles.statItem}>
+            <Text style={[themedStyles.statValue, { color: theme.colors.textPrimary }]}>
+              {mindfulnessStats.totalSessions}
+            </Text>
+            <Text style={[themedStyles.statLabel, { color: theme.colors.textSecondary }]}>Sessions</Text>
           </View>
-          <View style={[styles.statDivider, { backgroundColor: theme.colors.cardBorder }]} />
-          <View style={styles.statItem}>
-            <Text style={[styles.statValue, { color: theme.colors.textPrimary }]}>{mindfulnessStats.totalMinutes}</Text>
-            <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Minutes</Text>
+          <View style={[themedStyles.statDivider, { backgroundColor: theme.colors.cardBorder }]} />
+          <View style={themedStyles.statItem}>
+            <Text style={[themedStyles.statValue, { color: theme.colors.textPrimary }]}>
+              {mindfulnessStats.totalMinutes}
+            </Text>
+            <Text style={[themedStyles.statLabel, { color: theme.colors.textSecondary }]}>Minutes</Text>
           </View>
-          <View style={[styles.statDivider, { backgroundColor: theme.colors.cardBorder }]} />
-          <View style={styles.statItem}>
-            <Text style={[styles.statValue, { color: theme.colors.textPrimary }]}>{mindfulnessStats.currentStreak}</Text>
-            <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Day Streak</Text>
+          <View style={[themedStyles.statDivider, { backgroundColor: theme.colors.cardBorder }]} />
+          <View style={themedStyles.statItem}>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Flame size={18} color='#F59E0B' style={{ marginRight: 4 }} />
+              <Text style={[themedStyles.statValue, { color: theme.colors.textPrimary }]}>
+                {mindfulnessStats.currentStreak}
+              </Text>
+            </View>
+            <Text style={[themedStyles.statLabel, { color: theme.colors.textSecondary }]}>Day Streak</Text>
           </View>
         </View>
 
-        {/* Daily Recommendation */}
-        <TouchableOpacity
-          style={styles.recommendationCard}
-          onPress={handleStartRecommendation}
-        >
+        {/* ── DAILY GOAL PROGRESS ── */}
+        <View style={[themedStyles.goalCard, { backgroundColor: theme.colors.card }]}>
+          <View style={themedStyles.goalHeader}>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Target size={16} color={theme.colors.accent} style={{ marginRight: 8 }} />
+              <Text style={[themedStyles.goalLabel, { color: theme.colors.textPrimary }]}>
+                Daily Goal
+              </Text>
+            </View>
+            <Text style={[themedStyles.goalProgress, { color: theme.colors.accent }]}>
+              {todayMinutes}/{dailyGoal} min
+            </Text>
+          </View>
+          <View style={[themedStyles.goalTrack, { backgroundColor: theme.colors.cardBorder }]}>
+            <View
+              style={[
+                themedStyles.goalFill,
+                {
+                  backgroundColor: theme.colors.accent,
+                  width: `${Math.max(goalProgress * 100, 0).toFixed(1)}%` as any,
+                },
+              ]}
+            />
+          </View>
+          {goalProgress >= 1 && (
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 6 }}>
+              <Trophy size={14} color='#F59E0B' style={{ marginRight: 6 }} />
+              <Text style={{ color: '#F59E0B', fontSize: 12, fontWeight: '600' }}>
+                Goal complete! Great work today.
+              </Text>
+            </View>
+          )}
+        </View>
+
+        {/* ── DAILY RECOMMENDATION ── */}
+        <TouchableOpacity style={themedStyles.recommendationCard} onPress={handleStartRecommendation}>
           <Image
-            source={{ uri: 'https://api.a0.dev/assets/image?text=peaceful%20zen%20garden%20at%20sunset&aspect=16:9' }}
-            style={styles.recommendationImage}
+            source={{ uri: getDailyRecommendation().image }}
+            style={themedStyles.recommendationImage}
           />
-          <BlurView intensity={80} tint={isDark ? 'dark' : 'light'} style={styles.recommendationOverlay}>
-            <View style={styles.recommendationContent}>
-              <View>
-                <Text style={styles.recommendationTag}>RECOMMENDED FOR YOU</Text>
-                <Text style={styles.recommendationTitle}>Evening Wind Down</Text>
-                <View style={styles.recommendationMeta}>
-                  <Clock size={14} color="#fff" />
-                  <Text style={styles.recommendationMetaText}>15 min</Text>
-                  <View style={styles.metaDot} />
-                  <Sparkles size={14} color="#fff" />
-                  <Text style={styles.recommendationMetaText}>Beginner</Text>
+          <LinearGradient
+            colors={['transparent', 'rgba(0,0,0,0.85)']}
+            style={themedStyles.recommendationGradient}
+          >
+            <View style={themedStyles.recommendationContent}>
+              <View style={{ flex: 1 }}>
+                <Text style={themedStyles.recommendationTag}>RECOMMENDED FOR YOU</Text>
+                <Text style={themedStyles.recommendationTitle}>{getDailyRecommendation().title}</Text>
+                <View style={themedStyles.recommendationMeta}>
+                  <Clock size={13} color='rgba(255,255,255,0.85)' />
+                  <Text style={themedStyles.metaText}>{getDailyRecommendation().duration}</Text>
+                  <View style={themedStyles.metaDot} />
+                  <Sparkles size={13} color='rgba(255,255,255,0.85)' />
+                  <Text style={themedStyles.metaText}>{getDailyRecommendation().difficulty}</Text>
                 </View>
               </View>
-              <View style={styles.playButton}>
-                <Play size={24} color="#fff" fill="#fff" />
+              <View style={themedStyles.playButton}>
+                <Play size={22} color='#fff' fill='#fff' />
               </View>
             </View>
-          </BlurView>
+          </LinearGradient>
         </TouchableOpacity>
 
-        {/* Categories */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.categoriesContainer}
-          contentContainerStyle={styles.categoriesContent}
-        >
-          {categories.map((category) => {
-            const Icon = category.icon;
-            const isSelected = selectedCategory === category.id;
-            return (
-              <TouchableOpacity
-                key={category.id}
-                style={[
-                  styles.categoryButton,
-                  { backgroundColor: isSelected ? theme.colors.accent : theme.colors.card }
-                ]}
-                onPress={() => setSelectedCategory(category.id)}
-              >
-                <Icon size={18} color={isSelected ? '#fff' : theme.colors.textSecondary} />
-                <Text style={[
-                  styles.categoryText,
-                  { color: isSelected ? '#fff' : theme.colors.textSecondary }
-                ]}>
-                  {category.name}
-                </Text>
-                {category.premium && !isSelected && (
-                  <Star size={10} color={theme.colors.premium} fill={theme.colors.premium} style={styles.premiumStar} />
-                )}
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-
-        {/* Sessions Grid */}
-        <View style={styles.sessionsGrid}>
-          {(sessions[selectedCategory as keyof typeof sessions] || []).map((session) => (
-            <TouchableOpacity
-              key={session.id}
-              style={[styles.sessionCard, { backgroundColor: theme.colors.card }]}
-              onPress={() => handleSessionPress(session)}
+        {/* ── FAVOURITES TOGGLE ── */}
+        <View style={themedStyles.favRow}>
+          <TouchableOpacity
+            style={[
+              themedStyles.favToggle,
+              { backgroundColor: showFavourites ? '#EF4444' + '22' : theme.colors.card },
+            ]}
+            onPress={() => setShowFavourites(v => !v)}
+          >
+            <Heart
+              size={16}
+              color={showFavourites ? '#EF4444' : theme.colors.textSecondary}
+              fill={showFavourites ? '#EF4444' : 'none'}
+              style={themedStyles.favToggleIcon}
+            />
+            <Text
+              style={[
+                themedStyles.favToggleText,
+                { color: showFavourites ? '#EF4444' : theme.colors.textSecondary },
+              ]}
             >
-              <Image source={{ uri: session.image }} style={styles.sessionImage} />
-              {session.premium && (
-                <View style={styles.premiumBadge}>
-                  <Star size={12} color="#fff" fill="#fff" />
-                </View>
-              )}
-              <View style={styles.sessionInfo}>
-                <Text style={[styles.sessionTitle, { color: theme.colors.textPrimary }]} numberOfLines={1}>
-                  {session.title}
-                </Text>
-                <View style={styles.sessionMeta}>
-                  <Text style={[styles.sessionDuration, { color: theme.colors.textSecondary }]}>
-                    {session.duration}
-                  </Text>
-                  <View style={[styles.difficultyBadge, { backgroundColor: getDifficultyColor(session.difficulty) + '20' }]}>
-                    <Text style={[styles.difficultyText, { color: getDifficultyColor(session.difficulty) }]}>
-                      {session.difficulty}
-                    </Text>
-                  </View>
-                </View>
-              </View>
-            </TouchableOpacity>
-          ))}
+              {showFavourites ? `Favourites (${favouriteSessions.length})` : 'My Favourites'}
+            </Text>
+          </TouchableOpacity>
         </View>
 
-        <View style={{ height: bottomMargin }} />
+        {/* ── CATEGORIES ── */}
+        {!showFavourites && (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={themedStyles.categoriesContainer}
+            contentContainerStyle={themedStyles.categoriesContent}
+          >
+            {CATEGORIES.map(cat => {
+              const Icon = cat.icon;
+              const isSelected = selectedCategory === cat.id;
+              const locked = cat.premium && !hasPremium;
+              return (
+                <TouchableOpacity
+                  key={cat.id}
+                  style={[
+                    themedStyles.categoryChip,
+                    {
+                      backgroundColor: isSelected
+                        ? cat.color + 'DD'
+                        : theme.colors.card,
+                      borderColor: isSelected ? cat.color : 'transparent',
+                    },
+                  ]}
+                  onPress={() => handleCategorySelect(cat.id)}
+                >
+                  <Icon size={15} color={isSelected ? '#fff' : theme.colors.textSecondary} />
+                  <Text
+                    style={[
+                      themedStyles.categoryChipText,
+                      { color: isSelected ? '#fff' : theme.colors.textSecondary, marginLeft: 6 },
+                    ]}
+                  >
+                    {cat.name}
+                  </Text>
+                  {locked && (
+                    <Lock size={10} color={isSelected ? '#fff' : cat.color} style={{ marginLeft: 2 }} />
+                  )}
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        )}
+
+        {!showFavourites && selectedCategory === 'stories' && (
+          <View style={themedStyles.storyStatusRow}>
+            <Text style={[themedStyles.storyStatusText, { color: storyStatusColor }]}> 
+              {storyStatusText}
+            </Text>
+          </View>
+        )}
+
+        {/* ── SESSIONS GRID ── */}
+        {displayedSessions.length === 0 ? (
+          <View style={themedStyles.emptyFav}>
+            <Heart size={40} color={theme.colors.textSecondary} style={themedStyles.emptyFavIcon} />
+            <Text style={[themedStyles.emptyFavText, { color: theme.colors.textSecondary }]}>
+              {showFavourites
+                ? `No favourites yet\nTap ♡ on any session to save it here`
+                : selectedCategory === 'stories'
+                  ? isStoriesLoading
+                    ? 'Loading public stories...'
+                    : 'No playable stories found right now.'
+                  : 'No sessions available in this category.'}
+            </Text>
+            {!showFavourites && selectedCategory === 'stories' && !isStoriesLoading && (
+              <TouchableOpacity
+                style={[themedStyles.beginButton, { backgroundColor: theme.colors.accent, marginTop: 12 }]}
+                onPress={loadPublicStories}
+              >
+                <Text style={themedStyles.beginButtonText}>Retry Loading Stories</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        ) : (
+          <View style={themedStyles.sessionsGrid}>
+            {displayedSessions.map(session => {
+              const isFav = favourites.has(session.id);
+              const locked = session.premium && !hasPremium;
+              return (
+                <TouchableOpacity
+                  key={session.id}
+                  style={[themedStyles.sessionCard, { backgroundColor: theme.colors.card }]}
+                  onPress={() => handleSessionPress(session)}
+                  activeOpacity={0.85}
+                >
+                  <View style={themedStyles.sessionImageWrap}>
+                    <Image source={{ uri: session.image }} style={themedStyles.sessionImage} />
+                    {locked && (
+                      <View style={themedStyles.lockOverlay}>
+                        <Lock size={20} color='#fff' />
+                      </View>
+                    )}
+                    {/* Favourite button */}
+                    <TouchableOpacity
+                      style={themedStyles.favBtn}
+                      onPress={() => toggleFavourite(session.id)}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <Heart
+                        size={14}
+                        color={isFav ? '#EF4444' : '#fff'}
+                        fill={isFav ? '#EF4444' : 'none'}
+                      />
+                    </TouchableOpacity>
+                    {session.premium && (
+                      <View style={themedStyles.premiumBadge}>
+                        <Star size={10} color='#fff' fill='#fff' />
+                      </View>
+                    )}
+                  </View>
+                  <View style={themedStyles.sessionInfo}>
+                    <Text
+                      style={[themedStyles.sessionTitle, { color: theme.colors.textPrimary }]}
+                      numberOfLines={1}
+                    >
+                      {session.title}
+                    </Text>
+                    <View style={themedStyles.sessionMeta}>
+                      <Text style={[themedStyles.sessionDuration, { color: theme.colors.textSecondary }]}>
+                        {session.duration}
+                      </Text>
+                      <View
+                        style={[
+                          themedStyles.difficultyBadge,
+                          { backgroundColor: getDifficultyColor(session.difficulty) + '22' },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            themedStyles.difficultyText,
+                            { color: getDifficultyColor(session.difficulty) },
+                          ]}
+                        >
+                          {session.difficulty}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        )}
+
+        <View style={{ height: bottomMargin + 16 }} />
       </ScrollView>
 
-      {/* Mini-Player */}
+      {/* ── MINI PLAYER ── */}
       {isPlaying && (
         <TouchableOpacity
-          style={[styles.miniPlayer, { bottom: bottomMargin + 15 }]}
+          style={[themedStyles.miniPlayer, { bottom: bottomMargin + 12 }]}
           onPress={() => {
-            // Re-open current session detail
-            if (selectedSession) setShowSessionModal(true);
+            if (activeSessionRef.current) {
+              setSelectedSession(activeSessionRef.current);
+              setShowSessionModal(true);
+            }
           }}
         >
-          <BlurView intensity={90} tint="dark" style={StyleSheet.absoluteFill} />
-          {/* Blue tint overlay for visibility */}
-          <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(59, 130, 246, 0.1)' }]} />
-
-          <View style={styles.miniPlayerContent}>
+          <BlurView intensity={90} tint='dark' style={StyleSheet.absoluteFill} />
+          <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(139,92,246,0.12)' }]} />
+          <View style={themedStyles.miniPlayerContent}>
             <Image
-              source={{ uri: selectedSession?.image || 'https://images.unsplash.com/photo-1506126613408-eca07ce68773?w=100' }}
-              style={styles.miniArtwork}
+              source={{
+                uri:
+                  activeSessionRef.current?.image ||
+                  'https://images.unsplash.com/photo-1506126613408-eca07ce68773?w=100',
+              }}
+              style={themedStyles.miniArtwork}
             />
-            <View style={styles.miniInfo}>
-              <Text style={[styles.miniTitle, { color: theme.colors.textPrimary }]} numberOfLines={1}>
-                {selectedSession?.title || 'Relaxing Session'}
+            <View style={themedStyles.miniInfo}>
+              <Text
+                style={[themedStyles.miniTitle, { color: theme.colors.textPrimary }]}
+                numberOfLines={1}
+              >
+                {activeSessionRef.current?.title || 'Playing'}
               </Text>
-              <Text style={[styles.miniSubtitle, { color: theme.colors.textSecondary }]}>
-                {isPlaying ? 'Now Playing' : 'Paused'}
+              <Text style={[themedStyles.miniSubtitle, { color: theme.colors.textSecondary }]}>
+                Now Playing
               </Text>
             </View>
             <TouchableOpacity
-              style={[styles.miniPlayButton, { backgroundColor: theme.colors.accent + '20' }]}
+              style={[themedStyles.miniStopBtn, { backgroundColor: theme.colors.accent + '22' }]}
               onPress={() => stopSound()}
             >
-              <Pause size={20} color={theme.colors.accent} fill={theme.colors.accent} />
+              <Pause size={18} color={theme.colors.accent} fill={theme.colors.accent} />
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
       )}
 
-      {/* Session Detail Modal */}
+      {/* ── SESSION DETAIL MODAL ── */}
       <Modal
         visible={showSessionModal}
         transparent
-        animationType="slide"
+        animationType='slide'
         onRequestClose={() => setShowSessionModal(false)}
       >
-        <View style={styles.modalContainer}>
-          <BlurView intensity={100} tint={isDark ? 'dark' : 'light'} style={styles.modalBlur}>
-            <View style={[styles.modalContent, { backgroundColor: theme.colors.card }]}>
+        <View style={themedStyles.modalContainer}>
+          <BlurView intensity={100} tint={isDark ? 'dark' : 'light'} style={themedStyles.modalBlur}>
+            <View style={[themedStyles.modalContent, { backgroundColor: theme.colors.card }]}>
               <TouchableOpacity
-                style={styles.closeButton}
+                style={themedStyles.closeButton}
                 onPress={() => setShowSessionModal(false)}
               >
-                <X size={24} color={theme.colors.textPrimary} />
+                <X size={22} color={theme.colors.textPrimary} />
               </TouchableOpacity>
 
               {selectedSession && (
                 <>
-                  <Image source={{ uri: selectedSession.image }} style={styles.modalImage} />
-                  <View style={styles.modalBody}>
-                    <Text style={[styles.modalTitle, { color: theme.colors.textPrimary }]}>
+                  <Image source={{ uri: selectedSession.image }} style={themedStyles.modalImage} />
+                  <View style={themedStyles.modalBody}>
+                    <Text style={[themedStyles.modalTitle, { color: theme.colors.textPrimary }]}>
                       {selectedSession.title}
                     </Text>
-                    <View style={styles.modalMeta}>
-                      <View style={styles.modalMetaItem}>
-                        <Clock size={16} color={theme.colors.textSecondary} />
-                        <Text style={[styles.modalMetaText, { color: theme.colors.textSecondary }]}>
+                    <View style={themedStyles.modalMetaRow}>
+                      <View style={themedStyles.modalMetaItem}>
+                        <Clock size={15} color={theme.colors.textSecondary} style={themedStyles.modalMetaIcon} />
+                        <Text style={[themedStyles.modalMetaText, { color: theme.colors.textSecondary }]}>
                           {selectedSession.duration}
                         </Text>
                       </View>
-                      <View style={styles.modalMetaItem}>
-                        <Sparkles size={16} color={theme.colors.textSecondary} />
-                        <Text style={[styles.modalMetaText, { color: theme.colors.textSecondary }]}>
+                      <View style={themedStyles.modalMetaItem}>
+                        <Sparkles size={15} color={theme.colors.textSecondary} style={themedStyles.modalMetaIcon} />
+                        <Text style={[themedStyles.modalMetaText, { color: theme.colors.textSecondary }]}>
                           {selectedSession.difficulty}
                         </Text>
                       </View>
                     </View>
-                    <Text style={[styles.modalDescription, { color: theme.colors.textSecondary }]}>
+                    <Text style={[themedStyles.modalDescription, { color: theme.colors.textSecondary }]}>
                       {selectedSession.description}
                     </Text>
 
+                    {/* Tags */}
+                    {selectedSession.tags && selectedSession.tags.length > 0 && (
+                      <View style={themedStyles.tagsRow}>
+                        {selectedSession.tags.map(tag => (
+                          <View
+                            key={tag}
+                            style={[themedStyles.tag, { backgroundColor: theme.colors.accent + '20' }]}
+                          >
+                            <Text style={[themedStyles.tagText, { color: theme.colors.accent }]}>
+                              #{tag}
+                            </Text>
+                          </View>
+                        ))}
+                      </View>
+                    )}
+
                     <TouchableOpacity
-                      style={[styles.beginButton, { backgroundColor: theme.colors.accent }]}
+                      style={[themedStyles.beginButton, { backgroundColor: theme.colors.accent }]}
                       onPress={handleBeginSession}
                     >
-                      <Play size={20} color="#fff" fill="#fff" />
-                      <Text style={styles.beginButtonText}>Begin Session</Text>
+                      <Play size={18} color='#fff' fill='#fff' style={themedStyles.beginButtonIcon} />
+                      <Text style={themedStyles.beginButtonText}>Begin Session</Text>
                     </TouchableOpacity>
                   </View>
                 </>
@@ -627,25 +1350,32 @@ export default function MindfulnessScreen() {
         </View>
       </Modal>
 
-      {/* Breathing Coach Modal */}
+      {/* ── BREATHING COACH MODAL ── */}
       <Modal
         visible={showBreathingCoach}
         transparent
-        animationType="fade"
+        animationType='fade'
         onRequestClose={() => setShowBreathingCoach(false)}
       >
-        <View style={styles.breathingCoachContainer}>
+        <View style={themedStyles.breathingContainer}>
           <TouchableOpacity
-            style={styles.breathingCloseButton}
-            onPress={() => setShowBreathingCoach(false)}
+            style={themedStyles.breathingClose}
+            onPress={() => {
+              setShowBreathingCoach(false);
+              setPendingBreathingSession(null);
+            }}
           >
-            <X size={32} color="#fff" />
+            <X size={28} color='#fff' />
           </TouchableOpacity>
           <BreathingCoach
             pattern={breathingPattern}
-            onComplete={() => {
+            onComplete={async () => {
+              if (pendingBreathingSession) {
+                await saveCompletedSession(pendingBreathingSession, 'breathing');
+              }
               setShowBreathingCoach(false);
-              Alert.alert('Complete!', 'Great job! You completed your breathing session.');
+              setPendingBreathingSession(null);
+              Alert.alert('Well done! 🎉', 'You completed your breathing session.');
             }}
           />
         </View>
@@ -654,343 +1384,316 @@ export default function MindfulnessScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingHorizontal: 20,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 25,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  greeting: {
-    fontSize: 28,
-    fontWeight: 'bold',
-  },
-  subtitle: {
-    fontSize: 16,
-    marginTop: 4,
-  },
-  statsButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  statsContainer: {
-    flexDirection: 'row',
-    padding: 20,
-    borderRadius: 20,
-    marginBottom: 25,
-    alignItems: 'center',
-    justifyContent: 'space-around',
-  },
-  statItem: {
-    alignItems: 'center',
-  },
-  statValue: {
-    fontSize: 20,
-    fontWeight: 'bold',
-  },
-  statLabel: {
-    fontSize: 12,
-    marginTop: 4,
-  },
-  statDivider: {
-    width: 1,
-    height: 30,
-  },
-  recommendationCard: {
-    height: 200,
-    borderRadius: 25,
-    overflow: 'hidden',
-    marginBottom: 30,
-  },
-  recommendationImage: {
-    width: '100%',
-    height: '100%',
-  },
-  recommendationOverlay: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: 80,
-  },
-  recommendationContent: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-  },
-  recommendationTag: {
-    color: '#fff',
-    fontSize: 10,
-    fontWeight: 'bold',
-    letterSpacing: 1,
-    opacity: 0.8,
-  },
-  recommendationTitle: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginTop: 2,
-  },
-  recommendationMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 4,
-  },
-  recommendationMetaText: {
-    color: '#fff',
-    fontSize: 12,
-    marginLeft: 4,
-    opacity: 0.9,
-  },
-  metaDot: {
-    width: 3,
-    height: 3,
-    borderRadius: 1.5,
-    backgroundColor: '#fff',
-    marginHorizontal: 8,
-    opacity: 0.5,
-  },
-  playButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: 'rgba(255,255,255,0.3)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.5)',
-  },
-  categoriesContainer: {
-    marginBottom: 25,
-    marginHorizontal: -20,
-  },
-  categoriesContent: {
-    paddingHorizontal: 20,
-  },
-  categoryButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 20,
-    marginRight: 12,
-  },
-  categoryText: {
-    fontSize: 14,
-    fontWeight: '600',
-    marginLeft: 8,
-  },
-  premiumStar: {
-    marginLeft: 6,
-  },
-  sessionsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-  },
-  sessionCard: {
-    width: '48%',
-    borderRadius: 20,
-    marginBottom: 20,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  sessionImage: {
-    width: '100%',
-    height: 120,
-  },
-  premiumBadge: {
-    position: 'absolute',
-    top: 10,
-    right: 10,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: '#FFD700',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  sessionInfo: {
-    padding: 12,
-  },
-  sessionTitle: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    marginBottom: 8,
-  },
-  sessionMeta: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  sessionDuration: {
-    fontSize: 12,
-  },
-  difficultyBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  difficultyText: {
-    fontSize: 10,
-    fontWeight: 'bold',
-  },
-  modalContainer: {
-    flex: 1,
-    justifyContent: 'flex-end',
-  },
-  modalBlur: {
-    flex: 1,
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
-    borderTopLeftRadius: 30,
-    borderTopRightRadius: 30,
-    paddingBottom: 40,
-    overflow: 'hidden',
-  },
-  closeButton: {
-    position: 'absolute',
-    top: 20,
-    right: 20,
-    zIndex: 10,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(0,0,0,0.1)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalImage: {
-    width: '100%',
-    height: 250,
-  },
-  modalBody: {
-    padding: 25,
-  },
-  modalTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 10,
-  },
-  modalMeta: {
-    flexDirection: 'row',
-    marginBottom: 20,
-  },
-  modalMetaItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginRight: 20,
-  },
-  modalMetaText: {
-    fontSize: 14,
-    marginLeft: 6,
-  },
-  modalDescription: {
-    fontSize: 16,
-    lineHeight: 24,
-    marginBottom: 30,
-  },
-  beginButton: {
-    flexDirection: 'row',
-    height: 56,
-    borderRadius: 28,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  beginButtonText: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginLeft: 10,
-  },
-  breathingCoachContainer: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.95)',
-  },
-  breathingCloseButton: {
-    position: 'absolute',
-    top: 60,
-    right: 20,
-    zIndex: 10,
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  miniPlayer: {
-    position: 'absolute',
-    left: 20,
-    right: 20,
-    height: 70,
-    borderRadius: 20,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
-    elevation: 10,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
-  },
-  miniPlayerContent: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-  },
-  miniArtwork: {
-    width: 46,
-    height: 46,
-    borderRadius: 12,
-  },
-  miniInfo: {
-    flex: 1,
-    marginLeft: 15,
-  },
-  miniTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  miniSubtitle: {
-    fontSize: 12,
-    marginTop: 2,
-  },
-  miniPlayButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-});
+// ─── STYLES ───────────────────────────────────────────────────────────────────
+
+function getThemedStyles(_theme: any, _isDark: boolean) {
+  const cardW = (width - 20 * 2 - 12) / 2;
+
+  return StyleSheet.create({
+    container: { flex: 1 },
+    scrollContent: { paddingHorizontal: 20 },
+
+    header: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 20,
+    },
+    backButton: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      justifyContent: 'center',
+      alignItems: 'center',
+      backgroundColor: 'rgba(255,255,255,0.1)',
+    },
+    title: { fontSize: 26, fontWeight: '800' },
+    subtitle: { fontSize: 14, marginTop: 2 },
+    statsButton: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+
+    // Stats
+    statsCard: {
+      flexDirection: 'row',
+      padding: 18,
+      borderRadius: 20,
+      marginBottom: 14,
+      alignItems: 'center',
+      justifyContent: 'space-around',
+    },
+    statItem: { alignItems: 'center' },
+    statValue: { fontSize: 20, fontWeight: '800' },
+    statLabel: { fontSize: 11, marginTop: 3 },
+    statDivider: { width: 1, height: 28 },
+
+    // Goal
+    goalCard: {
+      padding: 16,
+      borderRadius: 18,
+      marginBottom: 20,
+    },
+    goalHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 10,
+    },
+    goalLabel: { fontSize: 14, fontWeight: '700' },
+    goalProgress: { fontSize: 13, fontWeight: '700' },
+    goalTrack: {
+      height: 6,
+      borderRadius: 3,
+      overflow: 'hidden',
+    },
+    goalFill: {
+      height: 6,
+      borderRadius: 3,
+      minWidth: 6,
+    },
+
+    // Recommendation
+    recommendationCard: {
+      height: 190,
+      borderRadius: 24,
+      overflow: 'hidden',
+      marginBottom: 20,
+    },
+    recommendationImage: { width: '100%', height: '100%' },
+    recommendationGradient: {
+      position: 'absolute',
+      bottom: 0,
+      left: 0,
+      right: 0,
+      height: 110,
+      justifyContent: 'flex-end',
+      paddingHorizontal: 18,
+      paddingBottom: 18,
+    },
+    recommendationContent: {
+      flexDirection: 'row',
+      alignItems: 'flex-end',
+      justifyContent: 'space-between',
+    },
+    recommendationTag: {
+      color: 'rgba(255,255,255,0.7)',
+      fontSize: 9,
+      fontWeight: '800',
+      letterSpacing: 1.2,
+      marginBottom: 4,
+    },
+    recommendationTitle: {
+      color: '#fff',
+      fontSize: 18,
+      fontWeight: '800',
+      marginBottom: 6,
+    },
+    recommendationMeta: { flexDirection: 'row', alignItems: 'center' },
+    metaText: {
+      color: 'rgba(255,255,255,0.85)',
+      fontSize: 12,
+      marginLeft: 4,
+    },
+    metaDot: {
+      width: 3,
+      height: 3,
+      borderRadius: 1.5,
+      backgroundColor: 'rgba(255,255,255,0.5)',
+      marginHorizontal: 8,
+    },
+    playButton: {
+      width: 46,
+      height: 46,
+      borderRadius: 23,
+      backgroundColor: 'rgba(255,255,255,0.25)',
+      justifyContent: 'center',
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: 'rgba(255,255,255,0.4)',
+    },
+
+    // Favourites toggle
+    favRow: { marginBottom: 16 },
+    favToggle: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      alignSelf: 'flex-start',
+      paddingHorizontal: 14,
+      paddingVertical: 8,
+      borderRadius: 20,
+    },
+    favToggleIcon: { marginRight: 8 },
+    favToggleText: { fontSize: 13, fontWeight: '600' },
+
+    // Categories
+    categoriesContainer: { marginBottom: 20, marginHorizontal: -20 },
+    categoriesContent: { paddingHorizontal: 20, flexDirection: 'row', alignItems: 'center' },
+    categoryChip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 14,
+      paddingVertical: 9,
+      borderRadius: 20,
+      borderWidth: 1.5,
+      marginRight: 10,
+    },
+    categoryChipText: { fontSize: 13, fontWeight: '600' },
+    storyStatusRow: { marginTop: -8, marginBottom: 14 },
+    storyStatusText: { fontSize: 12, fontWeight: '500' },
+
+    // Sessions grid — two explicit column rows
+    sessionsGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      justifyContent: 'space-between',
+    },
+    sessionCardWrapper: {
+      marginBottom: 12,
+    },
+    sessionCard: {
+      width: cardW,
+      borderRadius: 18,
+      overflow: 'hidden',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.12,
+      shadowRadius: 6,
+      elevation: 4,
+    },
+    sessionImageWrap: { position: 'relative' },
+    sessionImage: { width: '100%', height: 110 },
+    lockOverlay: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: 'rgba(0,0,0,0.5)',
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    favBtn: {
+      position: 'absolute',
+      top: 8,
+      left: 8,
+      width: 26,
+      height: 26,
+      borderRadius: 13,
+      backgroundColor: 'rgba(0,0,0,0.35)',
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    premiumBadge: {
+      position: 'absolute',
+      top: 8,
+      right: 8,
+      width: 22,
+      height: 22,
+      borderRadius: 11,
+      backgroundColor: '#F59E0B',
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    sessionInfo: { padding: 10 },
+    sessionTitle: { fontSize: 13, fontWeight: '700', marginBottom: 6 },
+    sessionMeta: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+    sessionDuration: { fontSize: 11 },
+    difficultyBadge: { paddingHorizontal: 7, paddingVertical: 3, borderRadius: 7 },
+    difficultyText: { fontSize: 9, fontWeight: '700' },
+
+    emptyFav: { alignItems: 'center', paddingVertical: 60 },
+    emptyFavIcon: { marginBottom: 14 },
+    emptyFavText: { fontSize: 14, textAlign: 'center', lineHeight: 22 },
+
+    // Modal
+    modalContainer: { flex: 1, justifyContent: 'flex-end' },
+    modalBlur: { flex: 1, justifyContent: 'flex-end' },
+    modalContent: {
+      borderTopLeftRadius: 30,
+      borderTopRightRadius: 30,
+      paddingBottom: 36,
+      overflow: 'hidden',
+    },
+    closeButton: {
+      position: 'absolute',
+      top: 16,
+      right: 16,
+      zIndex: 10,
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      backgroundColor: 'rgba(0,0,0,0.15)',
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    modalImage: { width: '100%', height: 230 },
+    modalBody: { padding: 22 },
+    modalTitle: { fontSize: 22, fontWeight: '800', marginBottom: 10 },
+    modalMetaRow: { flexDirection: 'row', marginBottom: 14 },
+    modalMetaItem: { flexDirection: 'row', alignItems: 'center', marginRight: 20 },
+    modalMetaIcon: { marginRight: 6 },
+    modalMetaText: { fontSize: 13 },
+    modalDescription: { fontSize: 15, lineHeight: 23, marginBottom: 16 },
+    tagsRow: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: 20 },
+    tag: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10, marginRight: 8, marginBottom: 6 },
+    tagText: { fontSize: 11, fontWeight: '600' },
+    beginButton: {
+      flexDirection: 'row',
+      height: 54,
+      borderRadius: 27,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    beginButtonIcon: { marginRight: 10 },
+    beginButtonText: { color: '#fff', fontSize: 17, fontWeight: '800' },
+
+    // Breathing
+    breathingContainer: { flex: 1, backgroundColor: 'rgba(0,0,0,0.96)' },
+    breathingClose: {
+      position: 'absolute',
+      top: 56,
+      right: 20,
+      zIndex: 10,
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      backgroundColor: 'rgba(255,255,255,0.15)',
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+
+    // Mini player
+    miniPlayer: {
+      position: 'absolute',
+      left: 16,
+      right: 16,
+      height: 66,
+      borderRadius: 18,
+      overflow: 'hidden',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.3,
+      shadowRadius: 10,
+      elevation: 12,
+      borderWidth: 1,
+      borderColor: 'rgba(255,255,255,0.1)',
+    },
+    miniPlayerContent: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 12,
+    },
+    miniArtwork: { width: 44, height: 44, borderRadius: 10, marginRight: 12 },
+    miniInfo: { flex: 1 },
+    miniTitle: { fontSize: 14, fontWeight: '700' },
+    miniSubtitle: { fontSize: 11, marginTop: 2 },
+    miniStopBtn: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+  });
+}

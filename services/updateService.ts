@@ -1,5 +1,4 @@
 import * as Updates from 'expo-updates';
-import { Platform } from 'react-native';
 
 export interface UpdateInfo {
   isAvailable: boolean;
@@ -21,98 +20,100 @@ export class UpdateService {
   }
 
   /**
-   * Check if a new update is available from EAS
+   * Check if a new OTA update is available from EAS.
+   * - Skipped in __DEV__ mode (Metro bundler / Expo Go)
+   * - Retries once on network failure
+   * - Returns isAvailable: false on any unrecoverable error so the app keeps running
    */
   async checkForUpdates(): Promise<UpdateInfo> {
-    // Skip in development mode
     if (__DEV__) {
-      console.log('🔄 Skipping update check in development mode');
+      console.log('[OTA] Skipping update check in development mode');
       return { isAvailable: false };
     }
 
-    // Prevent multiple simultaneous checks
     if (this.checkingForUpdate) {
-      console.log('⏳ Update check already in progress');
+      console.log('[OTA] Update check already in progress, skipping');
       return { isAvailable: false };
     }
 
-    try {
-      this.checkingForUpdate = true;
-      console.log('🔍 Checking for updates...');
+    this.checkingForUpdate = true;
+    console.log('[OTA] Checking for updates from EAS...');
 
-      const update = await Updates.checkForUpdateAsync();
+    let lastError: any = null;
 
-      if (update.isAvailable) {
-        console.log('✅ Update available!', update.manifest);
+    // Try up to 2 times (initial + 1 retry on network failure)
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        const update = await Updates.checkForUpdateAsync();
 
-        // Check if this is an emergency update (you can add metadata in your EAS updates)
-        const isEmergency = update.manifest?.metadata?.emergency === true;
+        if (update.isAvailable) {
+          const isEmergency = update.manifest?.metadata?.emergency === true;
+          console.log(`[OTA] Update available! emergency=${isEmergency}`);
+          this.checkingForUpdate = false;
+          return {
+            isAvailable: true,
+            manifest: update.manifest,
+            isEmergency,
+          };
+        }
 
-        return {
-          isAvailable: true,
-          manifest: update.manifest,
-          isEmergency,
-        };
-      } else {
-        console.log('✅ App is up to date');
+        console.log('[OTA] App is up to date');
+        this.checkingForUpdate = false;
         return { isAvailable: false };
+      } catch (error: any) {
+        lastError = error;
+        const isNetworkError =
+          error?.message?.toLowerCase().includes('network') ||
+          error?.message?.toLowerCase().includes('fetch') ||
+          error?.message?.toLowerCase().includes('timeout') ||
+          error?.code === 'ERR_UPDATES_CHECK';
+
+        if (attempt === 1 && isNetworkError) {
+          console.warn(`[OTA] Attempt ${attempt} failed (network), retrying in 3s...`);
+          await new Promise((r) => setTimeout(r, 3000));
+          continue;
+        }
+
+        // Not a network error, or second attempt also failed — give up
+        break;
       }
-    } catch (error) {
-      console.error('❌ Error checking for updates:', error);
-      return { isAvailable: false };
-    } finally {
-      this.checkingForUpdate = false;
     }
+
+    console.error('[OTA] Update check failed after retries:', lastError?.message);
+    this.checkingForUpdate = false;
+    return { isAvailable: false };
   }
 
   /**
-   * Download and apply the update
+   * Download the OTA update and reload the app.
+   * Throws on failure so the caller can show an error state.
    */
-  async downloadAndApplyUpdate(
-    onProgress?: (progress: number) => void
-  ): Promise<boolean> {
+  async downloadAndApplyUpdate(): Promise<void> {
+    console.log('[OTA] Downloading update...');
     try {
-      console.log('⬇️ Downloading update...');
-
-      // Fetch the update with progress tracking
       const result = await Updates.fetchUpdateAsync();
-
       if (result.isNew) {
-        console.log('✅ Update downloaded successfully');
-
-        // Reload the app to apply the update
+        console.log('[OTA] Update downloaded — reloading app');
         await Updates.reloadAsync();
-        return true;
       } else {
-        console.log('ℹ️ No new update to apply');
-        return false;
+        // Already running latest — just reload to be safe
+        console.log('[OTA] No new bundle fetched — reloading anyway');
+        await Updates.reloadAsync();
       }
     } catch (error) {
-      console.error('❌ Error downloading update:', error);
+      console.error('[OTA] Download/apply failed:', error);
       throw error;
     }
   }
 
-  /**
-   * Get current app version info
-   */
   getCurrentVersion(): string {
-    if (Updates.manifest) {
-      return Updates.manifest.version || 'Unknown';
-    }
-    return 'Unknown';
+    return Updates.manifest?.version ?? 'Unknown';
   }
 
-  /**
-   * Get update channel (production, preview, development)
-   */
   getUpdateChannel(): string {
-    return Updates.channel || 'default';
+    return Updates.channel ?? 'default';
   }
 
-  /**
-   * Check if app is running from an update
-   */
   isRunningFromUpdate(): boolean {
     return Updates.isEmbeddedLaunch === false;
   }

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Modal,
   View,
@@ -9,39 +9,51 @@ import {
   Animated,
   ActivityIndicator,
   Dimensions,
+  Platform,
+  Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { Download, Sparkles, Zap, Shield } from 'lucide-react-native';
-import { useTheme } from '../contexts/ThemeContext';
 
 interface UpdateModalProps {
   visible: boolean;
   onUpdate: () => Promise<void>;
+  onSkip?: () => void;
   isEmergency?: boolean;
   version?: string;
 }
 
-const { width, height } = Dimensions.get('window');
+const { width } = Dimensions.get('window');
+
+// Android-safe blur wrapper
+const SafeBlur = ({ children, style }: { children: React.ReactNode; style?: any }) => {
+  if (Platform.OS === 'android') {
+    return <View style={[style, { backgroundColor: 'rgba(0,0,0,0.85)' }]}>{children}</View>;
+  }
+  return <BlurView intensity={90} tint="dark" style={style}>{children}</BlurView>;
+};
 
 export const UpdateModal: React.FC<UpdateModalProps> = ({
   visible,
   onUpdate,
+  onSkip,
   isEmergency = false,
   version,
 }) => {
-  const { theme } = useTheme();
   const [isDownloading, setIsDownloading] = useState(false);
-  const [progress, setProgress] = useState(0);
+  const [downloadFailed, setDownloadFailed] = useState(false);
 
-  // Animations
-  const scaleAnim = new Animated.Value(0);
-  const pulseAnim = new Animated.Value(1);
-  const sparkleAnim = new Animated.Value(0);
+  const scaleAnim = useRef(new Animated.Value(0)).current;
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const sparkleAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (visible) {
-      // Scale in animation
+      scaleAnim.setValue(0);
+      setIsDownloading(false);
+      setDownloadFailed(false);
+
       Animated.spring(scaleAnim, {
         toValue: 1,
         tension: 50,
@@ -49,46 +61,44 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({
         useNativeDriver: true,
       }).start();
 
-      // Pulse animation for the logo
       Animated.loop(
         Animated.sequence([
-          Animated.timing(pulseAnim, {
-            toValue: 1.1,
-            duration: 1500,
-            useNativeDriver: true,
-          }),
-          Animated.timing(pulseAnim, {
-            toValue: 1,
-            duration: 1500,
-            useNativeDriver: true,
-          }),
+          Animated.timing(pulseAnim, { toValue: 1.08, duration: 1400, useNativeDriver: true }),
+          Animated.timing(pulseAnim, { toValue: 1, duration: 1400, useNativeDriver: true }),
         ])
       ).start();
 
-      // Sparkle rotation animation
       Animated.loop(
-        Animated.timing(sparkleAnim, {
-          toValue: 1,
-          duration: 3000,
-          useNativeDriver: true,
-        })
+        Animated.timing(sparkleAnim, { toValue: 1, duration: 3000, useNativeDriver: true })
       ).start();
     }
   }, [visible]);
 
   const handleUpdate = async () => {
     setIsDownloading(true);
+    setDownloadFailed(false);
     try {
       await onUpdate();
+      // onUpdate calls reloadAsync — if we reach here something went wrong
     } catch (error) {
-      console.error('Update failed:', error);
+      console.error('[UpdateModal] Update failed:', error);
       setIsDownloading(false);
+      setDownloadFailed(true);
     }
+  };
+
+  const handleRetry = () => {
+    handleUpdate();
   };
 
   const sparkleRotate = sparkleAnim.interpolate({
     inputRange: [0, 1],
     outputRange: ['0deg', '360deg'],
+  });
+
+  const sparkleRotateReverse = sparkleAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['360deg', '0deg'],
   });
 
   return (
@@ -97,17 +107,15 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({
       transparent
       animationType="fade"
       statusBarTranslucent
+      // Prevent dismissing by hardware back on Android — force update
+      onRequestClose={() => {
+        if (!isEmergency && onSkip && !isDownloading) {
+          onSkip();
+        }
+      }}
     >
-      <BlurView intensity={90} style={styles.container}>
-        <Animated.View
-          style={[
-            styles.modalContent,
-            {
-              transform: [{ scale: scaleAnim }],
-            },
-          ]}
-        >
-          {/* Gradient Background */}
+      <SafeBlur style={styles.container}>
+        <Animated.View style={[styles.modalContent, { transform: [{ scale: scaleAnim }] }]}>
           <LinearGradient
             colors={
               isEmergency
@@ -118,42 +126,16 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({
             end={{ x: 1, y: 1 }}
             style={styles.gradient}
           >
-            {/* Sparkle decorations */}
-            <Animated.View
-              style={[
-                styles.sparkle,
-                styles.sparkle1,
-                { transform: [{ rotate: sparkleRotate }] },
-              ]}
-            >
-              <Sparkles size={24} color="#FFFFFF" opacity={0.6} />
+            {/* Decorative sparkles */}
+            <Animated.View style={[styles.sparkle, styles.sparkle1, { transform: [{ rotate: sparkleRotate }] }]}>
+              <Sparkles size={24} color="rgba(255,255,255,0.55)" />
             </Animated.View>
-            <Animated.View
-              style={[
-                styles.sparkle,
-                styles.sparkle2,
-                {
-                  transform: [
-                    {
-                      rotate: sparkleAnim.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: ['360deg', '0deg'],
-                      }),
-                    },
-                  ],
-                },
-              ]}
-            >
-              <Sparkles size={20} color="#FFFFFF" opacity={0.4} />
+            <Animated.View style={[styles.sparkle, styles.sparkle2, { transform: [{ rotate: sparkleRotateReverse }] }]}>
+              <Sparkles size={18} color="rgba(255,255,255,0.35)" />
             </Animated.View>
 
             {/* App Logo */}
-            <Animated.View
-              style={[
-                styles.logoContainer,
-                { transform: [{ scale: pulseAnim }] },
-              ]}
-            >
+            <Animated.View style={[styles.logoContainer, { transform: [{ scale: pulseAnim }] }]}>
               <Image
                 source={require('../assets/app_logo.png')}
                 style={styles.logo}
@@ -168,88 +150,86 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({
 
             {/* Title */}
             <Text style={styles.title}>
-              {isEmergency ? '🚨 Critical Update' : '✨ New Update Available'}
+              {isEmergency ? '🚨 Critical Update' : '✨ Update Available'}
             </Text>
 
             {/* Subtitle */}
             <Text style={styles.subtitle}>
               {isEmergency
-                ? 'An important security update is ready to install'
-                : "We've made Sleep Architect even better!"}
+                ? 'A required security update must be installed to continue.'
+                : "We've improved Sleep Architect. Update now for the best experience."}
             </Text>
 
-            {/* Version info */}
+            {/* Version pill */}
             {version && (
               <View style={styles.versionContainer}>
                 <Text style={styles.versionText}>Version {version}</Text>
               </View>
             )}
 
-            {/* Features list */}
+            {/* Feature list */}
             <View style={styles.featuresContainer}>
-              <FeatureItem
-                icon={<Sparkles size={18} color="#FFF" />}
-                text="Enhanced performance and stability"
-              />
-              <FeatureItem
-                icon={<Zap size={18} color="#FFF" />}
-                text="New features and improvements"
-              />
-              <FeatureItem
-                icon={<Shield size={18} color="#FFF" />}
-                text="Bug fixes and optimizations"
-              />
+              <FeatureItem icon={<Sparkles size={16} color="#FFF" />} text="Enhanced performance & stability" />
+              <FeatureItem icon={<Zap size={16} color="#FFF" />} text="New features & improvements" />
+              <FeatureItem icon={<Shield size={16} color="#FFF" />} text="Bug fixes & optimisations" />
             </View>
 
-            {/* Update Button */}
-            <TouchableOpacity
-              style={[
-                styles.updateButton,
-                isDownloading && styles.updateButtonDisabled,
-              ]}
-              onPress={handleUpdate}
-              disabled={isDownloading}
-              activeOpacity={0.8}
-            >
-              <LinearGradient
-                colors={['#FFFFFF', '#F3F4F6']}
-                style={styles.buttonGradient}
-              >
-                {isDownloading ? (
-                  <View style={styles.downloadingContainer}>
-                    <ActivityIndicator size="small" color="#6366F1" />
-                    <Text style={styles.buttonTextDownloading}>
-                      Updating...
-                    </Text>
-                  </View>
-                ) : (
+            {/* Update button */}
+            {downloadFailed ? (
+              <TouchableOpacity style={styles.updateButton} onPress={handleRetry} activeOpacity={0.85}>
+                <LinearGradient colors={['#FFFFFF', '#F3F4F6']} style={styles.buttonGradient}>
                   <View style={styles.buttonContent}>
-                    <Download size={20} color="#6366F1" />
-                    <Text style={styles.buttonText}>
-                      {isEmergency ? 'Update Now (Required)' : 'Update Now'}
-                    </Text>
+                    <Download size={20} color="#EF4444" />
+                    <Text style={[styles.buttonText, { color: '#EF4444', marginLeft: 8 }]}>Retry Update</Text>
                   </View>
-                )}
-              </LinearGradient>
-            </TouchableOpacity>
+                </LinearGradient>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                style={[styles.updateButton, isDownloading && styles.updateButtonDisabled]}
+                onPress={handleUpdate}
+                disabled={isDownloading}
+                activeOpacity={0.85}
+              >
+                <LinearGradient colors={['#FFFFFF', '#F3F4F6']} style={styles.buttonGradient}>
+                  {isDownloading ? (
+                    <View style={styles.buttonContent}>
+                      <ActivityIndicator size="small" color="#6366F1" />
+                      <Text style={[styles.buttonText, { marginLeft: 10 }]}>Updating...</Text>
+                    </View>
+                  ) : (
+                    <View style={styles.buttonContent}>
+                      <Download size={20} color="#6366F1" />
+                      <Text style={[styles.buttonText, { marginLeft: 8 }]}>
+                        {isEmergency ? 'Update Now (Required)' : 'Update Now'}
+                      </Text>
+                    </View>
+                  )}
+                </LinearGradient>
+              </TouchableOpacity>
+            )}
+
+            {/* "Later" option — only for non-emergency, not during download */}
+            {!isEmergency && onSkip && !isDownloading && (
+              <TouchableOpacity onPress={onSkip} style={styles.laterButton} activeOpacity={0.7}>
+                <Text style={styles.laterText}>Maybe Later</Text>
+              </TouchableOpacity>
+            )}
 
             {/* Info text */}
             <Text style={styles.infoText}>
               {isEmergency
-                ? 'This update is required to continue using the app'
-                : 'Update takes less than a minute'}
+                ? 'This update is required to use the app'
+                : 'Takes less than a minute · Free update'}
             </Text>
           </LinearGradient>
         </Animated.View>
-      </BlurView>
+      </SafeBlur>
     </Modal>
   );
 };
 
-const FeatureItem: React.FC<{ icon: React.ReactNode; text: string }> = ({
-  icon,
-  text,
-}) => (
+const FeatureItem: React.FC<{ icon: React.ReactNode; text: string }> = ({ icon, text }) => (
   <View style={styles.featureItem}>
     <View style={styles.featureIcon}>{icon}</View>
     <Text style={styles.featureText}>{text}</Text>
@@ -261,7 +241,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    backgroundColor: 'rgba(0, 0, 0, 0.75)',
   },
   modalContent: {
     width: width * 0.9,
@@ -277,94 +257,71 @@ const styles = StyleSheet.create({
   gradient: {
     padding: 32,
     alignItems: 'center',
-    position: 'relative',
   },
-  sparkle: {
-    position: 'absolute',
-  },
-  sparkle1: {
-    top: 20,
-    right: 20,
-  },
-  sparkle2: {
-    bottom: 40,
-    left: 30,
-  },
+  sparkle: { position: 'absolute' },
+  sparkle1: { top: 20, right: 20 },
+  sparkle2: { bottom: 40, left: 30 },
   logoContainer: {
-    width: 120,
-    height: 120,
+    width: 110,
+    height: 110,
     marginBottom: 24,
     position: 'relative',
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 30,
-    padding: 16,
-    borderWidth: 3,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
+    backgroundColor: 'rgba(255, 255, 255, 0.18)',
+    borderRadius: 28,
+    padding: 14,
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.28)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  logo: {
-    width: '100%',
-    height: '100%',
-  },
+  logo: { width: '100%', height: '100%' },
   emergencyBadge: {
     position: 'absolute',
     top: -8,
     right: -8,
     backgroundColor: '#EF4444',
     borderRadius: 16,
-    width: 32,
-    height: 32,
+    width: 30,
+    height: 30,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 3,
     borderColor: '#FFF',
   },
   title: {
-    fontSize: 28,
-    fontWeight: 'bold',
+    fontSize: 26,
+    fontWeight: '800',
     color: '#FFFFFF',
-    marginBottom: 12,
+    marginBottom: 10,
     textAlign: 'center',
   },
   subtitle: {
-    fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.9)',
+    fontSize: 15,
+    color: 'rgba(255, 255, 255, 0.88)',
     marginBottom: 16,
     textAlign: 'center',
     lineHeight: 22,
   },
   versionContainer: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-    borderRadius: 12,
-    marginBottom: 24,
+    backgroundColor: 'rgba(255, 255, 255, 0.18)',
+    paddingHorizontal: 14,
+    paddingVertical: 5,
+    borderRadius: 10,
+    marginBottom: 22,
   },
-  versionText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  featuresContainer: {
-    width: '100%',
-    marginBottom: 24,
-  },
+  versionText: { color: '#FFFFFF', fontSize: 13, fontWeight: '600' },
+  featuresContainer: { width: '100%', marginBottom: 22 },
   featureItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    padding: 12,
+    marginBottom: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
     borderRadius: 12,
   },
-  featureIcon: {
-    marginRight: 12,
-  },
-  featureText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    flex: 1,
-    fontWeight: '500',
-  },
+  featureIcon: { marginRight: 12 },
+  featureText: { color: '#FFFFFF', fontSize: 14, flex: 1, fontWeight: '500' },
   updateButton: {
     width: '100%',
     overflow: 'hidden',
@@ -375,9 +332,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
   },
-  updateButtonDisabled: {
-    opacity: 0.8,
-  },
+  updateButtonDisabled: { opacity: 0.75 },
   buttonGradient: {
     paddingVertical: 16,
     paddingHorizontal: 24,
@@ -387,27 +342,28 @@ const styles = StyleSheet.create({
   buttonContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    justifyContent: 'center',
   },
   buttonText: {
-    fontSize: 18,
-    fontWeight: 'bold',
+    fontSize: 17,
+    fontWeight: '700',
     color: '#6366F1',
   },
-  downloadingContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
+  laterButton: {
+    marginTop: 14,
+    paddingVertical: 8,
+    paddingHorizontal: 24,
   },
-  buttonTextDownloading: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#6366F1',
+  laterText: {
+    color: 'rgba(255, 255, 255, 0.65)',
+    fontSize: 14,
+    fontWeight: '500',
+    textDecorationLine: 'underline',
   },
   infoText: {
-    marginTop: 16,
+    marginTop: 12,
     fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.7)',
+    color: 'rgba(255, 255, 255, 0.6)',
     textAlign: 'center',
   },
 });

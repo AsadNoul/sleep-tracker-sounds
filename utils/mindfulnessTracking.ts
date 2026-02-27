@@ -44,10 +44,13 @@ export const saveMindfulnessSession = async (
 };
 
 // Get all mindfulness sessions
-export const getMindfulnessSessions = async (): Promise<MindfulnessSession[]> => {
+export const getMindfulnessSessions = async (userId?: string): Promise<MindfulnessSession[]> => {
   try {
     const data = await AsyncStorage.getItem(STORAGE_KEY);
-    return data ? JSON.parse(data) : [];
+    const sessions: MindfulnessSession[] = data ? JSON.parse(data) : [];
+
+    if (!userId) return sessions;
+    return sessions.filter((session) => session.userId === userId);
   } catch (error) {
     console.error('Failed to load mindfulness sessions:', error);
     return [];
@@ -96,9 +99,9 @@ const calculateStreak = (sessions: MindfulnessSession[]): number => {
 };
 
 // Get mindfulness statistics
-export const getMindfulnessStats = async (): Promise<MindfulnessStats> => {
+export const getMindfulnessStats = async (userId?: string): Promise<MindfulnessStats> => {
   try {
-    const sessions = await getMindfulnessSessions();
+    const sessions = await getMindfulnessSessions(userId);
 
     const totalSessions = sessions.length;
     const totalMinutes = sessions.reduce((sum, session) => sum + session.duration, 0);

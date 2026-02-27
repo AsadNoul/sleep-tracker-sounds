@@ -9,54 +9,52 @@ interface UpdateCheckerProps {
 export default function UpdateChecker({ onUpdateComplete }: UpdateCheckerProps) {
   const [showUpdateModal, setShowUpdateModal] = useState(false);
   const [isEmergency, setIsEmergency] = useState(false);
-  const [version, setVersion] = useState<string>();
+  const [version, setVersion] = useState<string | undefined>();
 
   useEffect(() => {
     checkForUpdates();
   }, []);
 
   const checkForUpdates = async () => {
-    // Skip in development mode
     if (__DEV__) {
-      console.log('⚠️ OTA Updates disabled in development mode');
+      console.log('[UpdateChecker] Skipped in dev mode');
       return;
     }
 
     try {
-      console.log('🔍 Checking for updates on app start...');
+      console.log('[UpdateChecker] Checking for OTA update on launch...');
       const updateInfo = await updateService.checkForUpdates();
 
       if (updateInfo.isAvailable) {
-        console.log('✅ Update available! Showing modal...');
-        setIsEmergency(updateInfo.isEmergency || false);
+        console.log('[UpdateChecker] Update available — showing modal');
+        setIsEmergency(updateInfo.isEmergency ?? false);
         setVersion(updateInfo.manifest?.version);
         setShowUpdateModal(true);
       } else {
-        console.log('✅ App is up to date!');
+        console.log('[UpdateChecker] App is up to date');
         onUpdateComplete?.();
       }
     } catch (error) {
-      console.error('❌ Error checking for updates:', error);
+      console.error('[UpdateChecker] Unexpected error:', error);
       onUpdateComplete?.();
     }
   };
 
   const handleUpdate = async () => {
-    try {
-      console.log('⬇️ Starting update download...');
-      await updateService.downloadAndApplyUpdate();
-      // App will reload automatically after update
-    } catch (error) {
-      console.error('❌ Update failed:', error);
-      setShowUpdateModal(false);
-      onUpdateComplete?.();
-    }
+    await updateService.downloadAndApplyUpdate();
+    // reloadAsync is called inside — we only reach here on failure (thrown)
+  };
+
+  const handleSkip = () => {
+    setShowUpdateModal(false);
+    onUpdateComplete?.();
   };
 
   return (
     <UpdateModal
       visible={showUpdateModal}
       onUpdate={handleUpdate}
+      onSkip={handleSkip}
       isEmergency={isEmergency}
       version={version}
     />
