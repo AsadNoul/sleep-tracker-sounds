@@ -565,8 +565,7 @@ export function SleepProvider({ children }: { children: ReactNode }) {
         console.log('🤖 AI Insights generated:', insights.length);
       }
 
-      // Add to local history (optimistic update for both guest and authenticated users)
-      // For authenticated users, loadSleepHistory will fetch the canonical data shortly after
+      // Add to local history immediately (optimistic update — instant dashboard refresh)
       const updatedHistory = [completedSession, ...sleepHistory];
       setSleepHistory(updatedHistory);
       // Always persist locally — guests rely on this exclusively
@@ -578,11 +577,10 @@ export function SleepProvider({ children }: { children: ReactNode }) {
       setAlarmTime(null);
       await AsyncStorage.removeItem('@current_sleep_session');
 
-      // Reload sleep history from Supabase — this is the single source of truth
-      // (Real-time subscription will also trigger a reload, but this ensures immediate update)
-      if (user && user.id !== 'guest') {
-        await loadSleepHistory();
-      }
+      // Do NOT call loadSleepHistory() here — it races with the Supabase insert and
+      // overwrites the optimistic update with stale data, making dashboard show 0.
+      // The optimistic update above is already correct. A background refresh happens
+      // next time the user opens the app or navigates to the analysis screen.
 
       // Track sleep session completion
       await analyticsService.trackSleepSessionComplete(durationMinutes, quality, scoreResult.score);

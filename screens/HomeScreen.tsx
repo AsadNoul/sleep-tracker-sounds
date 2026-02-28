@@ -15,7 +15,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { useNavigation } from '@react-navigation/native';
-import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import {
   Moon,
   Clock,
@@ -84,7 +83,7 @@ const GlassView = ({ style, children, intensity = 20, tint = "dark" }: { style?:
 };
 
 export default function HomeScreen() {
-  const navigation = useNavigation<NativeStackNavigationProp<any>>();
+  const navigation = useNavigation<any>();
   const { theme, isDark } = useAppTheme();
   const { user } = useAuth();
   const { getSleepStats, isLoading, sleepHistory, isTracking, getCurrentStreak, getGoodNightStreak, getSleepDebt, getReadinessScore, getSmartBedtime, loadSleepHistory } = useSleep();
@@ -104,6 +103,22 @@ export default function HomeScreen() {
   const sleepDebt = useMemo(() => getSleepDebt(), [sleepHistory]);
   const readinessScore = useMemo(() => getReadinessScore(), [sleepHistory]);
   const smartInsights = useMemo(() => generateSmartInsights(sleepHistory), [sleepHistory]);
+
+  const sleepTips = useMemo(() => ([
+    'Try the 4-7-8 breathing technique to calm your nervous system before bed.',
+    'Dim bright screens at least 60 minutes before sleep to improve melatonin release.',
+    'Keep your bedroom cool and dark to support deeper sleep cycles.',
+    'Avoid caffeine in the late afternoon to reduce night-time awakenings.',
+    'A short wind-down routine helps your brain switch from alert mode to rest mode.',
+    'Wake up at the same time daily to stabilize your circadian rhythm.',
+  ]), []);
+
+  const tipOfTheDay = useMemo(() => {
+    const dayOfYear = Math.floor((Date.UTC(currentTime.getFullYear(), currentTime.getMonth(), currentTime.getDate()) - Date.UTC(currentTime.getFullYear(), 0, 0)) / 86400000);
+    const offset = Math.max(0, currentStreak);
+    const index = (dayOfYear + offset) % sleepTips.length;
+    return sleepTips[index];
+  }, [currentTime, currentStreak, sleepTips]);
 
   // Compute real weekly stats from sleep history
   const weeklyStats = useMemo(() => {
@@ -227,23 +242,24 @@ export default function HomeScreen() {
   }, [currentTime]);
 
   const sleepScore = useMemo(() => {
-    if (sleepStats.totalSessions === 0) return 0;
+    // Always check actual session data first before falling back to stats
     const lastSession = sleepHistory[0];
 
-    // Check if last session is within 24 hours
     if (lastSession) {
       const sessionTime = lastSession.endTime || lastSession.startTime;
       const hoursSinceSession = (new Date().getTime() - new Date(sessionTime).getTime()) / (1000 * 60 * 60);
 
-      // If session is older than 24 hours, show 0 (stale data)
+      // Only hide score if session is older than 24 hours
       if (hoursSinceSession > 24) {
         return 0;
       }
 
-      // Show actual score if fresh data
-      if (lastSession.sleepScore) return lastSession.sleepScore;
+      // Return the score (use null-check not falsy-check so score of 0 is valid)
+      if (lastSession.sleepScore != null) return lastSession.sleepScore;
     }
 
+    // Fallback to average stats if no recent session
+    if (sleepStats.totalSessions === 0) return 0;
     const qualityScore = sleepStats.averageQuality * 10;
     const idealDuration = 480;
     const durationScore = Math.min(100, (sleepStats.averageDuration / idealDuration) * 100);
@@ -372,7 +388,7 @@ export default function HomeScreen() {
           <View style={themedStyles.headerActions}>
             {/* App Logo - clickable, navigates to Settings */}
             <TouchableOpacity
-              onPress={() => navigation.navigate('Settings' as never)}
+              onPress={() => navigation.navigate('Settings')}
               style={{ marginRight: 12 }}
               activeOpacity={0.75}
             >
@@ -449,7 +465,7 @@ export default function HomeScreen() {
                           onPress={() => {
                             setIsSidebarVisible(false);
                             setSearchQuery('');
-                            navigation.navigate(item.screen as never);
+                            navigation.navigate(item.screen);
                           }}
                         >
                           <View style={themedStyles.sidebarIconContainer}>
@@ -482,7 +498,7 @@ export default function HomeScreen() {
                     style={themedStyles.sidebarItem}
                     onPress={() => {
                       setIsSidebarVisible(false);
-                      navigation.navigate(item.screen as never);
+                      navigation.navigate(item.screen);
                     }}
                   >
                     <View style={themedStyles.sidebarIconContainer}>{item.icon}</View>
@@ -503,7 +519,7 @@ export default function HomeScreen() {
                     style={themedStyles.sidebarItem}
                     onPress={() => {
                       setIsSidebarVisible(false);
-                      navigation.navigate(item.screen as never);
+                      navigation.navigate(item.screen);
                     }}
                   >
                     <View style={themedStyles.sidebarIconContainer}>{item.icon}</View>
@@ -847,7 +863,7 @@ export default function HomeScreen() {
             <View style={themedStyles.tipContent}>
               <Text style={themedStyles.tipLabel}>Sleep Tip of the Day</Text>
               <Text style={themedStyles.tipText}>
-                Try the 4-7-8 breathing technique to calm your nervous system before bed.
+                {tipOfTheDay}
               </Text>
             </View>
           </LinearGradient>
@@ -903,11 +919,11 @@ export default function HomeScreen() {
       <TouchableOpacity
         activeOpacity={0.8}
         onPress={() => navigation.navigate('SleepAnalysis')}
-        style={[themedStyles.aiFab, { bottom: bottomMargin + 20 }]}
+        style={[themedStyles.analysisFab, { bottom: bottomMargin + 20 }]}
       >
         <LinearGradient
           colors={['#3B82F6', '#6366F1']}
-          style={themedStyles.aiFabGradient}
+          style={themedStyles.analysisFabGradient}
         >
           <TrendingUp size={22} color="#FFFFFF" strokeWidth={2.5} />
         </LinearGradient>
@@ -1572,7 +1588,7 @@ const styles = (theme: any, width: number) => StyleSheet.create({
     fontWeight: '600',
     textTransform: 'uppercase',
   },
-  aiFab: {
+  analysisFab: {
     position: 'absolute',
     right: 20,
     width: 58,
@@ -1593,7 +1609,7 @@ const styles = (theme: any, width: number) => StyleSheet.create({
       },
     }),
   },
-  aiFabGradient: {
+  analysisFabGradient: {
     flex: 1,
     borderRadius: 29,
     justifyContent: 'center',

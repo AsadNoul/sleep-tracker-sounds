@@ -318,26 +318,8 @@ export default function JournalScreen() {
         )
         .subscribe();
 
-      // Set up real-time subscription for sleep recordings (disruptions)
-      const disruptionsChannel = supabase
-        .channel('sleep_recordings_changes')
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'sleep_recordings',
-            filter: `user_id=eq.${user.id}`,
-          },
-          () => {
-            loadDisruptions(selectedDaySession?.id);
-          }
-        )
-        .subscribe();
-
       return () => {
         supabase.removeChannel(journalChannel);
-        supabase.removeChannel(disruptionsChannel);
       };
     }
   }, [user, selectedDaySession?.id]);
@@ -362,28 +344,39 @@ export default function JournalScreen() {
   };
 
   const loadDisruptions = async (sessionId?: string) => {
-    if (!user || user.id === 'guest' || !sessionId) {
+    if (!sessionId) {
       setDisruptions([]);
       return;
     }
 
     try {
-      const { data, error } = await supabase
-        .from('sleep_recordings')
-        .select('id, event_type, timestamp, loudness_db, audio_file_url, audio_offset_ms, duration_seconds')
-        .eq('user_id', user.id)
-        .eq('session_id', sessionId)
-        .in('event_type', ['snoring', 'sleep_talk', 'noise', 'dreaming'])
-        .order('timestamp', { ascending: true });
+      // Recordings are saved locally to AsyncStorage (not Supabase) for privacy.
+      // Key format: @recording_events_${sessionId}
+      const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+      const storageKey = `@recording_events_${sessionId}`;
+      const dataStr = await AsyncStorage.getItem(storageKey);
 
-      if (!error && data) {
-        // Ensure response matches current session
-        if (selectedDaySession?.id === sessionId) {
-          setDisruptions(data);
-        }
+      if (dataStr) {
+        const records = JSON.parse(dataStr);
+        const filtered = records
+          .filter((r: any) => ['snoring', 'sleep_talk', 'noise', 'dreaming'].includes(r.event_type))
+          .sort((a: any, b: any) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+          .map((r: any, i: number) => ({
+            id: r.id || `local_${i}`,
+            event_type: r.event_type,
+            timestamp: r.timestamp,
+            loudness_db: r.loudness_db || 0,
+            audio_file_url: r.audio_file_url || undefined,
+            audio_offset_ms: r.audio_offset_ms || 0,
+            duration_seconds: r.duration_seconds || 0,
+          }));
+        setDisruptions(filtered);
+      } else {
+        setDisruptions([]);
       }
     } catch (error) {
-      console.error('Error loading disruptions:', error);
+      console.error('Error loading disruptions from local storage:', error);
+      setDisruptions([]);
     }
   };
 

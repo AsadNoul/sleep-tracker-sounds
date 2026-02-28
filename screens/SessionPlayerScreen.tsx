@@ -14,6 +14,7 @@ import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { X, Activity, Clock, Gauge, Volume2 } from 'lucide-react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const ICON_MAP: Record<string, any> = {
   'bed-outline': 'bed',
@@ -25,6 +26,7 @@ const ICON_MAP: Record<string, any> = {
   'eye-outline': 'eye',
 };
 import { useAudio } from '../contexts/AudioContext';
+import { useAuth } from '../contexts/AuthContext';
 import Slider from '@react-native-community/slider';
 
 const { width, height } = Dimensions.get('window');
@@ -41,6 +43,7 @@ export default function SessionPlayerScreen() {
   const navigation = useNavigation();
   const route = useRoute();
   const { session } = route.params as { session: any };
+  const { user } = useAuth();
 
   const { isPlaying, volume, playSound, pauseSound, resumeSound, stopSound, setVolume } = useAudio();
 
@@ -51,6 +54,24 @@ export default function SessionPlayerScreen() {
   const [sleepSafeMinutes, setSleepSafeMinutes] = useState(0);
   const [sleepSafeRemainingSeconds, setSleepSafeRemainingSeconds] = useState<number | null>(null);
   const originalVolumeRef = useRef<number | null>(null);
+  const sleepSafeStorageKey = `@sleep_safe_mode_minutes_${user?.id || 'guest'}`;
+
+  useEffect(() => {
+    const loadSleepSafePreference = async () => {
+      try {
+        const stored = await AsyncStorage.getItem(sleepSafeStorageKey);
+        if (!stored) return;
+
+        const parsed = Number.parseInt(stored, 10);
+        if (!Number.isNaN(parsed) && [0, 15, 30, 45].includes(parsed)) {
+          setSleepSafeMinutes(parsed);
+          setSleepSafeRemainingSeconds(parsed > 0 ? parsed * 60 : null);
+        }
+      } catch (_) {}
+    };
+
+    loadSleepSafePreference();
+  }, [sleepSafeStorageKey]);
 
   // Session steps/instructions
   const sessionSteps: SessionStep[] = [
@@ -254,6 +275,7 @@ export default function SessionPlayerScreen() {
 
   const handleSleepSafeSelect = (minutes: number) => {
     setSleepSafeMinutes(minutes);
+    AsyncStorage.setItem(sleepSafeStorageKey, String(minutes)).catch(() => {});
     if (!isSessionActive) {
       setSleepSafeRemainingSeconds(minutes > 0 ? minutes * 60 : null);
       return;

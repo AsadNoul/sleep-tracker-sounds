@@ -158,6 +158,7 @@ export default function SoundsScreen() {
     currentSound,
     playSound,
     pauseSound,
+    resumeSound,
     stopSound,
     isMixing,
     startMixing,
@@ -183,6 +184,16 @@ export default function SoundsScreen() {
     return found;
   };
 
+  const getFeaturedPrimarySound = (soundIds: string[]) => {
+    for (const soundId of soundIds) {
+      const sound = findSoundById(soundId);
+      if (sound?.uri) {
+        return sound;
+      }
+    }
+    return null;
+  };
+
   const currentPlayingSound: any = useMemo(() => findSoundById(currentSound), [currentSound]);
 
   const displayedSounds = useMemo(() => {
@@ -200,12 +211,31 @@ export default function SoundsScreen() {
   }, [selectedCategory, searchQuery]);
 
   const toggleSound = (sound: any) => {
+    if (!sound?.uri) {
+      Alert.alert('Sound unavailable', 'This sound is currently unavailable. Please try another one.');
+      return;
+    }
+
     if (currentSound === sound.id && isPlaying) {
       pauseSound();
     } else {
       playSound(sound.id, sound.uri, sound.name);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
+  };
+
+  const handlePlayCurrentSound = () => {
+    if (isPlaying) {
+      pauseSound();
+      return;
+    }
+
+    if (currentSound && currentPlayingSound?.uri) {
+      playSound(currentSound, currentPlayingSound.uri, currentPlayingSound.name);
+      return;
+    }
+
+    resumeSound();
   };
 
   return (
@@ -226,7 +256,7 @@ export default function SoundsScreen() {
         </TouchableOpacity>
         <View style={themedStyles.headerContent}>
           <Text style={themedStyles.headerTitle}>Sounds</Text>
-          <Text style={themedStyles.headerSubtitle}>ARCHITECT LIBRARY</Text>
+          <Text style={themedStyles.headerSubtitle}>SLEEP LIBRARY</Text>
         </View>
         <TouchableOpacity onPress={() => isMixing ? stopMixing() : startMixing()} style={[themedStyles.iconButton, isMixing && themedStyles.activeIconButton]}>
           <Activity size={20} color={isMixing ? "#000" : "#FFF"} />
@@ -259,7 +289,14 @@ export default function SoundsScreen() {
               renderItem={({ item }) => (
                 <TouchableOpacity
                   activeOpacity={0.9}
-                  onPress={() => playSound(item.sounds[0], ALL_SOUNDS['Nature']?.find((s: any) => s.id === item.sounds[0])?.uri, item.name)}
+                  onPress={() => {
+                    const primarySound = getFeaturedPrimarySound(item.sounds);
+                    if (!primarySound?.uri) {
+                      Alert.alert('Collection unavailable', 'Featured collection is currently unavailable.');
+                      return;
+                    }
+                    playSound(primarySound.id, primarySound.uri, primarySound.name);
+                  }}
                   style={themedStyles.featuredCard}
                 >
                   <ImageBackground source={{ uri: item.image }} style={themedStyles.featuredImage} imageStyle={{ borderRadius: 32 }}>
@@ -332,10 +369,10 @@ export default function SoundsScreen() {
               <View style={themedStyles.playerControls}>
                 <View style={themedStyles.playerInfo}>
                   <Text style={themedStyles.playerName} numberOfLines={1}>{currentPlayingSound?.name || 'Unknown'}</Text>
-                  <Text style={themedStyles.playerStatus}>NOW PLAYING</Text>
+                  <Text style={themedStyles.playerStatus}>Now playing</Text>
                 </View>
                 <View style={themedStyles.playerButtons}>
-                  <TouchableOpacity onPress={() => isPlaying ? pauseSound() : playSound(currentSound || '', currentPlayingSound?.uri, currentPlayingSound?.name)} style={themedStyles.mainPlayBtn}>
+                  <TouchableOpacity onPress={handlePlayCurrentSound} style={themedStyles.mainPlayBtn}>
                     {isPlaying ? <Pause size={22} color="#000" /> : <Play size={22} color="#000" />}
                   </TouchableOpacity>
                   <TouchableOpacity onPress={() => stopSound()} style={themedStyles.stopBtn}>
@@ -369,13 +406,13 @@ export default function SoundsScreen() {
 
               <View style={themedStyles.trackInfoContainer}>
                 <Text style={themedStyles.trackName}>{currentPlayingSound?.name || 'Unknown Sound'}</Text>
-                <Text style={themedStyles.trackCategory}>ARCHITECT SOUNDSCAPE</Text>
+                <Text style={themedStyles.trackCategory}>Sleep Soundscape</Text>
               </View>
 
               <View style={themedStyles.playbackControlsContainer}>
                 <TouchableOpacity><Repeat size={24} color="rgba(255,255,255,0.4)" /></TouchableOpacity>
                 <TouchableOpacity style={themedStyles.skipBtn}><SkipBack size={32} color="#FFF" /></TouchableOpacity>
-                <TouchableOpacity onPress={() => isPlaying ? pauseSound() : playSound(currentSound || '', currentPlayingSound?.uri, currentPlayingSound?.name)} style={themedStyles.largePlayBtn}>
+                <TouchableOpacity onPress={handlePlayCurrentSound} style={themedStyles.largePlayBtn}>
                   {isPlaying ? <Pause size={42} color="#000" fill="#000" /> : <Play size={42} color="#000" fill="#000" />}
                 </TouchableOpacity>
                 <TouchableOpacity style={themedStyles.skipBtn}><SkipForward size={32} color="#FFF" /></TouchableOpacity>
@@ -385,10 +422,10 @@ export default function SoundsScreen() {
               {isMixing && Object.keys(activeMix).length > 0 && (
                 <View style={themedStyles.mixContainer}>
                   <Text style={themedStyles.mixTitle}>Active Mix</Text>
-                  {Object.values(activeMix).map((s: any) => (
-                    <View key={s.id || s.name} style={themedStyles.mixItem}>
+                  {Object.entries(activeMix).map(([soundId, s]: [string, any]) => (
+                    <View key={soundId} style={themedStyles.mixItem}>
                       <Text style={themedStyles.mixItemName}>{s.name}</Text>
-                      <TouchableOpacity onPress={() => removeSoundFromMix(s.id || '')}><X size={16} color="#EF4444" /></TouchableOpacity>
+                      <TouchableOpacity onPress={() => removeSoundFromMix(soundId)}><X size={16} color="#EF4444" /></TouchableOpacity>
                     </View>
                   ))}
                 </View>
@@ -430,7 +467,7 @@ const createStyles = (theme: any, width: number) => StyleSheet.create({
   },
   activeIconButton: { backgroundColor: '#8B5CF6', borderColor: '#8B5CF6' },
   headerContent: { flex: 1, alignItems: 'center' },
-  headerTitle: { color: '#FFF', fontSize: 42, fontWeight: '900', letterSpacing: -1.5 },
+  headerTitle: { color: '#FFF', fontSize: 34, fontWeight: '900', letterSpacing: -0.8 },
   headerSubtitle: { color: '#8B5CF6', fontSize: 10, fontWeight: '900', letterSpacing: 3, marginTop: 4 },
   searchBox: { paddingHorizontal: 20, marginTop: 165, marginBottom: 24 },
   searchInner: {
@@ -468,8 +505,8 @@ const createStyles = (theme: any, width: number) => StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.05)'
   },
-  gridImage: { width: '100%', height: '100%', opacity: 0.6 },
-  gridOverlay: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: 15, backgroundColor: 'rgba(0,0,0,0.4)' },
+  gridImage: { width: '100%', height: '100%', opacity: 0.78 },
+  gridOverlay: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: 15, backgroundColor: 'rgba(0,0,0,0.52)' },
   gridName: { color: '#FFF', fontSize: 14, fontWeight: '800', textAlign: 'center' },
   gridActiveIndicator: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(139, 92, 246, 0.4)', justifyContent: 'center', alignItems: 'center' },
   playerContainer: { position: 'absolute', left: 15, right: 15, zIndex: 10000 },
@@ -492,7 +529,7 @@ const createStyles = (theme: any, width: number) => StyleSheet.create({
   playerControls: { flex: 1, flexDirection: 'row', alignItems: 'center', marginLeft: 16, marginRight: 8 },
   playerInfo: { flex: 1 },
   playerName: { color: '#FFF', fontSize: 16, fontWeight: '800' },
-  playerStatus: { color: '#8B5CF6', fontSize: 9, fontWeight: '900', marginTop: 2, letterSpacing: 1.5 },
+  playerStatus: { color: '#8B5CF6', fontSize: 10, fontWeight: '800', marginTop: 2, letterSpacing: 0.5 },
   playerButtons: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   mainPlayBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#FFF', justifyContent: 'center', alignItems: 'center' },
   stopBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' },

@@ -39,7 +39,9 @@ import {
   Lightbulb,
   Moon,
   CheckCircle2,
-  Star
+  Star,
+  Coffee,
+  Zap
 } from 'lucide-react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -120,6 +122,7 @@ export default function SleepSessionScreen() {
   const [sleepSoundsEnabled, setSleepSoundsEnabled] = useState(route.params?.initialSounds ?? false);
   const [smartAlarmEnabled, setSmartAlarmEnabled] = useState(route.params?.initialSmartAlarm ?? true);
   const [sleepRecorderEnabled, setSleepRecorderEnabled] = useState(route.params?.initialRecorder ?? false);
+  const [isNapMode, setIsNapMode] = useState(route.params?.isNap ?? false);
   const [wakeUps, setWakeUps] = useState('0');
   const [notes, setNotes] = useState('');
   const [sleepRating, setSleepRating] = useState(0);
@@ -222,7 +225,9 @@ export default function SleepSessionScreen() {
         sleepSoundsEnabled,
         smartAlarmEnabled,
         sleepRecorderEnabled,
-        alarmTime || undefined
+        alarmTime || undefined,
+        [],
+        isNapMode
       );
 
       // Schedule notification alarm if time is set
@@ -811,6 +816,29 @@ export default function SleepSessionScreen() {
           <GlassView intensity={20} tint="dark" style={themedStyles.card}>
             <Text style={themedStyles.cardTitle}>Sleep Settings</Text>
 
+            {/* Nap Mode Toggle */}
+            <View style={themedStyles.settingItem}>
+              <View style={themedStyles.settingLeft}>
+                <Coffee size={24} color="#F59E0B" />
+                <View>
+                  <Text style={themedStyles.settingLabel}>Nap Mode</Text>
+                  <Text style={{ color: theme.colors.textSecondary, fontSize: 11, marginTop: 1 }}>
+                    {isNapMode ? 'Short rest · No morning alarm' : 'Full night sleep'}
+                  </Text>
+                </View>
+              </View>
+              <TouchableOpacity
+                style={[themedStyles.toggle, isNapMode && { backgroundColor: '#F59E0B' }]}
+                onPress={() => {
+                  setIsNapMode(!isNapMode);
+                  // Disable smart alarm for naps
+                  if (!isNapMode) setSmartAlarmEnabled(false);
+                }}
+              >
+                <View style={[themedStyles.toggleThumb, isNapMode && themedStyles.toggleThumbActive]} />
+              </TouchableOpacity>
+            </View>
+
             <View style={themedStyles.settingItem}>
               <View style={themedStyles.settingLeft}>
                 <Music size={24} color={theme.colors.accent} />
@@ -925,13 +953,15 @@ export default function SleepSessionScreen() {
             activeOpacity={0.9}
           >
             <LinearGradient
-              colors={['#8B5CF6', '#6366F1']}
+              colors={isNapMode ? ['#F59E0B', '#D97706'] : ['#8B5CF6', '#6366F1']}
               style={themedStyles.startGradient}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
             >
-              <Moon size={24} color="#FFFFFF" />
-              <Text style={themedStyles.startButtonText}>Start Sleep Session</Text>
+              {isNapMode ? <Coffee size={24} color="#FFFFFF" /> : <Moon size={24} color="#FFFFFF" />}
+              <Text style={themedStyles.startButtonText}>
+                {isNapMode ? 'Start Nap Session' : 'Start Sleep Session'}
+              </Text>
             </LinearGradient>
           </TouchableOpacity>
 
