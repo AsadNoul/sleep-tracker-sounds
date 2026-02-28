@@ -612,7 +612,7 @@ export default function HomeScreen() {
 
               <TouchableOpacity
                 style={themedStyles.startSessionButton}
-                onPress={() => navigation.navigate(isTracking ? 'SleepSession' : (sleepScore > 0 ? 'SleepAnalysis' : 'SleepSession'))}
+                onPress={() => navigation.navigate('SleepSession')}
               >
                 <LinearGradient
                   colors={
@@ -835,14 +835,14 @@ export default function HomeScreen() {
 
             <View style={themedStyles.miniChartContainer}>
               {weeklyStats.chartData.map((h, i) => {
-                const dayLabels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
                 const now = new Date();
                 const dayIndex = (now.getDay() + 7 - (6 - i)) % 7;
-                // Map 0=Sun to labels
                 const labels = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+                // Scale score (0-100) to max 40px bar height
+                const barHeight = Math.max(4, (h / 100) * 40);
                 return (
                   <View key={i} style={themedStyles.miniChartColumn}>
-                    <View style={[themedStyles.miniChartBar, { height: Math.max(4, h), backgroundColor: i === 6 ? '#8B5CF6' : h > 0 ? 'rgba(139, 92, 246, 0.3)' : 'rgba(139, 92, 246, 0.1)' }]} />
+                    <View style={[themedStyles.miniChartBar, { height: barHeight, backgroundColor: i === 6 ? '#8B5CF6' : h > 0 ? 'rgba(139, 92, 246, 0.3)' : 'rgba(139, 92, 246, 0.1)' }]} />
                     <Text style={themedStyles.miniChartLabel}>{labels[dayIndex]}</Text>
                   </View>
                 );
@@ -852,7 +852,7 @@ export default function HomeScreen() {
         </TouchableOpacity>
 
         {/* Sleep Tip of the Day */}
-        <TouchableOpacity style={themedStyles.tipCard}>
+        <TouchableOpacity style={themedStyles.tipCard} onPress={() => navigation.navigate('BedtimeRoutine')}>
           <LinearGradient
             colors={['rgba(139, 92, 246, 0.15)', 'rgba(99, 102, 241, 0.05)']}
             style={themedStyles.tipGradient}

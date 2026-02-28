@@ -123,6 +123,9 @@ export default function SleepSessionScreen() {
   const [smartAlarmEnabled, setSmartAlarmEnabled] = useState(route.params?.initialSmartAlarm ?? true);
   const [sleepRecorderEnabled, setSleepRecorderEnabled] = useState(route.params?.initialRecorder ?? false);
   const [isNapMode, setIsNapMode] = useState(route.params?.isNap ?? false);
+  // Nap duration in minutes: null = not set, user picks before starting
+  const [napDuration, setNapDuration] = useState<number | null>(null);
+  const [showNapPicker, setShowNapPicker] = useState(false);
   const [wakeUps, setWakeUps] = useState('0');
   const [notes, setNotes] = useState('');
   const [sleepRating, setSleepRating] = useState(0);
@@ -219,25 +222,41 @@ export default function SleepSessionScreen() {
   };
 
   const handleStartSleep = async () => {
+    // If nap mode and no duration chosen, show picker first
+    if (isNapMode && napDuration === null) {
+      setShowNapPicker(true);
+      return;
+    }
+
     try {
+      // startSleepSession returns the session id via currentSession after state update,
+      // but we need it synchronously — generate it here and pass it in.
+      const sessionId = `session_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
+
+      // Compute alarm time for nap mode
+      let effectiveAlarmTime = alarmTime;
+      if (isNapMode && napDuration !== null) {
+        const napEnd = new Date(Date.now() + napDuration * 60 * 1000);
+        effectiveAlarmTime = napEnd;
+      }
+
       // Pass settings to startSleepSession
       await startSleepSession(
         sleepSoundsEnabled,
-        smartAlarmEnabled,
+        smartAlarmEnabled || (isNapMode && napDuration !== null),
         sleepRecorderEnabled,
-        alarmTime || undefined,
+        effectiveAlarmTime || undefined,
         [],
         isNapMode
       );
 
-      // Schedule notification alarm if time is set
-      if (alarmTime && smartAlarmEnabled) {
+      // Schedule notification alarm using the pre-generated sessionId
+      if (effectiveAlarmTime && (smartAlarmEnabled || isNapMode)) {
         try {
-          const sessionId = currentSession?.id || 'session-' + Date.now();
           await notificationService.scheduleAlarm({
-            alarmTime: alarmTime,
+            alarmTime: effectiveAlarmTime,
             sessionId: sessionId,
-            smartAlarm: smartAlarmEnabled,
+            smartAlarm: smartAlarmEnabled && !isNapMode,
           });
           console.log('✅ Alarm scheduled successfully');
         } catch (alarmError) {
@@ -249,13 +268,18 @@ export default function SleepSessionScreen() {
       // Auto-start music if sleep sounds are enabled
       if (sleepSoundsEnabled && selectedMusic) {
         try {
-          await playSound(selectedMusic.id, selectedMusic.uri);
+          await playSound(selectedMusic.id, selectedMusic.uri, selectedMusic.name);
         } catch (audioError) {
           console.log('Failed to start music, but session started:', audioError);
         }
       }
 
-      Alert.alert('Sleep Session Started', 'Your sleep is now being tracked. Sleep well!');
+      Alert.alert(
+        isNapMode ? 'Nap Started' : 'Sleep Session Started',
+        isNapMode && napDuration !== null
+          ? `Your ${napDuration}-minute nap timer is set. Rest well!`
+          : 'Your sleep is now being tracked. Sleep well!'
+      );
     } catch (error) {
       Alert.alert('Error', 'Failed to start sleep session. Please try again.');
     }
@@ -280,7 +304,7 @@ export default function SleepSessionScreen() {
       await pauseSound();
     } else if (selectedMusic) {
       try {
-        await playSound(selectedMusic.id, selectedMusic.uri);
+        await playSound(selectedMusic.id, selectedMusic.uri, selectedMusic.name);
       } catch (error) {
         Alert.alert('Playback Error', 'Unable to play sound. Please check your connection.');
       }
@@ -296,7 +320,7 @@ export default function SleepSessionScreen() {
 
     if (isTracking && isPlaying) {
       try {
-        await playSound(nextSound.id, nextSound.uri);
+        await playSound(nextSound.id, nextSound.uri, nextSound.name);
       } catch (error) {
         Alert.alert('Playback Error', 'Unable to play next sound.');
       }
@@ -312,7 +336,7 @@ export default function SleepSessionScreen() {
 
     if (isTracking && isPlaying) {
       try {
-        await playSound(prevSound.id, prevSound.uri);
+        await playSound(prevSound.id, prevSound.uri, prevSound.name);
       } catch (error) {
         Alert.alert('Playback Error', 'Unable to play previous sound.');
       }
@@ -415,17 +439,17 @@ export default function SleepSessionScreen() {
         message += `\n\n📊 Recording Summary:\n🔊 Snoring events: ${recordingSummary.snoringEvents}\n💬 Sleep talk events: ${recordingSummary.sleepTalkEvents}`;
       }
 
+      // Show rating prompt BEFORE navigating back (goBack unmounts the screen)
+      setShowRatingPrompt(true);
+      // Give rating prompt a moment to mount, then optionally navigate
+      // Navigation is handled after the rating prompt closes (or user dismisses it)
       Alert.alert(
         'Sleep Session Ended',
         message,
         [
           {
             text: 'OK',
-            onPress: () => {
-              // Show rating prompt after completing session
-              setShowRatingPrompt(true);
-              navigation.goBack();
-            },
+            onPress: () => navigation.goBack(),
           },
         ]
       );
@@ -665,7 +689,7 @@ export default function SleepSessionScreen() {
                   </View>
                 </View>
                 <Text style={themedStyles.recordingStats}>
-                  Snoring: {recordingStatus.snoringEvents} | Sleep Talk: {recordingStatus.sleepTalkEvents}
+                  Noise: {recordingStatus.eventsDetected} | Snoring: {recordingStatus.snoringEvents} | Talk: {recordingStatus.sleepTalkEvents}
                 </Text>
               </View>
             </View>
@@ -823,21 +847,44 @@ export default function SleepSessionScreen() {
                 <View>
                   <Text style={themedStyles.settingLabel}>Nap Mode</Text>
                   <Text style={{ color: theme.colors.textSecondary, fontSize: 11, marginTop: 1 }}>
-                    {isNapMode ? 'Short rest · No morning alarm' : 'Full night sleep'}
+                    {isNapMode
+                      ? napDuration !== null ? `${napDuration} min nap · Auto alarm` : 'Tap to set duration'
+                      : 'Full night sleep'}
                   </Text>
                 </View>
               </View>
               <TouchableOpacity
                 style={[themedStyles.toggle, isNapMode && { backgroundColor: '#F59E0B' }]}
                 onPress={() => {
-                  setIsNapMode(!isNapMode);
-                  // Disable smart alarm for naps
-                  if (!isNapMode) setSmartAlarmEnabled(false);
+                  const enabling = !isNapMode;
+                  setIsNapMode(enabling);
+                  if (enabling) {
+                    setSmartAlarmEnabled(false);
+                    setShowNapPicker(true); // Immediately ask for duration
+                  } else {
+                    setNapDuration(null);
+                  }
                 }}
               >
                 <View style={[themedStyles.toggleThumb, isNapMode && themedStyles.toggleThumbActive]} />
               </TouchableOpacity>
             </View>
+
+            {/* Nap duration row (shows when nap mode is on) */}
+            {isNapMode && (
+              <TouchableOpacity
+                style={themedStyles.napDurationButton}
+                onPress={() => setShowNapPicker(true)}
+              >
+                <View style={themedStyles.musicSelectContent}>
+                  <Clock size={20} color="#F59E0B" />
+                  <Text style={[themedStyles.musicSelectText, { color: napDuration !== null ? '#F59E0B' : theme.colors.textSecondary }]}>
+                    {napDuration !== null ? `Nap for ${napDuration} minutes` : 'Choose nap duration'}
+                  </Text>
+                </View>
+                <ChevronRight size={20} color={theme.colors.textSecondary} />
+              </TouchableOpacity>
+            )}
 
             <View style={themedStyles.settingItem}>
               <View style={themedStyles.settingLeft}>
@@ -1020,6 +1067,59 @@ export default function SleepSessionScreen() {
                       {selectedMusic?.id === sound.id && (
                         <CheckCircle2 size={24} color={theme.colors.accent} />
                       )}
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            </GlassView>
+          </View>
+        </Modal>
+
+        {/* Nap Duration Picker Modal */}
+        <Modal
+          visible={showNapPicker}
+          animationType="slide"
+          transparent={true}
+          onRequestClose={() => setShowNapPicker(false)}
+        >
+          <View style={themedStyles.modalOverlay}>
+            <GlassView intensity={90} tint="dark" style={themedStyles.modalBlur}>
+              <View style={themedStyles.modalContent}>
+                <View style={themedStyles.modalHeader}>
+                  <Text style={themedStyles.modalTitle}>How long is your nap?</Text>
+                  <TouchableOpacity onPress={() => setShowNapPicker(false)} style={themedStyles.modalClose}>
+                    <X size={28} color={theme.colors.textSecondary} />
+                  </TouchableOpacity>
+                </View>
+                <ScrollView style={themedStyles.soundsList} showsVerticalScrollIndicator={false}>
+                  {[10, 15, 20, 25, 30, 45, 60, 90].map((mins) => (
+                    <TouchableOpacity
+                      key={mins}
+                      style={[
+                        themedStyles.soundItem,
+                        napDuration === mins && themedStyles.soundItemSelected,
+                        napDuration === mins && { borderColor: '#F59E0B' },
+                      ]}
+                      onPress={() => {
+                        setNapDuration(mins);
+                        setShowNapPicker(false);
+                      }}
+                    >
+                      <View style={themedStyles.soundItemLeft}>
+                        <View style={[
+                          themedStyles.soundIcon,
+                          napDuration === mins && { backgroundColor: '#F59E0B' },
+                        ]}>
+                          <Clock size={24} color={napDuration === mins ? '#000' : '#F59E0B'} />
+                        </View>
+                        <View>
+                          <Text style={themedStyles.soundName}>{mins} minutes</Text>
+                          <Text style={{ fontSize: 12, color: theme.colors.textSecondary, marginTop: 2 }}>
+                            {mins <= 20 ? 'Power nap' : mins <= 45 ? 'Recovery nap' : 'Full cycle nap'}
+                          </Text>
+                        </View>
+                      </View>
+                      {napDuration === mins && <CheckCircle2 size={24} color="#F59E0B" />}
                     </TouchableOpacity>
                   ))}
                 </ScrollView>
@@ -1544,17 +1644,29 @@ const styles = (theme: any) => StyleSheet.create({
   bottomSpacing: {
     height: 30,
   },
+  napDurationButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: 'rgba(245, 158, 11, 0.1)',
+    padding: 16,
+    borderRadius: 12,
+    marginTop: 4,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.25)',
+  },
   musicSelectButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: 'rgba(0, 255, 209, 0.1)',
+    backgroundColor: 'rgba(139, 92, 246, 0.1)',
     padding: 16,
     borderRadius: 12,
     marginTop: 12,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: 'rgba(0, 255, 209, 0.2)',
+    borderColor: 'rgba(139, 92, 246, 0.2)',
   },
   musicSelectContent: {
     flexDirection: 'row',

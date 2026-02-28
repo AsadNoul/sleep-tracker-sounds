@@ -309,7 +309,8 @@ export default function SoundsScreen() {
               )}
               horizontal
               showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{ paddingHorizontal: 20, gap: 15 }}
+              contentContainerStyle={{ paddingHorizontal: 20 }}
+              ItemSeparatorComponent={() => <View style={{ width: 15 }} />}
             />
           </View>
         )}
@@ -396,7 +397,14 @@ export default function SoundsScreen() {
                 <ChevronDown size={28} color="#FFF" />
               </TouchableOpacity>
               <Text style={themedStyles.playerHeaderTitle}>Now Playing</Text>
-              <TouchableOpacity style={themedStyles.playerActionBtn}><Share2 size={24} color="#FFF" /></TouchableOpacity>
+              <TouchableOpacity
+                style={themedStyles.playerActionBtn}
+                onPress={async () => {
+                  try {
+                    await Share.share({ message: `I'm listening to "${currentPlayingSound?.name}" to sleep better with the Sleep App 🌙` });
+                  } catch {}
+                }}
+              ><Share2 size={24} color="#FFF" /></TouchableOpacity>
             </View>
 
             <View style={themedStyles.playerMainContent}>
@@ -410,13 +418,31 @@ export default function SoundsScreen() {
               </View>
 
               <View style={themedStyles.playbackControlsContainer}>
-                <TouchableOpacity><Repeat size={24} color="rgba(255,255,255,0.4)" /></TouchableOpacity>
-                <TouchableOpacity style={themedStyles.skipBtn}><SkipBack size={32} color="#FFF" /></TouchableOpacity>
+                <TouchableOpacity onPress={() => {/* repeat is ambient, always looping */}}><Repeat size={24} color="#8B5CF6" /></TouchableOpacity>
+                <TouchableOpacity
+                  style={themedStyles.skipBtn}
+                  onPress={() => {
+                    const sounds: any[] = [];
+                    Object.keys(ALL_SOUNDS).forEach(cat => sounds.push(...ALL_SOUNDS[cat]));
+                    const idx = sounds.findIndex(s => s.id === currentSound);
+                    const prev = sounds[(idx - 1 + sounds.length) % sounds.length];
+                    if (prev?.uri) playSound(prev.id, prev.uri, prev.name);
+                  }}
+                ><SkipBack size={32} color="#FFF" /></TouchableOpacity>
                 <TouchableOpacity onPress={handlePlayCurrentSound} style={themedStyles.largePlayBtn}>
                   {isPlaying ? <Pause size={42} color="#000" fill="#000" /> : <Play size={42} color="#000" fill="#000" />}
                 </TouchableOpacity>
-                <TouchableOpacity style={themedStyles.skipBtn}><SkipForward size={32} color="#FFF" /></TouchableOpacity>
-                <TouchableOpacity><VolumeX size={24} color="rgba(255,255,255,0.4)" /></TouchableOpacity>
+                <TouchableOpacity
+                  style={themedStyles.skipBtn}
+                  onPress={() => {
+                    const sounds: any[] = [];
+                    Object.keys(ALL_SOUNDS).forEach(cat => sounds.push(...ALL_SOUNDS[cat]));
+                    const idx = sounds.findIndex(s => s.id === currentSound);
+                    const next = sounds[(idx + 1) % sounds.length];
+                    if (next?.uri) playSound(next.id, next.uri, next.name);
+                  }}
+                ><SkipForward size={32} color="#FFF" /></TouchableOpacity>
+                <TouchableOpacity onPress={() => stopSound()}><VolumeX size={24} color="rgba(255,255,255,0.7)" /></TouchableOpacity>
               </View>
 
               {isMixing && Object.keys(activeMix).length > 0 && (
@@ -433,7 +459,23 @@ export default function SoundsScreen() {
             </View>
 
             <View style={[themedStyles.playerFooter, { paddingBottom: insets.bottom + 40 }]}>
-              <TouchableOpacity style={themedStyles.timerBtn}><Timer size={20} color="#8B5CF6" /><Text style={themedStyles.timerText}>Sleep Timer</Text></TouchableOpacity>
+              <TouchableOpacity
+                style={themedStyles.timerBtn}
+                onPress={() => {
+                  setShowFullPlayer(false);
+                  Alert.alert(
+                    'Sleep Timer',
+                    'Auto-stop sound after:',
+                    [
+                      { text: '15 minutes', onPress: () => setTimeout(() => stopSound(), 15 * 60 * 1000) },
+                      { text: '30 minutes', onPress: () => setTimeout(() => stopSound(), 30 * 60 * 1000) },
+                      { text: '45 minutes', onPress: () => setTimeout(() => stopSound(), 45 * 60 * 1000) },
+                      { text: '1 hour', onPress: () => setTimeout(() => stopSound(), 60 * 60 * 1000) },
+                      { text: 'Cancel', style: 'cancel' },
+                    ]
+                  );
+                }}
+              ><Timer size={20} color="#8B5CF6" /><Text style={themedStyles.timerText}>Sleep Timer</Text></TouchableOpacity>
             </View>
           </ImageBackground>
         </View>
