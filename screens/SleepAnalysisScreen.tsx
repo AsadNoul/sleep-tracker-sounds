@@ -61,6 +61,7 @@ import { useToast } from '../contexts/ToastContext';
 import CircularProgress from '../components/CircularProgress';
 import Svg, { Rect, G, Line, Circle, Path, Defs, LinearGradient as SvgLinearGradient, Stop } from 'react-native-svg';
 import aiInsightService, { Insight } from '../services/aiInsightService';
+import analyticsService from '../services/analyticsService';
 
 const { width } = Dimensions.get('window');
 
@@ -443,8 +444,9 @@ export default function SleepAnalysisScreen({ hideHeader = false, isSubcomponent
 
   const isPremium = useMemo(() => isPremiumActive(user?.subscription_status, user?.subscription_end_date, user?.role, user?.email), [user]);
 
-  const handleUnlock = () => {
-    navigation.navigate('Subscription');
+  const handleUnlock = (feature: string = 'analysis_module') => {
+    analyticsService.trackFeatureGateHit(feature).catch(() => {});
+    navigation.navigate('Subscription', { source: feature });
   };
 
 
@@ -634,7 +636,8 @@ export default function SleepAnalysisScreen({ hideHeader = false, isSubcomponent
 
   const handleGenerateReport = async () => {
     if (!isPremium) {
-      navigation.navigate('Subscription');
+      analyticsService.trackFeatureGateHit('sleep_report').catch(() => {});
+      navigation.navigate('Subscription', { source: 'sleep_report' });
       return;
     }
     if (!latestSession) {
@@ -1027,7 +1030,8 @@ export default function SleepAnalysisScreen({ hideHeader = false, isSubcomponent
                     key={tf}
                     onPress={() => {
                       if (isLocked) {
-                        navigation.navigate('Subscription');
+                        analyticsService.trackFeatureGateHit(`timeframe_${tf}`).catch(() => {});
+                        navigation.navigate('Subscription', { source: `timeframe_${tf}` });
                         return;
                       }
                       setSelectedTimeframe(tf);

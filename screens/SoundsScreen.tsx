@@ -61,10 +61,13 @@ import {
   Coffee,
   Sparkles,
   VolumeX,
-  Repeat
+  Repeat,
+  Lock
 } from 'lucide-react-native';
 import { Share } from 'react-native';
 import { useAudio } from '../contexts/AudioContext';
+import { useAuth } from '../contexts/AuthContext';
+import analyticsService from '../services/analyticsService';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -96,6 +99,9 @@ const SOUND_IMAGES: Record<string, string> = {
 };
 
 const CATEGORIES = ['All', 'Nature', 'White Noise', 'Music', 'Meditations'];
+
+// First 4 sounds are free. Everything else requires Premium.
+const FREE_SOUND_IDS = new Set(['forest', 'birds', 'crickets', 'wind']);
 
 const ALL_SOUNDS: Record<string, any[]> = {
   'Nature': [
@@ -149,6 +155,8 @@ const GlassView = ({ style, children, intensity = 20, tint = "dark" }: any) => {
 
 export default function SoundsScreen() {
   const { theme, isDark } = useAppTheme();
+  const { user } = useAuth();
+  const isPremium = user?.isPremium ?? false;
   const insets = useSafeAreaInsets();
   const bottomMargin = useSafeBottomMargin();
   const navigation = useNavigation<any>();
@@ -213,6 +221,14 @@ export default function SoundsScreen() {
   const toggleSound = (sound: any) => {
     if (!sound?.uri) {
       Alert.alert('Sound unavailable', 'This sound is currently unavailable. Please try another one.');
+      return;
+    }
+
+    // Gate premium sounds for free users
+    if (!isPremium && !FREE_SOUND_IDS.has(sound.id)) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      analyticsService.trackFeatureGateHit('sleep_sound').catch(() => {});
+      navigation.navigate('Subscription', { source: 'sleep_sound' });
       return;
     }
 
@@ -295,6 +311,11 @@ export default function SoundsScreen() {
                       Alert.alert('Collection unavailable', 'Featured collection is currently unavailable.');
                       return;
                     }
+                    if (!isPremium && !FREE_SOUND_IDS.has(primarySound.id)) {
+                      analyticsService.trackFeatureGateHit('featured_collection').catch(() => {});
+                      navigation.navigate('Subscription', { source: 'featured_collection' });
+                      return;
+                    }
                     playSound(primarySound.id, primarySound.uri, primarySound.name);
                   }}
                   style={themedStyles.featuredCard}
@@ -334,25 +355,35 @@ export default function SoundsScreen() {
             <Text style={themedStyles.sectionLabel}>{selectedCategory.toUpperCase()} COLLECTION</Text>
           </View>
           <View style={themedStyles.grid}>
-            {displayedSounds.map(sound => (
-              <TouchableOpacity
-                key={sound.id}
-                onPress={() => toggleSound(sound)}
-                style={themedStyles.gridItem}
-              >
-                <GlassView intensity={12} style={[themedStyles.gridInner, currentSound === sound.id && { borderColor: '#8B5CF6', borderWidth: 1.5 }]}>
-                  <Image source={{ uri: SOUND_IMAGES[sound.id] || 'https://images.unsplash.com/photo-1511379938547-c1f69419868d?w=400&q=80' }} style={themedStyles.gridImage} />
-                  <View style={themedStyles.gridOverlay}>
-                    <Text style={themedStyles.gridName} numberOfLines={1}>{sound.name}</Text>
-                  </View>
-                  {currentSound === sound.id && isPlaying && (
-                    <View style={themedStyles.gridActiveIndicator}>
-                      <Pause size={20} color="#FFF" />
+            {displayedSounds.map(sound => {
+              const isLocked = !isPremium && !FREE_SOUND_IDS.has(sound.id);
+              return (
+                <TouchableOpacity
+                  key={sound.id}
+                  onPress={() => toggleSound(sound)}
+                  style={themedStyles.gridItem}
+                >
+                  <GlassView intensity={12} style={[themedStyles.gridInner, currentSound === sound.id && { borderColor: '#8B5CF6', borderWidth: 1.5 }]}>
+                    <Image source={{ uri: SOUND_IMAGES[sound.id] || 'https://images.unsplash.com/photo-1511379938547-c1f69419868d?w=400&q=80' }} style={[themedStyles.gridImage, isLocked && { opacity: 0.4 }]} />
+                    <View style={themedStyles.gridOverlay}>
+                      <Text style={themedStyles.gridName} numberOfLines={1}>{sound.name}</Text>
                     </View>
-                  )}
-                </GlassView>
-              </TouchableOpacity>
-            ))}
+                    {isLocked && (
+                      <View style={themedStyles.gridLockOverlay}>
+                        <View style={themedStyles.lockBadge}>
+                          <Lock size={16} color="#FFF" />
+                        </View>
+                      </View>
+                    )}
+                    {currentSound === sound.id && isPlaying && (
+                      <View style={themedStyles.gridActiveIndicator}>
+                        <Pause size={20} color="#FFF" />
+                      </View>
+                    )}
+                  </GlassView>
+                </TouchableOpacity>
+              );
+            })}
           </View>
         </View>
       </Animated.ScrollView>
@@ -426,7 +457,14 @@ export default function SoundsScreen() {
                     Object.keys(ALL_SOUNDS).forEach(cat => sounds.push(...ALL_SOUNDS[cat]));
                     const idx = sounds.findIndex(s => s.id === currentSound);
                     const prev = sounds[(idx - 1 + sounds.length) % sounds.length];
-                    if (prev?.uri) playSound(prev.id, prev.uri, prev.name);
+                    if (!prev?.uri) return;
+                    if (!isPremium && !FREE_SOUND_IDS.has(prev.id)) {
+                      setShowFullPlayer(false);
+                      analyticsService.trackFeatureGateHit('sleep_sound_skip').catch(() => {});
+                      navigation.navigate('Subscription', { source: 'sleep_sound_skip' });
+                      return;
+                    }
+                    playSound(prev.id, prev.uri, prev.name);
                   }}
                 ><SkipBack size={32} color="#FFF" /></TouchableOpacity>
                 <TouchableOpacity onPress={handlePlayCurrentSound} style={themedStyles.largePlayBtn}>
@@ -439,7 +477,14 @@ export default function SoundsScreen() {
                     Object.keys(ALL_SOUNDS).forEach(cat => sounds.push(...ALL_SOUNDS[cat]));
                     const idx = sounds.findIndex(s => s.id === currentSound);
                     const next = sounds[(idx + 1) % sounds.length];
-                    if (next?.uri) playSound(next.id, next.uri, next.name);
+                    if (!next?.uri) return;
+                    if (!isPremium && !FREE_SOUND_IDS.has(next.id)) {
+                      setShowFullPlayer(false);
+                      analyticsService.trackFeatureGateHit('sleep_sound_skip').catch(() => {});
+                      navigation.navigate('Subscription', { source: 'sleep_sound_skip' });
+                      return;
+                    }
+                    playSound(next.id, next.uri, next.name);
                   }}
                 ><SkipForward size={32} color="#FFF" /></TouchableOpacity>
                 <TouchableOpacity onPress={() => stopSound()}><VolumeX size={24} color="rgba(255,255,255,0.7)" /></TouchableOpacity>
@@ -551,6 +596,8 @@ const createStyles = (theme: any, width: number) => StyleSheet.create({
   gridOverlay: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: 15, backgroundColor: 'rgba(0,0,0,0.52)' },
   gridName: { color: '#FFF', fontSize: 14, fontWeight: '800', textAlign: 'center' },
   gridActiveIndicator: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(139, 92, 246, 0.4)', justifyContent: 'center', alignItems: 'center' },
+  gridLockOverlay: { ...StyleSheet.absoluteFillObject, justifyContent: 'flex-start', alignItems: 'flex-end', padding: 10 },
+  lockBadge: { width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)' },
   playerContainer: { position: 'absolute', left: 15, right: 15, zIndex: 10000 },
   playerInner: {
     height: 84,

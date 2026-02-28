@@ -1,5 +1,6 @@
 import { useAppTheme } from '../hooks/useAppTheme';
 import { isPremiumActive } from '../utils/subscriptionHelpers';
+import analyticsService from '../services/analyticsService';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
@@ -38,7 +39,7 @@ import {
   Trophy,
   Target,
 } from 'lucide-react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAudio } from '../contexts/AudioContext';
@@ -79,6 +80,14 @@ interface Category {
   icon: any;
   premium?: boolean;
   color: string;
+}
+
+interface MindfulnessCompletionTracking {
+  sessionId: string;
+  sessionTitle: string;
+  category: string;
+  duration: number;
+  userId?: string;
 }
 
 const FAVOURITES_KEY = '@mindfulness_favourites';
@@ -673,6 +682,8 @@ const CATEGORIES: Category[] = [
   { id: 'kids', name: 'Kids Wind Down', icon: Baby, color: '#FB923C' },
 ];
 
+const VALID_CATEGORY_IDS = new Set(CATEGORIES.map((category) => category.id));
+
 // ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
 
 export default function MindfulnessScreen() {
@@ -725,6 +736,12 @@ export default function MindfulnessScreen() {
     loadPublicStories();
   }, [loadStats]);
 
+  useFocusEffect(
+    useCallback(() => {
+      loadStats();
+    }, [loadStats]),
+  );
+
   const loadPublicStories = useCallback(async () => {
     setIsStoriesLoading(true);
     try {
@@ -762,17 +779,38 @@ export default function MindfulnessScreen() {
   const loadLastCategory = async () => {
     try {
       const last = await AsyncStorage.getItem(LAST_CATEGORY_KEY);
-      if (last) setSelectedCategory(last);
+      if (!last) return;
+
+      if (VALID_CATEGORY_IDS.has(last)) {
+        setSelectedCategory(last);
+        return;
+      }
+
+      setSelectedCategory('meditation');
+      await AsyncStorage.setItem(LAST_CATEGORY_KEY, 'meditation');
     } catch (_) {}
   };
 
   const handleCategorySelect = useCallback(async (id: string) => {
+    const selectedCategoryMeta = CATEGORIES.find((category) => category.id === id);
+    if (selectedCategoryMeta?.premium && !hasPremium) {
+      Alert.alert(
+        '⭐ Premium Category',
+        `"${selectedCategoryMeta.name}" is available in Sleep App Premium.`,
+        [
+          { text: 'Not Now', style: 'cancel' },
+          { text: 'Upgrade', onPress: () => { analyticsService.trackFeatureGateHit('mindfulness_category').catch(() => {}); navigation.navigate('Subscription', { source: 'mindfulness_category' }); } },
+        ],
+      );
+      return;
+    }
+
     setSelectedCategory(id);
     if (id === 'stories' && publicStories.length === 0 && !isStoriesLoading) {
       loadPublicStories();
     }
     try { await AsyncStorage.setItem(LAST_CATEGORY_KEY, id); } catch (_) {}
-  }, [publicStories.length, isStoriesLoading, loadPublicStories]);
+  }, [publicStories.length, isStoriesLoading, loadPublicStories, hasPremium, navigation]);
 
   const toggleFavourite = useCallback(async (sessionId: string) => {
     setFavourites(prev => {
@@ -835,7 +873,7 @@ export default function MindfulnessScreen() {
         `"${session.title}" is included in Sleep App Premium.\n\nUpgrade to unlock all sessions, stories, courses, and more.`,
         [
           { text: 'Not Now', style: 'cancel' },
-          { text: 'Upgrade', onPress: () => navigation.navigate('Subscription') },
+          { text: 'Upgrade', onPress: () => { analyticsService.trackFeatureGateHit('mindfulness_session').catch(() => {}); navigation.navigate('Subscription', { source: 'mindfulness_session' }); } },
         ],
       );
       return;
@@ -888,14 +926,21 @@ export default function MindfulnessScreen() {
       return;
     }
 
-    await saveCompletedSession(
-      selectedSession,
-      selectedCategory === 'breathing-coach' ? 'breathing' : selectedCategory,
-    );
+    const durationMinutes = parseInt(selectedSession.duration.match(/\d+/)?.[0] || '15', 10);
+    const completionTracking: MindfulnessCompletionTracking = {
+      sessionId: selectedSession.id,
+      sessionTitle: selectedSession.title,
+      category: selectedCategory === 'breathing-coach' ? 'breathing' : selectedCategory,
+      duration: durationMinutes,
+      userId: user?.id,
+    };
 
     // Keep ref so mini-player can re-open
     activeSessionRef.current = selectedSession;
-    navigation.navigate('SessionPlayer', { session: selectedSession });
+    navigation.navigate('SessionPlayer', {
+      session: selectedSession,
+      mindfulnessCompletionTracking: completionTracking,
+    });
   };
 
   // Daily goal progress (capped at 100%)
@@ -915,6 +960,11 @@ export default function MindfulnessScreen() {
   const displayedSessions = showFavourites
     ? favouriteSessions
     : baseSessions;
+
+  const isStoryGridLoading = !showFavourites
+    && selectedCategory === 'stories'
+    && isStoriesLoading
+    && displayedSessions.length === 0;
 
   const themedStyles = getThemedStyles(theme, isDark);
   const storyStatusText = (() => {
@@ -1108,6 +1158,7 @@ export default function MindfulnessScreen() {
                         ? cat.color + 'DD'
                         : theme.colors.card,
                       borderColor: isSelected ? cat.color : 'transparent',
+                      opacity: locked ? 0.7 : 1,
                     },
                   ]}
                   onPress={() => handleCategorySelect(cat.id)}
@@ -1139,7 +1190,46 @@ export default function MindfulnessScreen() {
         )}
 
         {/* ── SESSIONS GRID ── */}
-        {displayedSessions.length === 0 ? (
+        {isStoryGridLoading ? (
+          <View style={themedStyles.sessionsGrid}>
+            {Array.from({ length: 4 }).map((_, index) => (
+              <View
+                key={`story-loading-card-${index}`}
+                style={[themedStyles.sessionCard, { backgroundColor: theme.colors.card }]}
+              >
+                <View
+                  style={[
+                    themedStyles.sessionImage,
+                    themedStyles.loadingBlock,
+                    { backgroundColor: theme.colors.cardBorder },
+                  ]}
+                />
+                <View style={themedStyles.sessionInfo}>
+                  <View
+                    style={[
+                      themedStyles.loadingLinePrimary,
+                      { backgroundColor: theme.colors.cardBorder },
+                    ]}
+                  />
+                  <View style={themedStyles.loadingMetaRow}>
+                    <View
+                      style={[
+                        themedStyles.loadingLineSecondary,
+                        { backgroundColor: theme.colors.cardBorder },
+                      ]}
+                    />
+                    <View
+                      style={[
+                        themedStyles.loadingPill,
+                        { backgroundColor: theme.colors.cardBorder },
+                      ]}
+                    />
+                  </View>
+                </View>
+              </View>
+            ))}
+          </View>
+        ) : displayedSessions.length === 0 ? (
           <View style={themedStyles.emptyFav}>
             <Heart size={40} color={theme.colors.textSecondary} style={themedStyles.emptyFavIcon} />
             <Text style={[themedStyles.emptyFavText, { color: theme.colors.textSecondary }]}>
@@ -1182,7 +1272,10 @@ export default function MindfulnessScreen() {
                     {/* Favourite button */}
                     <TouchableOpacity
                       style={themedStyles.favBtn}
-                      onPress={() => toggleFavourite(session.id)}
+                      onPress={(event) => {
+                        event.stopPropagation();
+                        toggleFavourite(session.id);
+                      }}
                       hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                     >
                       <Heart
@@ -1566,6 +1659,11 @@ function getThemedStyles(_theme: any, _isDark: boolean) {
     },
     sessionImageWrap: { position: 'relative' },
     sessionImage: { width: '100%', height: 110 },
+    loadingBlock: { opacity: 0.55 },
+    loadingLinePrimary: { height: 12, borderRadius: 6, marginBottom: 10, width: '82%', opacity: 0.6 },
+    loadingMetaRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+    loadingLineSecondary: { height: 10, borderRadius: 5, width: 54, opacity: 0.5 },
+    loadingPill: { height: 16, borderRadius: 8, width: 64, opacity: 0.5 },
     lockOverlay: {
       ...StyleSheet.absoluteFillObject,
       backgroundColor: 'rgba(0,0,0,0.5)',

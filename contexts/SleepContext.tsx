@@ -98,6 +98,7 @@ export function SleepProvider({ children }: { children: ReactNode }) {
   const loadDebounceRef = useRef<NodeJS.Timeout | null>(null);
   const lastLoadedUserRef = useRef<string | null>(null);
   const realtimeChannelRef = useRef<any>(null);
+  const lastSessionEndRef = useRef<number>(0); // Timestamp of last session end (for race condition guard)
 
   // Monitor network connectivity
   useEffect(() => {
@@ -275,6 +276,13 @@ export function SleepProvider({ children }: { children: ReactNode }) {
         },
         (payload) => {
           console.log('🔄 Real-time sleep_records change:', payload.eventType);
+          // Skip reload if we just ended a session — the optimistic update is already correct.
+          // Supabase may not have the new record yet, so reloading would wipe the dashboard.
+          const timeSinceEnd = Date.now() - lastSessionEndRef.current;
+          if (timeSinceEnd < 30000) {
+            console.log('⏭️ Skipping reload — session just ended, optimistic update is fresh');
+            return;
+          }
           // Debounce the reload to avoid rapid repeated fetches
           if (loadDebounceRef.current) clearTimeout(loadDebounceRef.current);
           loadDebounceRef.current = setTimeout(() => {
@@ -437,7 +445,11 @@ export function SleepProvider({ children }: { children: ReactNode }) {
   const startSleepSession = async (sleepSoundsEnabled: boolean, smartAlarmEnabled: boolean, sleepRecorderEnabled: boolean, targetAlarmTime?: Date, tags: string[] = [], isNap: boolean = false) => {
     try {
       // Use a consistent UUID for the session to link recordings correctly
-      const sessionId = `session_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
+      // Generate a proper UUID v4 — Supabase id column requires UUID format
+      const sessionId = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+        const r = Math.random() * 16 | 0;
+        return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+      });
       const newSession: SleepSession = {
         id: sessionId,
         startTime: new Date(),
@@ -564,6 +576,9 @@ export function SleepProvider({ children }: { children: ReactNode }) {
         const insights = await aiInsightService.generateInsights(user.id);
         console.log('🤖 AI Insights generated:', insights.length);
       }
+
+      // Mark session end time — real-time subscription will skip reload for 30s
+      lastSessionEndRef.current = Date.now();
 
       // Add to local history immediately (optimistic update — instant dashboard refresh)
       const updatedHistory = [completedSession, ...sleepHistory];

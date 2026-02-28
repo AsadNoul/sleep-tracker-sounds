@@ -293,11 +293,6 @@ export default function JournalScreen() {
     loadSleepHistory();
     loadJournalEntries();
 
-    // Clean up old recordings (keep last 30 days)
-    import('../services/sleepRecorderService').then(module => {
-      module.default.cleanupOldRecordings(30);
-    });
-
     setTimeout(() => setIsLoading(false), 500);
 
     // Set up real-time subscription for journal entries

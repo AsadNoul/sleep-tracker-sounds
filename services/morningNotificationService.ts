@@ -62,7 +62,10 @@ export async function scheduleMorningNotification(session: SleepSession) {
         sound: 'default',
         priority: Notifications.AndroidNotificationPriority.HIGH,
       },
-      trigger: notificationTime,
+      trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.DATE,
+        date: notificationTime,
+      },
     });
 
     console.log('✅ Morning notification scheduled for:', notificationTime.toLocaleString());
@@ -133,7 +136,10 @@ export async function scheduleWeeklySummary(sleepSessions: SleepSession[]) {
         data: { type: 'weekly_summary' },
         sound: 'default',
       },
-      trigger: nextSunday,
+      trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.DATE,
+        date: nextSunday,
+      },
     });
 
     console.log('✅ Weekly summary notification scheduled for:', nextSunday.toLocaleString());

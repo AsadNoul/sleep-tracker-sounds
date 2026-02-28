@@ -318,15 +318,18 @@ export class OfflineSyncManager {
   private validateAndCleanData(tableName: string, data: any): any {
     const cleaned = { ...data };
 
+    const isUuidV4 = (value: unknown): boolean => {
+      if (typeof value !== 'string') return false;
+      return /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+    };
+
     // Remove invalid fields for sleep_records
     if (tableName === 'sleep_records') {
-      // Remove 'id' field if it's a timestamp string (not UUID)
-      // Supabase will auto-generate UUID
-      if (cleaned.id && typeof cleaned.id === 'string') {
-        // Check if it looks like a timestamp (only digits)
-        if (/^\d+$/.test(cleaned.id)) {
-          delete cleaned.id;
-        }
+      // Remove invalid id values (legacy session_* ids, timestamps, etc.)
+      // Supabase will auto-generate UUID for inserts.
+      if (cleaned.id !== null && cleaned.id !== undefined && !isUuidV4(cleaned.id)) {
+        console.log(`Removing non-UUID sleep_records id from sync payload: ${cleaned.id}`);
+        delete cleaned.id;
       }
 
       // Ensure sleep_quality is an integer (0-10) - properly type cast

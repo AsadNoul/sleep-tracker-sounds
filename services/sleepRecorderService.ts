@@ -506,9 +506,38 @@ class SleepRecorderService {
     }
   }
 
-  // Clean up old recording files (keep only last N days)
-  async cleanupOldRecordings(daysToKeep: number = 30): Promise<void> {
+  // Clean up old recording files AND AsyncStorage event keys (keep only last N days)
+  async cleanupOldRecordings(daysToKeep: number = 14): Promise<void> {
     try {
+      const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+      const now = Date.now();
+      const maxAge = daysToKeep * 24 * 60 * 60 * 1000;
+
+      // 1. Clean up AsyncStorage recording event keys older than daysToKeep
+      try {
+        const allKeys = await AsyncStorage.getAllKeys();
+        const recordingKeys = allKeys.filter((k: string) => k.startsWith('@recording_events_'));
+        let removedKeys = 0;
+        for (const key of recordingKeys) {
+          // Key format: @recording_events_session_<timestamp>_<random>
+          const match = key.match(/@recording_events_session_(\d+)/);
+          if (match) {
+            const sessionTimestamp = parseInt(match[1], 10);
+            if (now - sessionTimestamp > maxAge) {
+              await AsyncStorage.removeItem(key);
+              removedKeys++;
+              console.log(`🗑️ Removed old recording events: ${key}`);
+            }
+          }
+        }
+        if (removedKeys > 0) {
+          console.log(`✅ Removed ${removedKeys} old recording event keys from AsyncStorage`);
+        }
+      } catch (e) {
+        console.error('❌ Error cleaning AsyncStorage recording keys:', e);
+      }
+
+      // 2. Clean up audio files from filesystem
       const recordingsDir = `${FileSystem.documentDirectory}recordings/`;
       const dirInfo = await FileSystem.getInfoAsync(recordingsDir);
 
@@ -518,8 +547,6 @@ class SleepRecorderService {
       }
 
       const files = await FileSystem.readDirectoryAsync(recordingsDir);
-      const now = Date.now();
-      const maxAge = daysToKeep * 24 * 60 * 60 * 1000; // Convert days to milliseconds
       let deletedCount = 0;
       let freedSpace = 0;
 
@@ -531,20 +558,19 @@ class SleepRecorderService {
           const fileAge = now - fileInfo.modificationTime * 1000;
 
           if (fileAge > maxAge) {
-            // Delete old file
             await FileSystem.deleteAsync(filePath, { idempotent: true });
             deletedCount++;
             freedSpace += fileInfo.size || 0;
-            console.log(`🗑️ Deleted old recording: ${file}`);
+            console.log(`🗑️ Deleted old recording file: ${file}`);
           }
         }
       }
 
       if (deletedCount > 0) {
         const freedMB = freedSpace / (1024 * 1024);
-        console.log(`✅ Cleaned up ${deletedCount} old recordings, freed ${freedMB.toFixed(2)} MB`);
+        console.log(`✅ Cleaned up ${deletedCount} old recording files, freed ${freedMB.toFixed(2)} MB`);
       } else {
-        console.log('✅ No old recordings to clean up');
+        console.log('✅ No old recording files to clean up');
       }
     } catch (error) {
       console.error('❌ Error cleaning up old recordings:', error);

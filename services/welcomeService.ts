@@ -23,14 +23,10 @@ class WelcomeService {
 
       const name = userName || profile.full_name || 'there';
       
-      await notificationService.sendPushNotification(
-        profile.expo_push_token,
+      await notificationService.sendImmediateNotification(
         `Welcome to Sleep Tracker, ${name}! 🌙`,
         'Start your journey to better sleep. Track your first night and see insights!',
-        { 
-          type: 'welcome',
-          screen: 'Home'
-        }
+        { type: 'welcome', screen: 'Home' }
       );
 
       console.log('✅ Welcome notification sent to:', userId);
@@ -63,22 +59,19 @@ class WelcomeService {
 
       // Milestone notifications
       if (sessionCount === 1) {
-        await notificationService.sendPushNotification(
-          profile.expo_push_token,
+        await notificationService.sendImmediateNotification(
           '🎉 First Night Tracked!',
           `Great job, ${name}! Check your sleep insights and see how you did.`,
           { type: 'milestone', screen: 'Journal' }
         );
       } else if (sessionCount === 7) {
-        await notificationService.sendPushNotification(
-          profile.expo_push_token,
+        await notificationService.sendImmediateNotification(
           '🔥 7-Day Streak!',
           `Amazing ${name}! You've tracked a full week. Keep it up!`,
           { type: 'milestone', screen: 'Journal' }
         );
       } else if (sessionCount === 30) {
-        await notificationService.sendPushNotification(
-          profile.expo_push_token,
+        await notificationService.sendImmediateNotification(
           '🏆 30-Day Milestone!',
           `Incredible ${name}! One month of sleep tracking. You're a sleep champion!`,
           { type: 'milestone', screen: 'Achievements' }
@@ -129,8 +122,7 @@ class WelcomeService {
       }
 
       if (tip) {
-        await notificationService.sendPushNotification(
-          profile.expo_push_token,
+        await notificationService.sendImmediateNotification(
           'Your Weekly Sleep Tip',
           tip,
           { type: 'tip', screen: 'Home' }
@@ -174,8 +166,7 @@ class WelcomeService {
 
       const name = profile.full_name || 'there';
 
-      await notificationService.sendPushNotification(
-        profile.expo_push_token,
+      await notificationService.sendImmediateNotification(
         `We miss you, ${name}! 😴`,
         `It's been ${daysSinceLastSession} days. Ready to track your sleep again?`,
         { type: 're-engagement', screen: 'Home' }

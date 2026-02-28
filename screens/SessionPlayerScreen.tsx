@@ -1,5 +1,5 @@
 import { useAppTheme } from '../hooks/useAppTheme';
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -28,6 +28,7 @@ const ICON_MAP: Record<string, any> = {
 import { useAudio } from '../contexts/AudioContext';
 import { useAuth } from '../contexts/AuthContext';
 import Slider from '@react-native-community/slider';
+import { saveMindfulnessSession } from '../utils/mindfulnessTracking';
 
 const { width, height } = Dimensions.get('window');
 
@@ -38,11 +39,126 @@ interface SessionStep {
   icon: string;
 }
 
+interface SessionStepTemplate {
+  id: string;
+  icon: string;
+  weight: number;
+  instruction: (title: string) => string;
+}
+
+interface MindfulnessCompletionTracking {
+  sessionId: string;
+  sessionTitle: string;
+  category: string;
+  duration: number;
+  userId?: string;
+}
+
+const parseSessionDurationSeconds = (durationValue: unknown): number => {
+  if (typeof durationValue !== 'string') return 12 * 60;
+
+  const match = durationValue.match(/\d+/);
+  const minutes = match ? Number.parseInt(match[0], 10) : 12;
+  if (Number.isNaN(minutes) || minutes <= 0) return 12 * 60;
+
+  return minutes * 60;
+};
+
+const getSessionKind = (session: any): 'story' | 'music' | 'morning' | 'power-nap' | 'quick-relief' | 'breathing' | 'meditation' => {
+  const id = String(session?.id || '').toLowerCase();
+
+  if (id.includes('story')) return 'story';
+  if (id.includes('nap')) return 'power-nap';
+  if (id.includes('morning')) return 'morning';
+  if (id.includes('music') || id.includes('waves') || id.includes('ambient')) return 'music';
+  if (id.includes('breath')) return 'breathing';
+  if (id.includes('anxiety') || id.includes('panic') || id.includes('stress') || id.includes('worry')) return 'quick-relief';
+  return 'meditation';
+};
+
+const SESSION_TEMPLATES: Record<string, SessionStepTemplate[]> = {
+  meditation: [
+    { id: 'arrive', icon: 'bed-outline', weight: 2, instruction: (title) => `Welcome to ${title}. Settle your body and let your shoulders soften.` },
+    { id: 'breath', icon: 'heart-circle-outline', weight: 3, instruction: () => 'Take slow breaths in and out. Let each exhale release tension.' },
+    { id: 'focus', icon: 'pulse-outline', weight: 4, instruction: () => 'Rest your attention on one anchor: breath, body, or sound.' },
+    { id: 'release', icon: 'leaf-outline', weight: 3, instruction: () => 'When thoughts appear, notice them kindly and return to the present moment.' },
+    { id: 'close', icon: 'eye-outline', weight: 2, instruction: () => 'Gently close the practice and carry this calm into the next part of your day.' },
+  ],
+  'quick-relief': [
+    { id: 'ground', icon: 'bed-outline', weight: 2, instruction: () => 'Ground yourself. Feel your feet, seat, and one stable point in the room.' },
+    { id: 'pace', icon: 'heart-circle-outline', weight: 3, instruction: () => 'Inhale for 4, exhale for 6. Keep the exhale longer than the inhale.' },
+    { id: 'name', icon: 'pulse-outline', weight: 3, instruction: () => 'Name what you feel without judgment. You are safe in this moment.' },
+    { id: 'reset', icon: 'leaf-outline', weight: 2, instruction: () => 'Relax your jaw, shoulders, and hands. Let your nervous system downshift.' },
+    { id: 'finish', icon: 'eye-outline', weight: 2, instruction: () => 'Take one final deep breath and continue with more steadiness.' },
+  ],
+  breathing: [
+    { id: 'prepare', icon: 'bed-outline', weight: 2, instruction: () => 'Sit tall and soften your belly. Prepare for paced breathing.' },
+    { id: 'inhale', icon: 'heart-circle-outline', weight: 3, instruction: () => 'Inhale gently through the nose, smooth and controlled.' },
+    { id: 'hold', icon: 'pulse-outline', weight: 2, instruction: () => 'Hold softly without strain. Keep your neck and face relaxed.' },
+    { id: 'exhale', icon: 'water-outline', weight: 4, instruction: () => 'Exhale slowly and fully, longer than the inhale when possible.' },
+    { id: 'integrate', icon: 'eye-outline', weight: 2, instruction: () => 'Return to natural breathing and notice the calmer baseline.' },
+  ],
+  morning: [
+    { id: 'wake', icon: 'sparkles-outline', weight: 2, instruction: () => 'Wake gently. Notice one thing you appreciate this morning.' },
+    { id: 'activate', icon: 'heart-circle-outline', weight: 3, instruction: () => 'Breathe deeply and lengthen your spine to boost alertness.' },
+    { id: 'intention', icon: 'leaf-outline', weight: 3, instruction: () => 'Set one clear intention for your day.' },
+    { id: 'focus', icon: 'pulse-outline', weight: 3, instruction: () => 'Hold steady attention for a few breaths with calm confidence.' },
+    { id: 'launch', icon: 'eye-outline', weight: 2, instruction: () => 'Open your eyes and start your day with purpose.' },
+  ],
+  'power-nap': [
+    { id: 'settle', icon: 'bed-outline', weight: 2, instruction: () => 'Get comfortable and allow your body to become heavy.' },
+    { id: 'drift', icon: 'heart-circle-outline', weight: 4, instruction: () => 'Slow your breath and drift into a light restorative state.' },
+    { id: 'restore', icon: 'leaf-outline', weight: 4, instruction: () => 'Stay passive and let recovery happen naturally.' },
+    { id: 'wake', icon: 'sparkles-outline', weight: 2, instruction: () => 'Begin waking slowly with deeper breaths and gentle movement.' },
+  ],
+  story: [
+    { id: 'settle', icon: 'bed-outline', weight: 2, instruction: (title) => `Settle in for ${title}. Let the story carry your attention.` },
+    { id: 'listen', icon: 'heart-circle-outline', weight: 4, instruction: () => 'Listen softly. If thoughts appear, return to the narrator’s voice.' },
+    { id: 'imagine', icon: 'sparkles-outline', weight: 4, instruction: () => 'Visualize the scene gently and keep your breathing unforced.' },
+    { id: 'drift', icon: 'leaf-outline', weight: 3, instruction: () => 'Allow the story to fade into rest as your body unwinds.' },
+  ],
+  music: [
+    { id: 'arrive', icon: 'bed-outline', weight: 2, instruction: () => 'Lie back and let the soundscape fill the space around you.' },
+    { id: 'breathe', icon: 'heart-circle-outline', weight: 3, instruction: () => 'Sync your breathing to the rhythm: steady and calm.' },
+    { id: 'release', icon: 'leaf-outline', weight: 4, instruction: () => 'Drop effort and let your body melt into the music.' },
+    { id: 'rest', icon: 'sparkles-outline', weight: 3, instruction: () => 'Remain still and absorb the calm for the rest of the session.' },
+  ],
+};
+
+const buildSessionSteps = (session: any): SessionStep[] => {
+  const sessionKind = getSessionKind(session);
+  const templates = SESSION_TEMPLATES[sessionKind] ?? SESSION_TEMPLATES.meditation;
+  const totalSeconds = parseSessionDurationSeconds(session?.duration);
+  const totalWeight = templates.reduce((sum, step) => sum + step.weight, 0);
+  const minStepSeconds = 20;
+
+  const scaledSteps = templates.map((template) => ({
+    id: template.id,
+    icon: template.icon,
+    instruction: template.instruction(session?.title || 'this session'),
+    duration: Math.max(minStepSeconds, Math.round((totalSeconds * template.weight) / totalWeight)),
+  }));
+
+  const scaledTotal = scaledSteps.reduce((sum, step) => sum + step.duration, 0);
+  const delta = totalSeconds - scaledTotal;
+  if (delta !== 0 && scaledSteps.length > 0) {
+    scaledSteps[scaledSteps.length - 1].duration = Math.max(
+      minStepSeconds,
+      scaledSteps[scaledSteps.length - 1].duration + delta,
+    );
+  }
+
+  return scaledSteps;
+};
+
 export default function SessionPlayerScreen() {
   const { theme, isDark } = useAppTheme();
   const navigation = useNavigation();
   const route = useRoute();
-  const { session } = route.params as { session: any };
+  const { session, mindfulnessCompletionTracking } = route.params as {
+    session: any;
+    mindfulnessCompletionTracking?: MindfulnessCompletionTracking;
+  };
   const { user } = useAuth();
 
   const { isPlaying, volume, playSound, pauseSound, resumeSound, stopSound, setVolume } = useAudio();
@@ -54,6 +170,7 @@ export default function SessionPlayerScreen() {
   const [sleepSafeMinutes, setSleepSafeMinutes] = useState(0);
   const [sleepSafeRemainingSeconds, setSleepSafeRemainingSeconds] = useState<number | null>(null);
   const originalVolumeRef = useRef<number | null>(null);
+  const completionLoggedRef = useRef(false);
   const sleepSafeStorageKey = `@sleep_safe_mode_minutes_${user?.id || 'guest'}`;
 
   useEffect(() => {
@@ -73,57 +190,18 @@ export default function SessionPlayerScreen() {
     loadSleepSafePreference();
   }, [sleepSafeStorageKey]);
 
-  // Session steps/instructions
-  const sessionSteps: SessionStep[] = [
-    {
-      id: 'step1',
-      instruction: 'Find a comfortable position, either sitting or lying down. Close your eyes gently.',
-      duration: 60,
-      icon: 'bed-outline',
-    },
-    {
-      id: 'step2',
-      instruction: 'Take a deep breath in through your nose for 4 counts. Hold for 2 counts.',
-      duration: 90,
-      icon: 'heart-circle-outline',
-    },
-    {
-      id: 'step3',
-      instruction: 'Slowly exhale through your mouth for 6 counts. Feel the tension leaving your body.',
-      duration: 90,
-      icon: 'water-outline',
-    },
-    {
-      id: 'step4',
-      instruction: 'Continue breathing naturally. Focus on the sensation of each breath entering and leaving.',
-      duration: 120,
-      icon: 'pulse-outline',
-    },
-    {
-      id: 'step5',
-      instruction: 'If your mind wanders, gently bring your attention back to your breath. This is normal.',
-      duration: 120,
-      icon: 'leaf-outline',
-    },
-    {
-      id: 'step6',
-      instruction: 'Allow yourself to relax deeper with each breath. Let go of any remaining tension.',
-      duration: 180,
-      icon: 'sparkles-outline',
-    },
-    {
-      id: 'step7',
-      instruction: 'When you\'re ready, slowly open your eyes. Take a moment before moving.',
-      duration: 60,
-      icon: 'eye-outline',
-    },
-  ];
+  const sessionSteps = useMemo(() => buildSessionSteps(session), [
+    session?.id,
+    session?.title,
+    session?.duration,
+    session?.description,
+  ]);
 
   useEffect(() => {
     // Calculate total duration from steps
     const total = sessionSteps.reduce((acc, step) => acc + step.duration, 0);
     setTotalDuration(total);
-  }, []);
+  }, [sessionSteps]);
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -263,6 +341,13 @@ export default function SessionPlayerScreen() {
     await stopSound();
     await restoreVolume();
     setIsSessionActive(false);
+
+    if (!completionLoggedRef.current && mindfulnessCompletionTracking) {
+      completionLoggedRef.current = true;
+      try {
+        await saveMindfulnessSession(mindfulnessCompletionTracking);
+      } catch (_) {}
+    }
   };
 
   const handleClose = async () => {

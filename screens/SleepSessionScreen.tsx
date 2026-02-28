@@ -231,7 +231,11 @@ export default function SleepSessionScreen() {
     try {
       // startSleepSession returns the session id via currentSession after state update,
       // but we need it synchronously — generate it here and pass it in.
-      const sessionId = `session_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
+      // Generate a proper UUID v4 — must match SleepContext which also uses UUID now
+      const sessionId = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+        const r = Math.random() * 16 | 0;
+        return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+      });
 
       // Compute alarm time for nap mode
       let effectiveAlarmTime = alarmTime;

@@ -16,17 +16,23 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
-import { 
-  ChevronLeft, 
-  HelpCircle, 
-  Mail, 
-  ChevronUp, 
-  ChevronDown, 
-  Clock, 
+import {
+  ChevronLeft,
+  HelpCircle,
+  Mail,
+  ChevronUp,
+  ChevronDown,
+  Clock,
   Twitter,
-  Send
+  Send,
+  Crown,
+  Lock,
+  Zap
 } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
+import { useAuth } from '../contexts/AuthContext';
+import { isPremiumActive } from '../utils/subscriptionHelpers';
+import analyticsService from '../services/analyticsService';
 
 const { width } = Dimensions.get('window');
 
@@ -88,7 +94,9 @@ const faqs = [
 export default function HelpSupportScreen() {
   const { theme, isDark } = useAppTheme();
   const insets = useSafeAreaInsets();
-  const navigation = useNavigation();
+  const navigation = useNavigation<any>();
+  const { profile } = useAuth();
+  const isPremium = isPremiumActive(profile?.subscription_status, profile?.subscription_end_date, profile?.role, profile?.email);
   const [activeTab, setActiveTab] = useState('faq');
   const [expandedFaq, setExpandedFaq] = useState(null);
   const [name, setName] = useState('');
@@ -180,35 +188,50 @@ export default function HelpSupportScreen() {
       
       {/* Tab Selector */}
       <View style={styles(theme).tabContainer}>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={[styles(theme).tab, activeTab === 'faq' && styles(theme).activeTab]}
           onPress={() => setActiveTab('faq')}
         >
-          <HelpCircle 
-            size={20} 
-            color={activeTab === 'faq' ? theme.colors.accent : theme.colors.textSecondary} 
+          <HelpCircle
+            size={20}
+            color={activeTab === 'faq' ? theme.colors.accent : theme.colors.textSecondary}
           />
-          <Text style={[
-            styles(theme).tabText,
-            activeTab === 'faq' && styles(theme).activeTabText
-          ]}>
+          <Text style={[styles(theme).tabText, activeTab === 'faq' && styles(theme).activeTabText]}>
             FAQ
           </Text>
         </TouchableOpacity>
-        
-        <TouchableOpacity 
+
+        <TouchableOpacity
           style={[styles(theme).tab, activeTab === 'contact' && styles(theme).activeTab]}
           onPress={() => setActiveTab('contact')}
         >
-          <Mail 
-            size={20} 
-            color={activeTab === 'contact' ? theme.colors.accent : theme.colors.textSecondary} 
+          <Mail
+            size={20}
+            color={activeTab === 'contact' ? theme.colors.accent : theme.colors.textSecondary}
           />
-          <Text style={[
-            styles(theme).tabText,
-            activeTab === 'contact' && styles(theme).activeTabText
-          ]}>
+          <Text style={[styles(theme).tabText, activeTab === 'contact' && styles(theme).activeTabText]}>
             Contact Us
+          </Text>
+        </TouchableOpacity>
+
+        {/* VIP Support tab — premium only */}
+        <TouchableOpacity
+          style={[styles(theme).tab, styles(theme).vipTab, activeTab === 'vip' && styles(theme).vipTabActive]}
+          onPress={() => {
+            if (!isPremium) {
+              analyticsService.trackFeatureGateHit('vip_support');
+              navigation.navigate('Subscription', { source: 'vip_support' });
+              return;
+            }
+            setActiveTab('vip');
+            analyticsService.trackEvent('vip_support_opened');
+          }}
+        >
+          {isPremium
+            ? <Crown size={18} color={activeTab === 'vip' ? '#F59E0B' : '#F59E0B'} />
+            : <Lock size={16} color="#F59E0B" />}
+          <Text style={[styles(theme).tabText, styles(theme).vipTabText, activeTab === 'vip' && styles(theme).vipTabActiveText]}>
+            VIP
           </Text>
         </TouchableOpacity>
       </View>
@@ -402,6 +425,66 @@ export default function HelpSupportScreen() {
           </View>
         )}
         
+        {activeTab === 'vip' && isPremium && (
+          <View style={styles(theme).vipContainer}>
+            {/* VIP hero */}
+            <LinearGradient colors={['rgba(245,158,11,0.15)', 'rgba(245,158,11,0.04)']} style={styles(theme).vipHero}>
+              <Crown size={40} color="#F59E0B" />
+              <Text style={styles(theme).vipHeroTitle}>VIP Priority Support</Text>
+              <Text style={styles(theme).vipHeroSubtitle}>As a Premium member you get priority responses within 2 hours</Text>
+            </LinearGradient>
+
+            {/* Priority email */}
+            <View style={styles(theme).vipCard}>
+              <View style={styles(theme).vipCardHeader}>
+                <View style={styles(theme).vipIconBox}><Zap size={20} color="#F59E0B" /></View>
+                <Text style={styles(theme).vipCardTitle}>Priority Email Support</Text>
+              </View>
+              <Text style={styles(theme).vipCardDesc}>Send us your issue and we'll reply within 2 hours (Mon-Fri).</Text>
+              <TouchableOpacity
+                style={styles(theme).vipActionBtn}
+                onPress={() => Linking.openURL('mailto:vip@sleeparchitect.app?subject=VIP Support Request&body=Premium Member - Priority Support')}
+              >
+                <LinearGradient colors={['#F59E0B', '#D97706']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles(theme).vipActionGradient}>
+                  <Text style={styles(theme).vipActionText}>Email VIP Support</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
+
+            {/* Telegram VIP */}
+            <View style={styles(theme).vipCard}>
+              <View style={styles(theme).vipCardHeader}>
+                <View style={styles(theme).vipIconBox}><Send size={20} color="#F59E0B" /></View>
+                <Text style={styles(theme).vipCardTitle}>VIP Telegram Chat</Text>
+              </View>
+              <Text style={styles(theme).vipCardDesc}>Join our private VIP Telegram group for direct developer access.</Text>
+              <TouchableOpacity
+                style={styles(theme).vipActionBtn}
+                onPress={() => Linking.openURL('https://t.me/sleeparchitectvip')}
+              >
+                <LinearGradient colors={['#F59E0B', '#D97706']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles(theme).vipActionGradient}>
+                  <Text style={styles(theme).vipActionText}>Join VIP Group</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
+
+            {/* Response times */}
+            <View style={styles(theme).vipCard}>
+              <Text style={styles(theme).vipCardTitle}>Response Times</Text>
+              {[
+                { label: 'VIP Priority Email', value: '< 2 hours', color: '#10B981' },
+                { label: 'VIP Telegram', value: '< 1 hour', color: '#10B981' },
+                { label: 'Standard Email', value: '24-48 hours', color: 'rgba(255,255,255,0.4)' },
+              ].map((row, i) => (
+                <View key={i} style={styles(theme).responseRow}>
+                  <Text style={styles(theme).responseLabel}>{row.label}</Text>
+                  <Text style={[styles(theme).responseValue, { color: row.color }]}>{row.value}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
+
         {/* Bottom padding for tab bar */}
         <View style={styles(theme).bottomPadding} />
       </ScrollView>
@@ -640,4 +723,27 @@ const styles = (theme: any) => StyleSheet.create({
   bottomPadding: {
     height: 100,
   },
+
+  // VIP tab styles
+  vipTab: { borderWidth: 1, borderColor: 'rgba(245,158,11,0.3)', backgroundColor: 'rgba(245,158,11,0.08)' },
+  vipTabActive: { backgroundColor: 'rgba(245,158,11,0.15)', borderColor: '#F59E0B' },
+  vipTabText: { color: '#F59E0B' },
+  vipTabActiveText: { color: '#F59E0B' },
+
+  // VIP screen
+  vipContainer: { paddingBottom: 20 },
+  vipHero: { borderRadius: 20, padding: 24, alignItems: 'center', marginBottom: 16, borderWidth: 1, borderColor: 'rgba(245,158,11,0.2)' },
+  vipHeroTitle: { fontSize: 20, fontWeight: '900', color: '#F59E0B', marginTop: 12, marginBottom: 6 },
+  vipHeroSubtitle: { fontSize: 13, color: 'rgba(255,255,255,0.5)', textAlign: 'center', lineHeight: 18 },
+  vipCard: { backgroundColor: 'rgba(27,29,42,0.7)', borderRadius: 16, padding: 18, marginBottom: 12, borderWidth: 1, borderColor: 'rgba(245,158,11,0.15)' },
+  vipCardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
+  vipIconBox: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(245,158,11,0.1)', justifyContent: 'center', alignItems: 'center', marginRight: 10 },
+  vipCardTitle: { fontSize: 15, fontWeight: '700', color: theme.colors.textPrimary },
+  vipCardDesc: { fontSize: 13, color: theme.colors.textSecondary, lineHeight: 18, marginBottom: 14 },
+  vipActionBtn: { borderRadius: 12, overflow: 'hidden' },
+  vipActionGradient: { paddingVertical: 12, alignItems: 'center' },
+  vipActionText: { fontSize: 14, fontWeight: '700', color: '#000' },
+  responseRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.06)' },
+  responseLabel: { fontSize: 13, color: theme.colors.textSecondary },
+  responseValue: { fontSize: 13, fontWeight: '700' },
 });
