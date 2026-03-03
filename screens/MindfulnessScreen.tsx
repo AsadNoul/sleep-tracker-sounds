@@ -1012,34 +1012,48 @@ export default function MindfulnessScreen() {
               <Text style={[themedStyles.subtitle, { color: theme.colors.textSecondary }]}>Find your inner peace</Text>
             </View>
           </View>
-          <TouchableOpacity
-            style={[themedStyles.statsButton, { backgroundColor: theme.colors.card }]}
-            onPress={() => navigation.navigate('SleepAnalysis')}
-          >
-            <BarChart2 size={20} color={theme.colors.accent} />
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            {mindfulnessStats.currentStreak > 0 && (
+              <View style={themedStyles.headerStreakPill}>
+                <Flame size={13} color="#F59E0B" />
+                <Text style={themedStyles.headerStreakText}>{mindfulnessStats.currentStreak}d</Text>
+              </View>
+            )}
+            <TouchableOpacity
+              style={[themedStyles.statsButton, { backgroundColor: theme.colors.card, marginLeft: 8 }]}
+              onPress={() => navigation.navigate('SleepAnalysis')}
+            >
+              <BarChart2 size={20} color={theme.colors.accent} />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* ── STATS ROW ── */}
         <View style={[themedStyles.statsCard, { backgroundColor: theme.colors.card }]}>
           <View style={themedStyles.statItem}>
-            <Text style={[themedStyles.statValue, { color: theme.colors.textPrimary }]}>
-              {mindfulnessStats.totalSessions}
-            </Text>
+            <View style={themedStyles.statIconRow}>
+              <Sparkles size={14} color="#8B5CF6" style={{ marginRight: 4 }} />
+              <Text style={[themedStyles.statValue, { color: theme.colors.textPrimary }]}>
+                {mindfulnessStats.totalSessions}
+              </Text>
+            </View>
             <Text style={[themedStyles.statLabel, { color: theme.colors.textSecondary }]}>Sessions</Text>
           </View>
           <View style={[themedStyles.statDivider, { backgroundColor: theme.colors.cardBorder }]} />
           <View style={themedStyles.statItem}>
-            <Text style={[themedStyles.statValue, { color: theme.colors.textPrimary }]}>
-              {mindfulnessStats.totalMinutes}
-            </Text>
+            <View style={themedStyles.statIconRow}>
+              <Clock size={14} color="#60A5FA" style={{ marginRight: 4 }} />
+              <Text style={[themedStyles.statValue, { color: theme.colors.textPrimary }]}>
+                {mindfulnessStats.totalMinutes}
+              </Text>
+            </View>
             <Text style={[themedStyles.statLabel, { color: theme.colors.textSecondary }]}>Minutes</Text>
           </View>
           <View style={[themedStyles.statDivider, { backgroundColor: theme.colors.cardBorder }]} />
           <View style={themedStyles.statItem}>
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <Flame size={18} color='#F59E0B' style={{ marginRight: 4 }} />
-              <Text style={[themedStyles.statValue, { color: theme.colors.textPrimary }]}>
+            <View style={themedStyles.statIconRow}>
+              <Flame size={16} color={mindfulnessStats.currentStreak >= 7 ? '#F59E0B' : mindfulnessStats.currentStreak >= 3 ? '#FB923C' : '#94A3B8'} style={{ marginRight: 4 }} />
+              <Text style={[themedStyles.statValue, { color: mindfulnessStats.currentStreak >= 7 ? '#F59E0B' : mindfulnessStats.currentStreak >= 3 ? '#FB923C' : theme.colors.textPrimary }]}>
                 {mindfulnessStats.currentStreak}
               </Text>
             </View>
@@ -1056,26 +1070,31 @@ export default function MindfulnessScreen() {
                 Daily Goal
               </Text>
             </View>
-            <Text style={[themedStyles.goalProgress, { color: theme.colors.accent }]}>
-              {todayMinutes}/{dailyGoal} min
-            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Text style={[themedStyles.goalProgress, { color: goalProgress >= 1 ? '#10B981' : theme.colors.accent }]}>
+                {todayMinutes}/{dailyGoal} min
+              </Text>
+              <Text style={[themedStyles.goalPct, { color: goalProgress >= 1 ? '#10B981' : theme.colors.textSecondary }]}>
+                {' '}· {Math.min(Math.round(goalProgress * 100), 100)}%
+              </Text>
+            </View>
           </View>
           <View style={[themedStyles.goalTrack, { backgroundColor: theme.colors.cardBorder }]}>
             <View
               style={[
                 themedStyles.goalFill,
                 {
-                  backgroundColor: theme.colors.accent,
-                  width: `${Math.max(goalProgress * 100, 0).toFixed(1)}%` as any,
+                  backgroundColor: goalProgress >= 1 ? '#10B981' : goalProgress >= 0.5 ? '#F59E0B' : theme.colors.accent,
+                  width: `${Math.min(Math.max(goalProgress * 100, 0), 100).toFixed(1)}%` as any,
                 },
               ]}
             />
           </View>
           {goalProgress >= 1 && (
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 6 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8 }}>
               <Trophy size={14} color='#F59E0B' style={{ marginRight: 6 }} />
-              <Text style={{ color: '#F59E0B', fontSize: 12, fontWeight: '600' }}>
-                Goal complete! Great work today.
+              <Text style={{ color: '#10B981', fontSize: 12, fontWeight: '700' }}>
+                Goal complete! Great work today. 🎉
               </Text>
             </View>
           )}
@@ -1103,9 +1122,12 @@ export default function MindfulnessScreen() {
                   <Text style={themedStyles.metaText}>{getDailyRecommendation().difficulty}</Text>
                 </View>
               </View>
-              <View style={themedStyles.playButton}>
-                <Play size={22} color='#fff' fill='#fff' />
-              </View>
+              <LinearGradient
+                colors={['#8B5CF6', '#6366F1']}
+                style={themedStyles.playButton}
+              >
+                <Play size={20} color='#fff' fill='#fff' />
+              </LinearGradient>
             </View>
           </LinearGradient>
         </TouchableOpacity>
@@ -1115,20 +1137,22 @@ export default function MindfulnessScreen() {
           <TouchableOpacity
             style={[
               themedStyles.favToggle,
-              { backgroundColor: showFavourites ? '#EF4444' + '22' : theme.colors.card },
+              { backgroundColor: showFavourites ? 'rgba(244,114,182,0.15)' : theme.colors.card,
+                borderWidth: 1,
+                borderColor: showFavourites ? '#F472B6' : 'transparent' },
             ]}
             onPress={() => setShowFavourites(v => !v)}
           >
             <Heart
               size={16}
-              color={showFavourites ? '#EF4444' : theme.colors.textSecondary}
-              fill={showFavourites ? '#EF4444' : 'none'}
+              color={showFavourites ? '#F472B6' : theme.colors.textSecondary}
+              fill={showFavourites ? '#F472B6' : 'none'}
               style={themedStyles.favToggleIcon}
             />
             <Text
               style={[
                 themedStyles.favToggleText,
-                { color: showFavourites ? '#EF4444' : theme.colors.textSecondary },
+                { color: showFavourites ? '#F472B6' : theme.colors.textSecondary },
               ]}
             >
               {showFavourites ? `Favourites (${favouriteSessions.length})` : 'My Favourites'}
@@ -1154,11 +1178,14 @@ export default function MindfulnessScreen() {
                   style={[
                     themedStyles.categoryChip,
                     {
-                      backgroundColor: isSelected
-                        ? cat.color + 'DD'
-                        : theme.colors.card,
+                      backgroundColor: isSelected ? cat.color + 'DD' : theme.colors.card,
                       borderColor: isSelected ? cat.color : 'transparent',
                       opacity: locked ? 0.7 : 1,
+                      shadowColor: isSelected ? cat.color : 'transparent',
+                      shadowOffset: { width: 0, height: 4 },
+                      shadowOpacity: isSelected ? 0.45 : 0,
+                      shadowRadius: 8,
+                      elevation: isSelected ? 6 : 0,
                     },
                   ]}
                   onPress={() => handleCategorySelect(cat.id)}
@@ -1231,24 +1258,40 @@ export default function MindfulnessScreen() {
           </View>
         ) : displayedSessions.length === 0 ? (
           <View style={themedStyles.emptyFav}>
-            <Heart size={40} color={theme.colors.textSecondary} style={themedStyles.emptyFavIcon} />
-            <Text style={[themedStyles.emptyFavText, { color: theme.colors.textSecondary }]}>
-              {showFavourites
-                ? `No favourites yet\nTap ♡ on any session to save it here`
-                : selectedCategory === 'stories'
-                  ? isStoriesLoading
-                    ? 'Loading public stories...'
-                    : 'No playable stories found right now.'
-                  : 'No sessions available in this category.'}
-            </Text>
-            {!showFavourites && selectedCategory === 'stories' && !isStoriesLoading && (
-              <TouchableOpacity
-                style={[themedStyles.beginButton, { backgroundColor: theme.colors.accent, marginTop: 12 }]}
-                onPress={loadPublicStories}
-              >
-                <Text style={themedStyles.beginButtonText}>Retry Loading Stories</Text>
-              </TouchableOpacity>
-            )}
+            <LinearGradient
+              colors={['rgba(139,92,246,0.12)', 'rgba(99,102,241,0.06)']}
+              style={themedStyles.emptyFavCard}
+            >
+              <Text style={themedStyles.emptyFavEmoji}>
+                {showFavourites ? '🤍' : selectedCategory === 'stories' ? '📖' : '🧘'}
+              </Text>
+              <Text style={[themedStyles.emptyFavTitle, { color: theme.colors.textPrimary }]}>
+                {showFavourites ? 'No favourites yet' : selectedCategory === 'stories' ? 'No stories found' : 'Nothing here yet'}
+              </Text>
+              <Text style={[themedStyles.emptyFavText, { color: theme.colors.textSecondary }]}>
+                {showFavourites
+                  ? 'Tap the ♡ on any session to save it here for quick access.'
+                  : selectedCategory === 'stories'
+                    ? isStoriesLoading
+                      ? 'Loading public stories...'
+                      : 'No playable stories found right now. Pull to refresh.'
+                    : 'No sessions available in this category.'}
+              </Text>
+              {!showFavourites && selectedCategory === 'stories' && !isStoriesLoading && (
+                <TouchableOpacity
+                  style={[themedStyles.beginButton, { marginTop: 16, overflow: 'hidden', paddingHorizontal: 24 }]}
+                  onPress={loadPublicStories}
+                >
+                  <LinearGradient
+                    colors={['#8B5CF6', '#6366F1']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={StyleSheet.absoluteFill}
+                  />
+                  <Text style={themedStyles.beginButtonText}>Retry Loading Stories</Text>
+                </TouchableOpacity>
+              )}
+            </LinearGradient>
           </View>
         ) : (
           <View style={themedStyles.sessionsGrid}>
@@ -1258,12 +1301,18 @@ export default function MindfulnessScreen() {
               return (
                 <TouchableOpacity
                   key={session.id}
-                  style={[themedStyles.sessionCard, { backgroundColor: theme.colors.card }]}
+                  style={[themedStyles.sessionCard, { backgroundColor: theme.colors.card, marginBottom: 14 }]}
                   onPress={() => handleSessionPress(session)}
                   activeOpacity={0.85}
                 >
                   <View style={themedStyles.sessionImageWrap}>
                     <Image source={{ uri: session.image }} style={themedStyles.sessionImage} />
+                    {/* Gradient overlay at bottom of image */}
+                    <LinearGradient
+                      colors={['transparent', 'rgba(0,0,0,0.55)']}
+                      style={themedStyles.sessionImageOverlay}
+                      pointerEvents="none"
+                    />
                     {locked && (
                       <View style={themedStyles.lockOverlay}>
                         <Lock size={20} color='#fff' />
@@ -1271,7 +1320,7 @@ export default function MindfulnessScreen() {
                     )}
                     {/* Favourite button */}
                     <TouchableOpacity
-                      style={themedStyles.favBtn}
+                      style={[themedStyles.favBtn, isFav && { backgroundColor: 'rgba(244,114,182,0.25)' }]}
                       onPress={(event) => {
                         event.stopPropagation();
                         toggleFavourite(session.id);
@@ -1280,8 +1329,8 @@ export default function MindfulnessScreen() {
                     >
                       <Heart
                         size={14}
-                        color={isFav ? '#EF4444' : '#fff'}
-                        fill={isFav ? '#EF4444' : 'none'}
+                        color={isFav ? '#F472B6' : '#fff'}
+                        fill={isFav ? '#F472B6' : 'none'}
                       />
                     </TouchableOpacity>
                     {session.premium && (
@@ -1298,9 +1347,12 @@ export default function MindfulnessScreen() {
                       {session.title}
                     </Text>
                     <View style={themedStyles.sessionMeta}>
-                      <Text style={[themedStyles.sessionDuration, { color: theme.colors.textSecondary }]}>
-                        {session.duration}
-                      </Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <Clock size={10} color={theme.colors.textSecondary} style={{ marginRight: 3 }} />
+                        <Text style={[themedStyles.sessionDuration, { color: theme.colors.textSecondary }]}>
+                          {session.duration}
+                        </Text>
+                      </View>
                       <View
                         style={[
                           themedStyles.difficultyBadge,
@@ -1313,7 +1365,7 @@ export default function MindfulnessScreen() {
                             { color: getDifficultyColor(session.difficulty) },
                           ]}
                         >
-                          {session.difficulty}
+                          {session.difficulty === 'Beginner' ? '🌱 ' : session.difficulty === 'Intermediate' ? '⚡ ' : session.difficulty === 'Advanced' ? '🔥 ' : session.difficulty === 'Specialist' ? '🧠 ' : ''}{session.difficulty}
                         </Text>
                       </View>
                     </View>
@@ -1339,7 +1391,9 @@ export default function MindfulnessScreen() {
           }}
         >
           <BlurView intensity={90} tint='dark' style={StyleSheet.absoluteFill} />
-          <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(139,92,246,0.12)' }]} />
+          <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(139,92,246,0.14)' }]} />
+          {/* Purple left accent strip */}
+          <View style={themedStyles.miniPlayerAccent} />
           <View style={themedStyles.miniPlayerContent}>
             <Image
               source={{
@@ -1351,14 +1405,17 @@ export default function MindfulnessScreen() {
             />
             <View style={themedStyles.miniInfo}>
               <Text
-                style={[themedStyles.miniTitle, { color: theme.colors.textPrimary }]}
+                style={[themedStyles.miniTitle, { color: '#FFFFFF' }]}
                 numberOfLines={1}
               >
                 {activeSessionRef.current?.title || 'Playing'}
               </Text>
-              <Text style={[themedStyles.miniSubtitle, { color: theme.colors.textSecondary }]}>
-                Now Playing
-              </Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <View style={themedStyles.miniLiveDot} />
+                <Text style={[themedStyles.miniSubtitle, { color: 'rgba(255,255,255,0.65)' }]}>
+                  Now Playing
+                </Text>
+              </View>
             </View>
             <TouchableOpacity
               style={[themedStyles.miniStopBtn, { backgroundColor: theme.colors.accent + '22' }]}
@@ -1429,9 +1486,16 @@ export default function MindfulnessScreen() {
                     )}
 
                     <TouchableOpacity
-                      style={[themedStyles.beginButton, { backgroundColor: theme.colors.accent }]}
+                      style={themedStyles.beginButton}
                       onPress={handleBeginSession}
+                      activeOpacity={0.88}
                     >
+                      <LinearGradient
+                        colors={['#8B5CF6', '#6366F1']}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 0 }}
+                        style={StyleSheet.absoluteFill}
+                      />
                       <Play size={18} color='#fff' fill='#fff' style={themedStyles.beginButtonIcon} />
                       <Text style={themedStyles.beginButtonText}>Begin Session</Text>
                     </TouchableOpacity>
@@ -1510,6 +1574,24 @@ function getThemedStyles(_theme: any, _isDark: boolean) {
       alignItems: 'center',
     },
 
+    // Header
+    headerStreakPill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: 'rgba(245,158,11,0.15)',
+      borderRadius: 14,
+      paddingHorizontal: 10,
+      paddingVertical: 5,
+      borderWidth: 1,
+      borderColor: 'rgba(245,158,11,0.3)',
+    },
+    headerStreakText: {
+      color: '#F59E0B',
+      fontSize: 12,
+      fontWeight: '700',
+      marginLeft: 4,
+    },
+
     // Stats
     statsCard: {
       flexDirection: 'row',
@@ -1520,6 +1602,7 @@ function getThemedStyles(_theme: any, _isDark: boolean) {
       justifyContent: 'space-around',
     },
     statItem: { alignItems: 'center' },
+    statIconRow: { flexDirection: 'row', alignItems: 'center' },
     statValue: { fontSize: 20, fontWeight: '800' },
     statLabel: { fontSize: 11, marginTop: 3 },
     statDivider: { width: 1, height: 28 },
@@ -1538,15 +1621,16 @@ function getThemedStyles(_theme: any, _isDark: boolean) {
     },
     goalLabel: { fontSize: 14, fontWeight: '700' },
     goalProgress: { fontSize: 13, fontWeight: '700' },
+    goalPct: { fontSize: 12, fontWeight: '600' },
     goalTrack: {
-      height: 6,
-      borderRadius: 3,
+      height: 8,
+      borderRadius: 4,
       overflow: 'hidden',
     },
     goalFill: {
-      height: 6,
-      borderRadius: 3,
-      minWidth: 6,
+      height: 8,
+      borderRadius: 4,
+      minWidth: 8,
     },
 
     // Recommendation
@@ -1599,14 +1683,17 @@ function getThemedStyles(_theme: any, _isDark: boolean) {
       marginHorizontal: 8,
     },
     playButton: {
-      width: 46,
-      height: 46,
-      borderRadius: 23,
-      backgroundColor: 'rgba(255,255,255,0.25)',
+      width: 48,
+      height: 48,
+      borderRadius: 24,
       justifyContent: 'center',
       alignItems: 'center',
-      borderWidth: 1,
-      borderColor: 'rgba(255,255,255,0.4)',
+      overflow: 'hidden',
+      shadowColor: '#8B5CF6',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.5,
+      shadowRadius: 8,
+      elevation: 8,
     },
 
     // Favourites toggle
@@ -1659,6 +1746,13 @@ function getThemedStyles(_theme: any, _isDark: boolean) {
     },
     sessionImageWrap: { position: 'relative' },
     sessionImage: { width: '100%', height: 110 },
+    sessionImageOverlay: {
+      position: 'absolute',
+      bottom: 0,
+      left: 0,
+      right: 0,
+      height: 48,
+    },
     loadingBlock: { opacity: 0.55 },
     loadingLinePrimary: { height: 12, borderRadius: 6, marginBottom: 10, width: '82%', opacity: 0.6 },
     loadingMetaRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
@@ -1699,7 +1793,18 @@ function getThemedStyles(_theme: any, _isDark: boolean) {
     difficultyBadge: { paddingHorizontal: 7, paddingVertical: 3, borderRadius: 7 },
     difficultyText: { fontSize: 9, fontWeight: '700' },
 
-    emptyFav: { alignItems: 'center', paddingVertical: 60 },
+    emptyFav: { alignItems: 'center', paddingVertical: 40 },
+    emptyFavCard: {
+      alignItems: 'center',
+      paddingVertical: 36,
+      paddingHorizontal: 24,
+      borderRadius: 24,
+      width: '100%',
+      borderWidth: 1,
+      borderColor: 'rgba(139,92,246,0.2)',
+    },
+    emptyFavEmoji: { fontSize: 48, marginBottom: 14 },
+    emptyFavTitle: { fontSize: 17, fontWeight: '800', marginBottom: 8 },
     emptyFavIcon: { marginBottom: 14 },
     emptyFavText: { fontSize: 14, textAlign: 'center', lineHeight: 22 },
 
@@ -1741,6 +1846,7 @@ function getThemedStyles(_theme: any, _isDark: boolean) {
       borderRadius: 27,
       justifyContent: 'center',
       alignItems: 'center',
+      overflow: 'hidden',
     },
     beginButtonIcon: { marginRight: 10 },
     beginButtonText: { color: '#fff', fontSize: 17, fontWeight: '800' },
@@ -1765,27 +1871,44 @@ function getThemedStyles(_theme: any, _isDark: boolean) {
       position: 'absolute',
       left: 16,
       right: 16,
-      height: 66,
+      height: 70,
       borderRadius: 18,
       overflow: 'hidden',
-      shadowColor: '#000',
+      shadowColor: '#8B5CF6',
       shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.3,
-      shadowRadius: 10,
+      shadowOpacity: 0.25,
+      shadowRadius: 12,
       elevation: 12,
       borderWidth: 1,
-      borderColor: 'rgba(255,255,255,0.1)',
+      borderColor: 'rgba(139,92,246,0.3)',
+    },
+    miniPlayerAccent: {
+      position: 'absolute',
+      left: 0,
+      top: 0,
+      bottom: 0,
+      width: 4,
+      backgroundColor: '#8B5CF6',
+      zIndex: 2,
     },
     miniPlayerContent: {
       flex: 1,
       flexDirection: 'row',
       alignItems: 'center',
-      paddingHorizontal: 12,
+      paddingLeft: 18,
+      paddingRight: 12,
     },
-    miniArtwork: { width: 44, height: 44, borderRadius: 10, marginRight: 12 },
+    miniArtwork: { width: 46, height: 46, borderRadius: 10, marginRight: 12 },
     miniInfo: { flex: 1 },
     miniTitle: { fontSize: 14, fontWeight: '700' },
     miniSubtitle: { fontSize: 11, marginTop: 2 },
+    miniLiveDot: {
+      width: 6,
+      height: 6,
+      borderRadius: 3,
+      backgroundColor: '#10B981',
+      marginRight: 5,
+    },
     miniStopBtn: {
       width: 40,
       height: 40,

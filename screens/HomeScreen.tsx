@@ -278,6 +278,24 @@ export default function HomeScreen() {
     [sleepStats.lastNightQuality]
   );
 
+  // Stage breakdown for hero card (deep / REM / light percentages from last session)
+  const lastNightStageBreakdown = useMemo(() => {
+    const lastSession = sleepHistory[0];
+    if (!lastSession || !lastSession.sleepStages || lastSession.sleepStages.length === 0) {
+      return null;
+    }
+    const totalMs = lastSession.sleepStages.reduce((sum: number, s: any) => sum + (s.endTime - s.startTime), 0);
+    if (totalMs === 0) return null;
+    const deep = lastSession.sleepStages.filter((s: any) => s.stage === 'deep').reduce((sum: number, s: any) => sum + (s.endTime - s.startTime), 0);
+    const rem = lastSession.sleepStages.filter((s: any) => s.stage === 'rem').reduce((sum: number, s: any) => sum + (s.endTime - s.startTime), 0);
+    const light = lastSession.sleepStages.filter((s: any) => s.stage === 'light').reduce((sum: number, s: any) => sum + (s.endTime - s.startTime), 0);
+    return {
+      deep: Math.round((deep / totalMs) * 100),
+      rem: Math.round((rem / totalMs) * 100),
+      light: Math.round((light / totalMs) * 100),
+    };
+  }, [sleepHistory]);
+
   // Dynamic Background Colors
   const bgColors = useMemo((): [string, string, ...string[]] => {
     switch (displayMode) {
@@ -610,6 +628,31 @@ export default function HomeScreen() {
                 </View>
               </View>
 
+              {/* Sleep Stage Breakdown — only when we have real stage data */}
+              {!isTracking && lastNightStageBreakdown && (
+                <View style={themedStyles.stageBreakdownContainer}>
+                  <View style={themedStyles.stageBarRow}>
+                    <View style={[themedStyles.stageBarSegment, { flex: lastNightStageBreakdown.deep, backgroundColor: '#6366F1' }]} />
+                    <View style={[themedStyles.stageBarSegment, { flex: lastNightStageBreakdown.rem, backgroundColor: '#8B5CF6' }]} />
+                    <View style={[themedStyles.stageBarSegment, { flex: lastNightStageBreakdown.light, backgroundColor: 'rgba(139,92,246,0.3)' }]} />
+                  </View>
+                  <View style={themedStyles.stageLegendRow}>
+                    <View style={themedStyles.stageLegendItem}>
+                      <View style={[themedStyles.stageLegendDot, { backgroundColor: '#6366F1' }]} />
+                      <Text style={themedStyles.stageLegendText}>Deep {lastNightStageBreakdown.deep}%</Text>
+                    </View>
+                    <View style={themedStyles.stageLegendItem}>
+                      <View style={[themedStyles.stageLegendDot, { backgroundColor: '#8B5CF6' }]} />
+                      <Text style={themedStyles.stageLegendText}>REM {lastNightStageBreakdown.rem}%</Text>
+                    </View>
+                    <View style={themedStyles.stageLegendItem}>
+                      <View style={[themedStyles.stageLegendDot, { backgroundColor: 'rgba(139,92,246,0.5)' }]} />
+                      <Text style={themedStyles.stageLegendText}>Light {lastNightStageBreakdown.light}%</Text>
+                    </View>
+                  </View>
+                </View>
+              )}
+
               <TouchableOpacity
                 style={themedStyles.startSessionButton}
                 onPress={() => navigation.navigate('SleepSession')}
@@ -623,7 +666,9 @@ export default function HomeScreen() {
                   style={themedStyles.buttonGradient}
                 />
                 <View style={themedStyles.buttonContent}>
-                  {isTracking ? <Moon size={18} color="#FFFFFF" /> : (sleepScore > 0 ? <TrendingUp size={18} color="#FFFFFF" /> : <Play size={18} color="#FFFFFF" fill="#FFFFFF" />)}
+                  <View style={themedStyles.buttonContentIcon}>
+                    {isTracking ? <Moon size={18} color="#FFFFFF" /> : (sleepScore > 0 ? <TrendingUp size={18} color="#FFFFFF" /> : <Play size={18} color="#FFFFFF" fill="#FFFFFF" />)}
+                  </View>
                   <Text style={themedStyles.startSessionText}>
                     {isTracking ? 'End Sleep' : (sleepScore > 0 ? 'View Analysis' : 'Start Sleep')}
                   </Text>
@@ -638,12 +683,19 @@ export default function HomeScreen() {
           {/* Row 1 */}
           <View style={themedStyles.vitalsRow}>
             {/* Readiness Widget */}
-            <GlassView intensity={20} tint="dark" style={themedStyles.vitalWidgetGrid}>
+            <GlassView intensity={20} tint="dark" style={[themedStyles.vitalWidgetGrid, { marginRight: 12 }]}>
               <View style={themedStyles.vitalIconRow}>
                 <Zap size={16} color="#10B981" />
                 <Text style={themedStyles.vitalLabel}>Readiness</Text>
               </View>
-              <Text style={themedStyles.vitalValue}>{readinessScore}%</Text>
+              <Text style={[themedStyles.vitalValue, { color: readinessScore >= 80 ? '#10B981' : readinessScore >= 60 ? '#F59E0B' : '#EF4444' }]}>{readinessScore}%</Text>
+              {/* Color-coded progress bar */}
+              <View style={themedStyles.readinessBarTrack}>
+                <View style={[themedStyles.readinessBarFill, {
+                  width: `${readinessScore}%` as any,
+                  backgroundColor: readinessScore >= 80 ? '#10B981' : readinessScore >= 60 ? '#F59E0B' : '#EF4444',
+                }]} />
+              </View>
               <View style={themedStyles.sparkLineContainer}>
                 {readinessSparkData.map((v, i) => (
                   <View key={i} style={[themedStyles.sparkBar, { height: Math.max(2, (v / 100) * 16), backgroundColor: v >= 80 ? '#10B981' : v > 0 ? 'rgba(16, 185, 129, 0.3)' : 'rgba(16, 185, 129, 0.1)' }]} />
@@ -670,7 +722,7 @@ export default function HomeScreen() {
             <TouchableOpacity
               activeOpacity={0.8}
               onPress={() => navigation.navigate('Alarms')}
-              style={themedStyles.vitalWidgetGrid}
+              style={[themedStyles.vitalWidgetGrid, { marginRight: 12 }]}
             >
               <View style={themedStyles.vitalIconRow}>
                 <Bell size={16} color="#8B5CF6" />
@@ -706,36 +758,38 @@ export default function HomeScreen() {
           {/* Row 1 */}
           <View style={themedStyles.quickActionsRow}>
             <AnimatedPressable
-              style={themedStyles.actionCard}
+              style={[themedStyles.actionCard, { borderColor: 'rgba(139, 92, 246, 0.25)', marginRight: 12 }]}
               onPress={() => navigation.navigate('Sounds')}
               haptic="light"
               activeScale={0.94}
             >
               <LinearGradient
-                colors={['rgba(107, 114, 128, 0.28)', 'rgba(107, 114, 128, 0.10)']}
+                colors={['rgba(139, 92, 246, 0.22)', 'rgba(99, 102, 241, 0.08)']}
                 style={themedStyles.actionContent}
               >
-                <View style={[themedStyles.actionIconWrapper, { backgroundColor: 'rgba(139, 92, 246, 0.22)' }]}>
+                <View style={[themedStyles.actionIconWrapper, { backgroundColor: 'rgba(139, 92, 246, 0.25)' }]}>
                   <Moon size={22} color="#8B5CF6" strokeWidth={2.5} />
                 </View>
                 <Text style={themedStyles.actionLabel}>Sounds</Text>
+                <Text style={themedStyles.actionSubLabel}>Sleep music</Text>
               </LinearGradient>
             </AnimatedPressable>
 
             <AnimatedPressable
-              style={themedStyles.actionCard}
+              style={[themedStyles.actionCard, { borderColor: 'rgba(16, 185, 129, 0.25)' }]}
               onPress={() => navigation.navigate('Alarms')}
               haptic="light"
               activeScale={0.94}
             >
               <LinearGradient
-                colors={['rgba(107, 114, 128, 0.28)', 'rgba(107, 114, 128, 0.10)']}
+                colors={['rgba(16, 185, 129, 0.22)', 'rgba(5, 150, 105, 0.08)']}
                 style={themedStyles.actionContent}
               >
-                <View style={[themedStyles.actionIconWrapper, { backgroundColor: 'rgba(16, 185, 129, 0.22)' }]}>
+                <View style={[themedStyles.actionIconWrapper, { backgroundColor: 'rgba(16, 185, 129, 0.25)' }]}>
                   <Bell size={22} color="#10B981" strokeWidth={2.5} />
                 </View>
                 <Text style={themedStyles.actionLabel}>Alarms</Text>
+                <Text style={themedStyles.actionSubLabel}>{nextAlarm ? nextAlarm.time : 'Not set'}</Text>
               </LinearGradient>
             </AnimatedPressable>
           </View>
@@ -743,36 +797,38 @@ export default function HomeScreen() {
           {/* Row 2 */}
           <View style={themedStyles.quickActionsRow}>
             <AnimatedPressable
-              style={themedStyles.actionCard}
+              style={[themedStyles.actionCard, { borderColor: 'rgba(251, 191, 36, 0.25)', marginRight: 12 }]}
               onPress={() => navigation.navigate('CaffeineCalculator')}
               haptic="light"
               activeScale={0.94}
             >
               <LinearGradient
-                colors={['rgba(139, 69, 19, 0.28)', 'rgba(139, 69, 19, 0.10)']}
+                colors={['rgba(251, 191, 36, 0.18)', 'rgba(217, 119, 6, 0.06)']}
                 style={themedStyles.actionContent}
               >
-                <View style={[themedStyles.actionIconWrapper, { backgroundColor: 'rgba(139, 69, 19, 0.22)' }]}>
-                  <Coffee size={22} color="#8B4513" strokeWidth={2.5} />
+                <View style={[themedStyles.actionIconWrapper, { backgroundColor: 'rgba(251, 191, 36, 0.22)' }]}>
+                  <Coffee size={22} color="#FBBF24" strokeWidth={2.5} />
                 </View>
                 <Text style={themedStyles.actionLabel}>Caffeine</Text>
+                <Text style={themedStyles.actionSubLabel}>Track intake</Text>
               </LinearGradient>
             </AnimatedPressable>
 
             <AnimatedPressable
-              style={themedStyles.actionCard}
+              style={[themedStyles.actionCard, { borderColor: 'rgba(100, 116, 139, 0.25)' }]}
               onPress={() => navigation.navigate('Settings')}
               haptic="light"
               activeScale={0.94}
             >
               <LinearGradient
-                colors={['rgba(107, 114, 128, 0.28)', 'rgba(107, 114, 128, 0.10)']}
+                colors={['rgba(100, 116, 139, 0.22)', 'rgba(71, 85, 105, 0.08)']}
                 style={themedStyles.actionContent}
               >
-                <View style={[themedStyles.actionIconWrapper, { backgroundColor: 'rgba(107, 114, 128, 0.22)' }]}>
-                  <Layout size={22} color="#9CA3AF" strokeWidth={2.5} />
+                <View style={[themedStyles.actionIconWrapper, { backgroundColor: 'rgba(100, 116, 139, 0.25)' }]}>
+                  <Layout size={22} color="#94A3B8" strokeWidth={2.5} />
                 </View>
                 <Text style={themedStyles.actionLabel}>Settings</Text>
+                <Text style={themedStyles.actionSubLabel}>Preferences</Text>
               </LinearGradient>
             </AnimatedPressable>
           </View>
@@ -854,17 +910,22 @@ export default function HomeScreen() {
         {/* Sleep Tip of the Day */}
         <TouchableOpacity style={themedStyles.tipCard} onPress={() => navigation.navigate('BedtimeRoutine')}>
           <LinearGradient
-            colors={['rgba(139, 92, 246, 0.15)', 'rgba(99, 102, 241, 0.05)']}
+            colors={['rgba(139, 92, 246, 0.18)', 'rgba(99, 102, 241, 0.06)']}
             style={themedStyles.tipGradient}
           >
-            <View style={themedStyles.iconButton}>
-              <Zap size={20} color="#8B5CF6" />
+            <View style={[themedStyles.tipIconCircle]}>
+              <Lightbulb size={22} color="#8B5CF6" strokeWidth={2} />
             </View>
             <View style={themedStyles.tipContent}>
-              <Text style={themedStyles.tipLabel}>Sleep Tip of the Day</Text>
+              <View style={themedStyles.tipTagRow}>
+                <View style={themedStyles.tipTag}>
+                  <Text style={themedStyles.tipTagText}>💡 DAILY TIP</Text>
+                </View>
+              </View>
               <Text style={themedStyles.tipText}>
                 {tipOfTheDay}
               </Text>
+              <Text style={themedStyles.tipActionText}>Tap to build your routine →</Text>
             </View>
           </LinearGradient>
         </TouchableOpacity>
@@ -882,34 +943,41 @@ export default function HomeScreen() {
           onPress={() => navigation.navigate('Achievements')}
         >
           <GlassView intensity={20} tint="dark" style={themedStyles.achievementsCard}>
-            <View style={themedStyles.achievementsRow}>
-              <View style={themedStyles.achievementsTrophyCircle}>
-                <Trophy size={28} color="#F59E0B" />
-              </View>
-              <View style={themedStyles.achievementsInfo}>
-                <Text style={themedStyles.achievementsTitle}>Your Journey</Text>
-                <View style={themedStyles.achievementsStats}>
-                  <View style={themedStyles.achievementStat}>
-                    <Text style={themedStyles.achievementStatEmoji}>🔥</Text>
-                    <Text style={themedStyles.achievementStatValue}>{currentStreak}</Text>
-                    <Text style={themedStyles.achievementStatLabel}>Streak</Text>
-                  </View>
-                  <View style={themedStyles.achievementStatDivider} />
-                  <View style={themedStyles.achievementStat}>
-                    <Text style={themedStyles.achievementStatEmoji}>⭐</Text>
-                    <Text style={themedStyles.achievementStatValue}>{goodNightStreak}</Text>
-                    <Text style={themedStyles.achievementStatLabel}>Good Nights</Text>
-                  </View>
-                  <View style={themedStyles.achievementStatDivider} />
-                  <View style={themedStyles.achievementStat}>
-                    <Text style={themedStyles.achievementStatEmoji}>📊</Text>
-                    <Text style={themedStyles.achievementStatValue}>{sleepHistory.length}</Text>
-                    <Text style={themedStyles.achievementStatLabel}>Sessions</Text>
+            <LinearGradient
+              colors={['rgba(245,158,11,0.08)', 'rgba(245,158,11,0.02)']}
+              style={themedStyles.achievementsGradientInner}
+            >
+              <View style={themedStyles.achievementsRow}>
+                <View style={themedStyles.achievementsTrophyCircle}>
+                  <Trophy size={28} color="#F59E0B" />
+                </View>
+                <View style={themedStyles.achievementsInfo}>
+                  <Text style={themedStyles.achievementsTitle}>Your Journey</Text>
+                  <View style={themedStyles.achievementsStats}>
+                    <View style={themedStyles.achievementStat}>
+                      <Text style={themedStyles.achievementStatEmoji}>🔥</Text>
+                      <Text style={themedStyles.achievementStatValue}>{currentStreak}</Text>
+                      <Text style={themedStyles.achievementStatLabel}>Streak</Text>
+                    </View>
+                    <View style={themedStyles.achievementStatDivider} />
+                    <View style={themedStyles.achievementStat}>
+                      <Text style={themedStyles.achievementStatEmoji}>⭐</Text>
+                      <Text style={themedStyles.achievementStatValue}>{goodNightStreak}</Text>
+                      <Text style={themedStyles.achievementStatLabel}>Good Nights</Text>
+                    </View>
+                    <View style={themedStyles.achievementStatDivider} />
+                    <View style={themedStyles.achievementStat}>
+                      <Text style={themedStyles.achievementStatEmoji}>📊</Text>
+                      <Text style={themedStyles.achievementStatValue}>{sleepHistory.length}</Text>
+                      <Text style={themedStyles.achievementStatLabel}>Sessions</Text>
+                    </View>
                   </View>
                 </View>
+                <View style={themedStyles.achievementsChevronCircle}>
+                  <ChevronRight size={16} color="#F59E0B" />
+                </View>
               </View>
-              <ChevronRight size={20} color="#A0AEC0" />
-            </View>
+            </LinearGradient>
           </GlassView>
         </TouchableOpacity>
 
@@ -1128,6 +1196,41 @@ const styles = (theme: any, width: number) => StyleSheet.create({
     height: 30,
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
   },
+  stageBreakdownContainer: {
+    width: '100%',
+    marginBottom: 16,
+    paddingHorizontal: 4,
+  },
+  stageBarRow: {
+    flexDirection: 'row',
+    height: 6,
+    borderRadius: 3,
+    overflow: 'hidden',
+    marginBottom: 8,
+  },
+  stageBarSegment: {
+    height: 6,
+  },
+  stageLegendRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+  },
+  stageLegendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: 10,
+  },
+  stageLegendDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    marginRight: 5,
+  },
+  stageLegendText: {
+    color: '#94A3B8',
+    fontSize: 11,
+    fontWeight: '600',
+  },
   startSessionButton: {
     width: '100%',
     height: 56,
@@ -1142,7 +1245,9 @@ const styles = (theme: any, width: number) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 10,
+  },
+  buttonContentIcon: {
+    marginRight: 8,
   },
   startSessionText: {
     color: '#FFFFFF',
@@ -1152,13 +1257,12 @@ const styles = (theme: any, width: number) => StyleSheet.create({
     letterSpacing: 0.5,
   },
   vitalsGrid: {
-    gap: 12,
     marginBottom: 32,
   },
   vitalsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    gap: 12,
+    marginBottom: 12,
   },
   vitalWidgetGrid: {
     backgroundColor: 'rgba(255, 255, 255, 0.05)',
@@ -1199,16 +1303,28 @@ const styles = (theme: any, width: number) => StyleSheet.create({
     marginTop: 4,
     justifyContent: 'center',
   },
+  readinessBarTrack: {
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    marginTop: 5,
+    marginBottom: 4,
+    overflow: 'hidden',
+  },
+  readinessBarFill: {
+    height: 4,
+    borderRadius: 2,
+  },
   sparkLineContainer: {
     flexDirection: 'row',
     alignItems: 'flex-end',
     height: 16,
-    gap: 3,
     marginTop: 4,
   },
   sparkBar: {
     width: 4,
     borderRadius: 2,
+    marginRight: 3,
   },
   insightsContainer: {
     marginBottom: 24,
@@ -1271,13 +1387,12 @@ const styles = (theme: any, width: number) => StyleSheet.create({
     fontFamily: theme.typography.fontFamily.semibold,
   },
   quickActionsGrid: {
-    gap: 12,
     marginBottom: 24,
   },
   quickActionsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    gap: 12,
+    marginBottom: 12,
   },
   actionCard: {
     flex: 1,
@@ -1304,6 +1419,13 @@ const styles = (theme: any, width: number) => StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     fontFamily: theme.typography.fontFamily.bold,
+  },
+  actionSubLabel: {
+    color: '#94A3B8',
+    fontSize: 10,
+    fontWeight: '500',
+    fontFamily: theme.typography.fontFamily.medium,
+    marginTop: 2,
   },
   analysisCardLarge: {
     marginBottom: 24,
@@ -1418,16 +1540,41 @@ const styles = (theme: any, width: number) => StyleSheet.create({
     overflow: 'hidden',
     marginBottom: 24,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: 'rgba(139, 92, 246, 0.2)',
   },
   tipGradient: {
     flexDirection: 'row',
     padding: 20,
+    alignItems: 'flex-start',
+  },
+  tipIconCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(139, 92, 246, 0.18)',
+    justifyContent: 'center',
     alignItems: 'center',
+    marginTop: 2,
   },
   tipContent: {
     flex: 1,
     marginLeft: 16,
+  },
+  tipTagRow: {
+    flexDirection: 'row',
+    marginBottom: 6,
+  },
+  tipTag: {
+    backgroundColor: 'rgba(139, 92, 246, 0.2)',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  tipTagText: {
+    color: '#A78BFA',
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.8,
   },
   tipLabel: {
     color: '#8B5CF6',
@@ -1438,18 +1585,36 @@ const styles = (theme: any, width: number) => StyleSheet.create({
     marginBottom: 4,
   },
   tipText: {
-    color: '#FFFFFF',
-    fontSize: 15,
+    color: '#E2E8F0',
+    fontSize: 14,
     lineHeight: 20,
     fontWeight: '500',
+    marginBottom: 8,
+  },
+  tipActionText: {
+    color: '#8B5CF6',
+    fontSize: 12,
+    fontWeight: '600',
   },
   achievementsCard: {
     backgroundColor: 'rgba(255, 255, 255, 0.05)',
     borderRadius: 24,
-    padding: 16,
     marginBottom: 32,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: 'rgba(245, 158, 11, 0.2)',
+    overflow: 'hidden',
+  },
+  achievementsGradientInner: {
+    padding: 16,
+    borderRadius: 24,
+  },
+  achievementsChevronCircle: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(245, 158, 11, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   achievementsRow: {
     flexDirection: 'row',

@@ -19,6 +19,7 @@ import {
 import { Audio } from 'expo-av';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
+import * as FileSystem from 'expo-file-system';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import {
@@ -433,6 +434,7 @@ export default function SleepAnalysisScreen({ hideHeader = false, isSubcomponent
   const [showCalendar, setShowCalendar] = useState(false);
   const [fetchedSession, setFetchedSession] = useState<any>(null);
   const [recordings, setRecordings] = useState<any[]>([]);
+  const [sessionAudioUri, setSessionAudioUri] = useState<string | null>(null);
   const [sound, setSound] = useState<Audio.Sound | null>(null);
   const [playingAudio, setPlayingAudio] = useState<string | null>(null);
   const [playbackStatus, setPlaybackStatus] = useState<{ position: number, duration: number } | null>(null);
@@ -522,12 +524,23 @@ export default function SleepAnalysisScreen({ hideHeader = false, isSubcomponent
       if (latestSession?.id) {
         const events = await getSessionRecordings(latestSession.id);
         setRecordings(events.filter(e => e.audioUri || e.type === 'snoring' || e.type === 'sleep_talk'));
-        // Attach full recording URI to session object for the player
-        if (events.length > 0 && events[0].audioUri && !latestSession.sessionAudioUri) {
-          latestSession.sessionAudioUri = events[0].audioUri;
+
+        // Resolve full-night recording URI: prefer session's own URI, then first event's audioUri
+        const candidateUri = latestSession.sessionAudioUri || (events.length > 0 ? events[0].audioUri : null);
+        if (candidateUri) {
+          // Verify the file still exists on disk before showing the player
+          try {
+            const info = await FileSystem.getInfoAsync(candidateUri);
+            setSessionAudioUri(info.exists ? candidateUri : null);
+          } catch {
+            setSessionAudioUri(null);
+          }
+        } else {
+          setSessionAudioUri(null);
         }
       } else {
         setRecordings([]);
+        setSessionAudioUri(null);
       }
     };
     loadRecordings();
@@ -548,23 +561,27 @@ export default function SleepAnalysisScreen({ hideHeader = false, isSubcomponent
 
   const handlePlayAudio = async (uri: string, id: string) => {
     try {
+      // Tapping the same item while playing → pause it
       if (playingAudio === id && sound) {
         await sound.pauseAsync();
         setPlayingAudio(null);
         return;
       }
 
-      if (sound) {
-        await sound.unloadAsync();
-        setPlaybackStatus(null);
+      // Tapping the same item while paused → resume
+      if (playingAudio === null && sound) {
+        // Different item — unload the previous sound
       }
 
-      // If simulated or no URI, just toggle for demo UI
-      if (!uri) {
-        setPlayingAudio(id);
-        setTimeout(() => setPlayingAudio(null), 3000);
-        return;
+      // Always unload any existing sound before creating a new one
+      if (sound) {
+        try { await sound.unloadAsync(); } catch {}
+        setSound(null);
+        setPlaybackStatus(null);
+        setPlayingAudio(null);
       }
+
+      if (!uri) return;
 
       const { sound: newSound } = await Audio.Sound.createAsync(
         { uri },
@@ -647,7 +664,8 @@ export default function SleepAnalysisScreen({ hideHeader = false, isSubcomponent
     setIsGeneratingReport(true);
     try {
       const session = latestSession;
-      const dateStr = new Date(session.startTime).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+      const sessionDate = new Date(session.startTime);
+      const dateStr = sessionDate.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
       const durationH = Math.floor((session.duration || 0) / 60);
       const durationM = (session.duration || 0) % 60;
       const sleepScore = session.sleepScore || 0;
@@ -655,84 +673,355 @@ export default function SleepAnalysisScreen({ hideHeader = false, isSubcomponent
       const wakeUps = session.wakeUps || 0;
       const deepQ = session.deepSleepQuality ? `${session.deepSleepQuality}%` : '—';
       const snoring = session.snoringIntensity || 'None';
-      const disruption = session.disruptionScore || '—';
+      const disruption = session.disruptionScore || 'Low';
       const avgScore = stats.avgScore || 0;
+      const userName = user?.full_name || user?.email?.split('@')[0] || 'Sleep User';
+      const generatedAt = new Date().toLocaleString('en-US', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 
+      // Score label & color
+      const scoreColor = sleepScore >= 80 ? '#22c55e' : sleepScore >= 60 ? '#f59e0b' : '#ef4444';
+      const scoreLabel = sleepScore >= 80 ? 'Excellent' : sleepScore >= 60 ? 'Good' : sleepScore >= 40 ? 'Fair' : 'Poor';
+
+      // Sleep stages
       const stagesHtml = session.sleepStages && session.sleepStages.length > 0
         ? session.sleepStages.map((s: any) => {
             const dur = Math.round((new Date(s.endTime).getTime() - new Date(s.startTime).getTime()) / 60000);
-            return `<tr><td style="padding:6px 12px;border-bottom:1px solid #1e1e3a;text-transform:capitalize;">${s.stage}</td><td style="padding:6px 12px;border-bottom:1px solid #1e1e3a;">${dur} min</td></tr>`;
+            const pct = session.duration > 0 ? Math.round((dur / session.duration) * 100) : 0;
+            const stageColor = s.stage === 'deep' ? '#6366f1' : s.stage === 'rem' ? '#8b5cf6' : s.stage === 'light' ? '#a78bfa' : '#cbd5e1';
+            return `<tr>
+              <td style="padding:10px 14px;border-bottom:1px solid #e9ecef;text-transform:capitalize;font-weight:600;color:#1e293b;">${s.stage}</td>
+              <td style="padding:10px 14px;border-bottom:1px solid #e9ecef;color:#475569;">${dur} min</td>
+              <td style="padding:10px 14px;border-bottom:1px solid #e9ecef;">
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <div style="flex:1;background:#e9ecef;border-radius:4px;height:8px;">
+                    <div style="width:${pct}%;background:${stageColor};height:8px;border-radius:4px;"></div>
+                  </div>
+                  <span style="color:#475569;font-size:12px;min-width:32px;">${pct}%</span>
+                </div>
+              </td>
+            </tr>`;
           }).join('')
-        : '<tr><td colspan="2" style="padding:6px 12px;color:#64748b;">No stage data recorded</td></tr>';
+        : '<tr><td colspan="3" style="padding:14px;color:#94a3b8;text-align:center;">No sleep stage data recorded for this session.</td></tr>';
 
-      const insightsHtml = insights.slice(0, 3).map(i =>
-        `<div style="margin-bottom:12px;padding:12px;background:#0f0f2e;border-radius:8px;border-left:3px solid #8b5cf6;">
-          <b style="color:#fff;">${i.title}</b>
-          <p style="color:#a8b5c7;margin:4px 0 0;">${i.description}</p>
+      // AI Insights
+      const insightsHtml = insights.slice(0, 4).map((ins: any) =>
+        `<div style="margin-bottom:10px;padding:14px 16px;background:#f8f7ff;border-radius:10px;border-left:4px solid #8b5cf6;">
+          <div style="font-weight:700;color:#1e293b;margin-bottom:4px;">${ins.title}</div>
+          <div style="color:#475569;font-size:13px;line-height:1.5;">${ins.description}</div>
         </div>`
-      ).join('') || '<p style="color:#64748b;">No AI insights available yet.</p>';
+      ).join('') || '<div style="color:#94a3b8;font-style:italic;padding:12px 0;">No AI insights available yet. Complete more sleep sessions for personalised analysis.</div>';
 
-      const html = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="utf-8"/>
-        <style>
-          body { font-family: -apple-system, sans-serif; background: #0a0a1a; color: #e2e8f0; margin: 0; padding: 32px; }
-          h1 { font-size: 28px; font-weight: 900; color: #fff; margin-bottom: 4px; }
-          h2 { font-size: 16px; color: #8b5cf6; font-weight: 700; margin: 24px 0 12px; border-bottom: 1px solid #1e1e3a; padding-bottom: 8px; }
-          .header { background: linear-gradient(135deg, #1a0533, #0f0f2e); padding: 24px; border-radius: 16px; margin-bottom: 24px; }
-          .subtitle { color: #64748b; font-size: 14px; margin-top: 4px; }
-          .score-circle { display: inline-block; width: 80px; height: 80px; border-radius: 50%; background: #8b5cf6; text-align: center; line-height: 80px; font-size: 28px; font-weight: 900; color: #fff; float: right; margin-top: -10px; }
-          .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
-          .card { background: #111127; border-radius: 12px; padding: 16px; border: 1px solid #1e1e3a; }
-          .card-label { color: #64748b; font-size: 12px; margin-bottom: 4px; }
-          .card-value { color: #fff; font-size: 22px; font-weight: 800; }
-          table { width: 100%; border-collapse: collapse; background: #111127; border-radius: 8px; overflow: hidden; }
-          th { background: #1e1e3a; color: #a8b5c7; font-size: 12px; text-align: left; padding: 10px 12px; }
-          .footer { margin-top: 32px; text-align: center; color: #334155; font-size: 11px; }
-          .badge { display: inline-block; padding: 2px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; background: rgba(139,92,246,0.15); color: #8b5cf6; margin-left: 8px; }
-        </style>
-      </head>
-      <body>
-        <div class="header">
-          <div class="score-circle">${sleepScore}</div>
-          <h1>Sleep Report</h1>
-          <div class="subtitle">${dateStr}</div>
-          <div class="subtitle" style="margin-top:8px;">Generated by Sleep App Pro<span class="badge">PREMIUM</span></div>
-        </div>
+      // Trend sparkline (last 7 sessions text summary)
+      const recentScores = sleepHistory.slice(0, 7).map((s: any) => s.sleepScore || 0).reverse();
+      const trendText = recentScores.length > 1
+        ? recentScores.join(' → ')
+        : (sleepScore > 0 ? `${sleepScore}` : '—');
 
-        <h2>Session Overview</h2>
-        <div class="grid">
-          <div class="card"><div class="card-label">Duration</div><div class="card-value">${durationH}h ${durationM}m</div></div>
-          <div class="card"><div class="card-label">Efficiency</div><div class="card-value">${efficiency}</div></div>
-          <div class="card"><div class="card-label">Wake Ups</div><div class="card-value">${wakeUps}</div></div>
-          <div class="card"><div class="card-label">Avg Score (${selectedTimeframe === 'week' ? '7D' : selectedTimeframe === 'month' ? '30D' : '90D'})</div><div class="card-value">${avgScore}</div></div>
-        </div>
+      // Streak & stats
+      const streak = (() => {
+        let s = 0;
+        for (const h of sleepHistory) { if ((h.sleepScore || 0) >= 60) s++; else break; }
+        return s;
+      })();
 
-        <h2>Sleep Vitals</h2>
-        <div class="grid">
-          <div class="card"><div class="card-label">Deep Sleep Quality</div><div class="card-value">${deepQ}</div></div>
-          <div class="card"><div class="card-label">Snoring Level</div><div class="card-value">${snoring}</div></div>
-          <div class="card"><div class="card-label">Sleep Disruption</div><div class="card-value">${disruption}</div></div>
-          <div class="card"><div class="card-label">Sleep Score</div><div class="card-value">${sleepScore}/100</div></div>
-        </div>
+      const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Sleep Report — ${userName} — ${dateStr}</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f8fafc; color: #1e293b; padding: 0; }
 
-        <h2>Sleep Stages</h2>
-        <table>
-          <thead><tr><th>Stage</th><th>Duration</th></tr></thead>
-          <tbody>${stagesHtml}</tbody>
-        </table>
+    .page { max-width: 800px; margin: 0 auto; padding: 40px 36px; }
 
-        <h2>AI Insights</h2>
-        ${insightsHtml}
+    /* ── HEADER BANNER ── */
+    .header-banner {
+      background: linear-gradient(135deg, #7c3aed 0%, #8b5cf6 50%, #6366f1 100%);
+      border-radius: 20px;
+      padding: 32px 36px;
+      margin-bottom: 28px;
+      color: #fff;
+      position: relative;
+      overflow: hidden;
+    }
+    .header-banner::before {
+      content: '';
+      position: absolute;
+      top: -40px; right: -40px;
+      width: 180px; height: 180px;
+      background: rgba(255,255,255,0.08);
+      border-radius: 50%;
+    }
+    .header-banner::after {
+      content: '';
+      position: absolute;
+      bottom: -60px; left: 20px;
+      width: 240px; height: 240px;
+      background: rgba(255,255,255,0.05);
+      border-radius: 50%;
+    }
+    .app-brand { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; }
+    .app-icon {
+      width: 44px; height: 44px; border-radius: 12px;
+      background: rgba(255,255,255,0.25);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px; line-height: 44px; text-align: center;
+    }
+    .app-name { font-size: 18px; font-weight: 800; color: #fff; letter-spacing: -0.3px; }
+    .app-tagline { font-size: 11px; color: rgba(255,255,255,0.75); font-weight: 500; margin-top: 1px; }
+    .header-content { display: flex; justify-content: space-between; align-items: flex-end; position: relative; z-index: 1; }
+    .header-left h1 { font-size: 26px; font-weight: 900; color: #fff; margin-bottom: 4px; }
+    .header-left .date { font-size: 14px; color: rgba(255,255,255,0.8); margin-bottom: 6px; }
+    .header-left .user-chip {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: rgba(255,255,255,0.2); border-radius: 20px;
+      padding: 4px 12px; font-size: 12px; color: #fff; font-weight: 600;
+    }
+    .score-badge {
+      width: 90px; height: 90px; border-radius: 50%;
+      background: rgba(255,255,255,0.15);
+      border: 3px solid rgba(255,255,255,0.4);
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      text-align: center;
+    }
+    .score-number { font-size: 30px; font-weight: 900; color: #fff; line-height: 1; }
+    .score-label-text { font-size: 10px; color: rgba(255,255,255,0.75); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; }
+    .premium-chip {
+      display: inline-flex; align-items: center; gap: 4px; margin-top: 10px;
+      background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.3);
+      border-radius: 12px; padding: 3px 10px; font-size: 11px; color: rgba(255,255,255,0.9); font-weight: 700;
+    }
 
-        <div class="footer">Generated on ${new Date().toLocaleString()} • Sleep App Pro • All data is private and stored on your device.</div>
-      </body>
-      </html>`;
+    /* ── SECTION TITLE ── */
+    .section-title {
+      font-size: 14px; font-weight: 800; color: #7c3aed; text-transform: uppercase;
+      letter-spacing: 0.8px; margin: 28px 0 14px;
+      padding-bottom: 8px; border-bottom: 2px solid #ede9fe;
+    }
 
-      const { uri } = await Print.printToFileAsync({ html, base64: false });
-      await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: 'Share Sleep Report' });
+    /* ── STAT CARDS ── */
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 8px; }
+    .grid-4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 10px; margin-bottom: 8px; }
+    .stat-card {
+      background: #fff; border-radius: 14px; padding: 16px 18px;
+      border: 1px solid #e2e8f0;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+    }
+    .stat-card .label { font-size: 11px; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+    .stat-card .value { font-size: 24px; font-weight: 900; color: #1e293b; line-height: 1; }
+    .stat-card .sub { font-size: 11px; color: #94a3b8; margin-top: 4px; }
+    .stat-card.accent { border-left: 4px solid #8b5cf6; }
+    .stat-card.success { border-left: 4px solid #22c55e; }
+    .stat-card.warning { border-left: 4px solid #f59e0b; }
+
+    /* ── SCORE ROW ── */
+    .score-row {
+      background: #fff; border-radius: 14px; padding: 18px 20px;
+      border: 1px solid #e2e8f0; box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+      display: flex; align-items: center; gap: 20px; margin-bottom: 12px;
+    }
+    .score-donut {
+      width: 64px; height: 64px; border-radius: 50%;
+      background: conic-gradient(${scoreColor} ${sleepScore * 3.6}deg, #e9ecef 0deg);
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .score-donut-inner {
+      width: 46px; height: 46px; border-radius: 50%; background: #fff;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px; font-weight: 900; color: ${scoreColor};
+    }
+    .score-row-content .title { font-size: 16px; font-weight: 800; color: #1e293b; }
+    .score-row-content .desc { font-size: 12px; color: #64748b; margin-top: 3px; }
+    .score-pill {
+      margin-left: auto; padding: 6px 16px; border-radius: 20px;
+      font-size: 13px; font-weight: 700; color: #fff;
+      background: ${scoreColor};
+    }
+
+    /* ── SLEEP STAGES TABLE ── */
+    table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 14px; overflow: hidden; border: 1px solid #e2e8f0; }
+    th { background: #f1f5f9; color: #64748b; font-size: 11px; font-weight: 700; text-align: left; padding: 10px 14px; text-transform: uppercase; letter-spacing: 0.5px; }
+    td { font-size: 13px; vertical-align: middle; }
+
+    /* ── TREND ── */
+    .trend-box {
+      background: #fff; border-radius: 14px; padding: 16px 20px;
+      border: 1px solid #e2e8f0; box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+    }
+    .trend-label { font-size: 11px; color: #94a3b8; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+    .trend-scores { font-size: 18px; font-weight: 800; color: #7c3aed; letter-spacing: 1px; }
+    .trend-arrow { color: #94a3b8; font-weight: 400; }
+
+    /* ── PLAY STORE ── */
+    .store-card {
+      background: linear-gradient(135deg, #f8f7ff, #ede9fe);
+      border: 1px solid #ddd6fe; border-radius: 14px;
+      padding: 18px 20px; margin-top: 10px;
+      display: flex; align-items: center; gap: 16px;
+    }
+    .store-icon { font-size: 32px; line-height: 1; }
+    .store-text .title { font-size: 14px; font-weight: 800; color: #1e293b; margin-bottom: 3px; }
+    .store-text .sub { font-size: 12px; color: #64748b; }
+    .store-link {
+      margin-left: auto; padding: 10px 18px; border-radius: 10px;
+      background: #7c3aed; color: #fff; text-decoration: none;
+      font-size: 12px; font-weight: 700; white-space: nowrap;
+    }
+
+    /* ── FOOTER ── */
+    .footer {
+      margin-top: 36px; padding-top: 20px; border-top: 1px solid #e2e8f0;
+      text-align: center; color: #94a3b8; font-size: 11px; line-height: 1.8;
+    }
+    .footer strong { color: #7c3aed; }
+  </style>
+</head>
+<body>
+<div class="page">
+
+  <!-- HEADER BANNER -->
+  <div class="header-banner">
+    <div class="app-brand" style="position:relative;z-index:1;">
+      <div class="app-icon">🌙</div>
+      <div>
+        <div class="app-name">Sleep App Pro</div>
+        <div class="app-tagline">Your personal sleep coach</div>
+      </div>
+      <div class="premium-chip" style="margin-left:auto;">★ PREMIUM REPORT</div>
+    </div>
+    <div class="header-content">
+      <div class="header-left">
+        <h1>Sleep Report</h1>
+        <div class="date">${dateStr}</div>
+        <div class="user-chip">👤 ${userName}</div>
+      </div>
+      <div class="score-badge">
+        <div class="score-number">${sleepScore}</div>
+        <div class="score-label-text">${scoreLabel}</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLEEP SCORE SUMMARY -->
+  <div class="score-row">
+    <div class="score-donut">
+      <div class="score-donut-inner">${sleepScore}</div>
+    </div>
+    <div class="score-row-content">
+      <div class="title">Overall Sleep Quality</div>
+      <div class="desc">${durationH}h ${durationM}m total sleep • ${wakeUps} wake-up${wakeUps !== 1 ? 's' : ''}</div>
+    </div>
+    <div class="score-pill">${scoreLabel}</div>
+  </div>
+
+  <!-- SESSION OVERVIEW -->
+  <div class="section-title">Session Overview</div>
+  <div class="grid-2">
+    <div class="stat-card accent">
+      <div class="label">Total Sleep</div>
+      <div class="value">${durationH}h ${durationM}m</div>
+      <div class="sub">Recommended: 7–9 hours</div>
+    </div>
+    <div class="stat-card accent">
+      <div class="label">Sleep Efficiency</div>
+      <div class="value">${efficiency}</div>
+      <div class="sub">Time asleep vs time in bed</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Wake Ups</div>
+      <div class="value">${wakeUps}</div>
+      <div class="sub">${wakeUps === 0 ? 'Uninterrupted sleep' : wakeUps <= 2 ? 'Normal range' : 'Slightly elevated'}</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Avg Score (${selectedTimeframe === 'week' ? '7D' : selectedTimeframe === 'month' ? '30D' : '90D'})</div>
+      <div class="value">${avgScore}</div>
+      <div class="sub">Your recent average</div>
+    </div>
+  </div>
+
+  <!-- SLEEP VITALS -->
+  <div class="section-title">Sleep Vitals</div>
+  <div class="grid-2">
+    <div class="stat-card success">
+      <div class="label">Deep Sleep Quality</div>
+      <div class="value">${deepQ}</div>
+      <div class="sub">Target: 20% of total sleep</div>
+    </div>
+    <div class="stat-card ${snoring === 'None' ? 'success' : snoring === 'Low' ? '' : 'warning'}">
+      <div class="label">Snoring Level</div>
+      <div class="value">${snoring}</div>
+      <div class="sub">${snoring === 'None' ? 'No snoring detected' : 'Detected during session'}</div>
+    </div>
+    <div class="stat-card ${disruption === 'Low' ? 'success' : disruption === 'Moderate' ? 'warning' : ''}">
+      <div class="label">Sleep Disruption</div>
+      <div class="value">${disruption}</div>
+      <div class="sub">Based on movement &amp; wake-ups</div>
+    </div>
+    <div class="stat-card accent">
+      <div class="label">Sleep Score</div>
+      <div class="value">${sleepScore}<span style="font-size:14px;font-weight:600;color:#94a3b8;">/100</span></div>
+      <div class="sub" style="color:${scoreColor};font-weight:700;">${scoreLabel}</div>
+    </div>
+  </div>
+
+  <!-- SLEEP STAGES -->
+  <div class="section-title">Sleep Stages</div>
+  <table>
+    <thead><tr><th>Stage</th><th>Duration</th><th>Percentage</th></tr></thead>
+    <tbody>${stagesHtml}</tbody>
+  </table>
+
+  <!-- 7-DAY TREND -->
+  <div class="section-title">Sleep Score Trend</div>
+  <div class="trend-box">
+    <div class="trend-label">Last ${recentScores.length} nights (oldest → tonight)</div>
+    <div class="trend-scores">${trendText.replace(/ → /g, ' <span class="trend-arrow">→</span> ')}</div>
+    ${streak > 0 ? `<div style="margin-top:10px;font-size:12px;color:#7c3aed;font-weight:700;">🔥 ${streak}-night good sleep streak!</div>` : ''}
+  </div>
+
+  <!-- AI INSIGHTS -->
+  <div class="section-title">AI Sleep Insights</div>
+  ${insightsHtml}
+
+  <!-- GET THE APP -->
+  <div class="section-title">Improve Your Sleep</div>
+  <div class="store-card">
+    <div class="store-icon">📱</div>
+    <div class="store-text">
+      <div class="title">Sleep App Pro</div>
+      <div class="sub">AI sleep coaching, smart alarms, snore detection &amp; more</div>
+    </div>
+    <a class="store-link" href="https://play.google.com/store/apps/details?id=com.naulx.sleepapp">
+      Get on Play Store
+    </a>
+  </div>
+
+  <!-- FOOTER -->
+  <div class="footer">
+    <strong>Sleep App Pro</strong> • Premium Sleep Report<br/>
+    Generated for <strong>${userName}</strong> on ${generatedAt}<br/>
+    All data is private and stored securely on your device.<br/>
+    <span style="color:#cbd5e1;">© Sleep App Pro — Your personal sleep coach</span>
+  </div>
+
+</div>
+</body>
+</html>`;
+
+      // Build a clean filename: "Sleep-Report-2026-03-03.pdf"
+      const fileDateStr = `${sessionDate.getFullYear()}-${String(sessionDate.getMonth() + 1).padStart(2, '0')}-${String(sessionDate.getDate()).padStart(2, '0')}`;
+      const safeUserName = (user?.full_name || 'Report').replace(/[^a-zA-Z0-9]/g, '-').slice(0, 20);
+      const outputPath = `${FileSystem.documentDirectory}Sleep-Report-${fileDateStr}-${safeUserName}.pdf`;
+
+      const { uri } = await Print.printToFileAsync({ html, base64: false, filePath: outputPath });
+      await Sharing.shareAsync(uri, {
+        mimeType: 'application/pdf',
+        dialogTitle: `Sleep Report — ${dateStr}`,
+        UTI: 'com.adobe.pdf',
+      });
     } catch (e) {
       console.error('Report generation error:', e);
       showToast('Failed to generate report. Please try again.', 'error');
@@ -1104,13 +1393,13 @@ export default function SleepAnalysisScreen({ hideHeader = false, isSubcomponent
             </GlassModule>
 
             {/* Sleep Recordings Section */}
-            {(recordings.length > 0 || latestSession?.sessionAudioUri) && (
+            {(recordings.length > 0 || sessionAudioUri) && (
               <GlassModule title="Sleep Recordings" icon={Mic} theme={theme} isDark={isDark}>
                 {/* Full Night Recording Player */}
-                {latestSession?.sessionAudioUri && (
+                {sessionAudioUri && (
                   <View style={styles(theme, isDark).fullPlayerCard}>
                     <View style={styles(theme, isDark).fullPlayerHeader}>
-                      <View style={styles(theme, isDark).fullPlayerIconWrap}>
+                      <View style={[styles(theme, isDark).fullPlayerIconWrap, { marginRight: 12 }]}>
                         <Mic size={18} color="#8B5CF6" />
                       </View>
                       <View style={{ flex: 1 }}>
@@ -1118,13 +1407,13 @@ export default function SleepAnalysisScreen({ hideHeader = false, isSubcomponent
                         <Text style={styles(theme, isDark).fullPlayerSub}>
                           {fullRecordingStatus
                             ? `${Math.floor(fullRecordingStatus.position / 60000)}:${String(Math.floor((fullRecordingStatus.position % 60000) / 1000)).padStart(2, '0')} / ${Math.floor(fullRecordingStatus.duration / 60000)}:${String(Math.floor((fullRecordingStatus.duration % 60000) / 1000)).padStart(2, '0')}`
-                            : `${Math.floor((latestSession.duration || 0) / 60)}h ${(latestSession.duration || 0) % 60}m recorded`
+                            : `${Math.floor((latestSession?.duration || 0) / 60)}h ${(latestSession?.duration || 0) % 60}m recorded`
                           }
                         </Text>
                       </View>
                       <TouchableOpacity
                         style={styles(theme, isDark).fullPlayBtn}
-                        onPress={() => handleFullRecordingPlay(latestSession.sessionAudioUri)}
+                        onPress={() => handleFullRecordingPlay(sessionAudioUri)}
                       >
                         {fullRecordingPlaying
                           ? <Pause size={18} color="#FFF" fill="#FFF" />
@@ -1143,17 +1432,18 @@ export default function SleepAnalysisScreen({ hideHeader = false, isSubcomponent
                           })
                         }
                       ]} />
-                      {/* Event markers on timeline */}
-                      {recordings.map((rec, i) => {
-                        if (!fullRecordingStatus || !latestSession?.startTime) return null;
+                      {/* Event markers on timeline — show immediately using session duration, refine once audio loads */}
+                      {latestSession?.startTime && recordings.map((rec, i) => {
                         const sessionStart = new Date(latestSession.startTime).getTime();
                         const eventTime = new Date(rec.timestamp).getTime();
-                        const totalDur = fullRecordingStatus.duration || (latestSession.duration * 60000);
-                        const pos = Math.min(1, Math.max(0, (eventTime - sessionStart) / totalDur));
+                        // Use actual audio duration if available, otherwise fall back to session duration in ms
+                        const totalDur = (fullRecordingStatus?.duration) || ((latestSession.duration || 1) * 60000);
+                        const pos = Math.min(0.98, Math.max(0.01, (eventTime - sessionStart) / totalDur));
+                        const markerColor = rec.type === 'snoring' ? '#F59E0B' : rec.type === 'sleep_talk' ? '#8B5CF6' : '#A8B5C7';
                         return (
                           <View
                             key={i}
-                            style={[styles(theme, isDark).scrubberMarker, { left: `${pos * 100}%` }]}
+                            style={[styles(theme, isDark).scrubberMarker, { left: `${pos * 100}%`, backgroundColor: markerColor }]}
                           />
                         );
                       })}
@@ -1183,8 +1473,8 @@ export default function SleepAnalysisScreen({ hideHeader = false, isSubcomponent
                         rec.type === 'breathing' ? '#10B981' :
                         rec.type === 'dreaming' ? '#6366F1' : '#A8B5C7';
                       return (
-                        <View key={i} style={[styles(theme, isDark).recordingItem, isPlaying && styles(theme, isDark).recordingItemActive]}>
-                          <View style={[styles(theme, isDark).recordingIconObj, { backgroundColor: `${typeColor}22` }]}>
+                        <View key={i} style={[styles(theme, isDark).recordingItem, isPlaying && styles(theme, isDark).recordingItemActive, { marginBottom: 10 }]}>
+                          <View style={[styles(theme, isDark).recordingIconObj, { backgroundColor: `${typeColor}22`, marginRight: 10 }]}>
                             <Mic size={14} color={typeColor} />
                           </View>
                           <View style={{ flex: 1 }}>
@@ -1194,19 +1484,20 @@ export default function SleepAnalysisScreen({ hideHeader = false, isSubcomponent
                               {rec.duration ? ` • ${Math.round(rec.duration)}s` : ''}
                             </Text>
                             {isPlaying && playbackStatus && (
-                              <View style={{ height: 2, backgroundColor: 'rgba(255,255,255,0.08)', marginTop: 6, borderRadius: 1, overflow: 'hidden', width: '90%' }}>
-                                <View style={{ height: '100%', backgroundColor: typeColor, width: `${(playbackStatus.position / playbackStatus.duration) * 100}%` }} />
+                              <View style={{ height: 3, backgroundColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.1)', marginTop: 6, borderRadius: 2, overflow: 'hidden', width: '90%' }}>
+                                <View style={{ height: '100%', backgroundColor: typeColor, width: `${(playbackStatus.position / playbackStatus.duration) * 100}%`, borderRadius: 2 }} />
                               </View>
                             )}
                           </View>
                           <TouchableOpacity
-                            style={[styles(theme, isDark).playBtn, { backgroundColor: typeColor }]}
-                            onPress={() => handlePlayAudio(rec.audioUri, `rec_${i}`)}
+                            style={[styles(theme, isDark).playBtn, { backgroundColor: rec.audioUri ? typeColor : (isDark ? 'rgba(255,255,255,0.1)' : '#e2e8f0') }]}
+                            onPress={() => rec.audioUri && handlePlayAudio(rec.audioUri, `rec_${i}`)}
                             disabled={!rec.audioUri}
+                            activeOpacity={rec.audioUri ? 0.7 : 1}
                           >
                             {isPlaying
                               ? <Pause size={12} color="#FFF" fill="#FFF" />
-                              : <Play size={12} color="#FFF" fill="#FFF" />
+                              : <Play size={12} color={rec.audioUri ? '#FFF' : (isDark ? 'rgba(255,255,255,0.3)' : '#94a3b8')} fill={rec.audioUri ? '#FFF' : 'none'} />
                             }
                           </TouchableOpacity>
                         </View>
@@ -2262,7 +2553,6 @@ function styles(theme: any, isDark: boolean) {
     recordingLeft: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 12,
       flex: 1,
     },
     recordingIconWrapper: {
@@ -2309,7 +2599,6 @@ function styles(theme: any, isDark: boolean) {
       backgroundColor: '#8B5CF6',
     },
     recordingsList: {
-      gap: 12,
     },
     recordingIconObj: {
       width: 32,
@@ -2564,7 +2853,6 @@ function styles(theme: any, isDark: boolean) {
       flexDirection: 'row',
       alignItems: 'center',
       marginBottom: 14,
-      gap: 12,
     },
     fullPlayerIconWrap: {
       width: 40,

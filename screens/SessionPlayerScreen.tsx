@@ -64,19 +64,65 @@ const parseSessionDurationSeconds = (durationValue: unknown): number => {
   return minutes * 60;
 };
 
-const getSessionKind = (session: any): 'story' | 'music' | 'morning' | 'power-nap' | 'quick-relief' | 'breathing' | 'meditation' => {
-  const id = String(session?.id || '').toLowerCase();
+type SessionKind = 'story' | 'music' | 'morning' | 'power-nap' | 'quick-relief' | 'breathing' | 'meditation' | 'yoga' | 'kids' | 'cbti-course';
 
-  if (id.includes('story')) return 'story';
-  if (id.includes('nap')) return 'power-nap';
-  if (id.includes('morning')) return 'morning';
-  if (id.includes('music') || id.includes('waves') || id.includes('ambient')) return 'music';
+const getSessionKind = (session: any, categoryHint?: string): SessionKind => {
+  // Use the category passed from MindfulnessScreen as the primary signal
+  if (categoryHint) {
+    const categoryMap: Record<string, SessionKind> = {
+      'stories': 'story',
+      'music': 'music',
+      'morning': 'morning',
+      'power-nap': 'power-nap',
+      'quick-relief': 'quick-relief',
+      'breathing': 'breathing',
+      'breathing-coach': 'breathing',
+      'meditation': 'meditation',
+      'yoga': 'yoga',
+      'kids': 'kids',
+      'cbti-course': 'cbti-course',
+    };
+    if (categoryMap[categoryHint]) return categoryMap[categoryHint];
+  }
+
+  // Fallback: infer from session id
+  const id = String(session?.id || '').toLowerCase();
+  const tags: string[] = session?.tags || [];
+
+  if (tags.includes('story') || tags.includes('public-domain') || id.includes('story')) return 'story';
+  if (id.startsWith('kids-') || id.includes('kids')) return 'kids';
+  if (id.startsWith('cbti-')) return 'cbti-course';
+  if (id.startsWith('yoga-') || id.includes('yoga') || id.includes('legs-up') || id.includes('childs-pose') || id.includes('restorative')) return 'yoga';
+  if (id.includes('nap') || id.includes('coffee-nap')) return 'power-nap';
+  if (id.startsWith('morning-')) return 'morning';
+  if (id.includes('waves') || id.includes('ambient') || id.includes('theta') || id.includes('delta') || id.includes('alpha') || id.includes('solfeggio')) return 'music';
   if (id.includes('breath')) return 'breathing';
   if (id.includes('anxiety') || id.includes('panic') || id.includes('stress') || id.includes('worry')) return 'quick-relief';
   return 'meditation';
 };
 
 const SESSION_TEMPLATES: Record<string, SessionStepTemplate[]> = {
+  yoga: [
+    { id: 'arrive', icon: 'bed-outline', weight: 2, instruction: (title) => `Welcome to ${title}. Find a comfortable space and soften your body.` },
+    { id: 'warm', icon: 'heart-circle-outline', weight: 3, instruction: () => 'Breathe slowly and let gravity begin to release tension from your muscles.' },
+    { id: 'hold', icon: 'leaf-outline', weight: 4, instruction: () => 'Hold the pose gently. Each breath creates more space and ease.' },
+    { id: 'deepen', icon: 'pulse-outline', weight: 3, instruction: () => 'Deepen your awareness of the body. Notice where you hold stress and invite release.' },
+    { id: 'close', icon: 'eye-outline', weight: 2, instruction: () => 'Slowly return to stillness and rest in the calm your body has created.' },
+  ],
+  kids: [
+    { id: 'hello', icon: 'sparkles-outline', weight: 2, instruction: (title) => `Hi! Let's do ${title} together. Get cosy and take a big, slow breath in.` },
+    { id: 'breathe', icon: 'heart-circle-outline', weight: 3, instruction: () => 'Breathe in slowly like you\'re smelling your favourite flower, then breathe out like you\'re blowing a bubble.' },
+    { id: 'relax', icon: 'leaf-outline', weight: 4, instruction: () => 'Let your body get heavy and soft, like a sleepy teddy bear sinking into your pillow.' },
+    { id: 'imagine', icon: 'eye-outline', weight: 3, instruction: () => 'Picture somewhere you love — maybe a beach, a forest, or a cosy magical place. You\'re safe and warm there.' },
+    { id: 'sleep', icon: 'bed-outline', weight: 2, instruction: () => 'Close your eyes. Your body is relaxed. It\'s time to drift off to dreamland. Goodnight! 🌙' },
+  ],
+  'cbti-course': [
+    { id: 'intro', icon: 'sparkles-outline', weight: 2, instruction: (title) => `Welcome to ${title}. CBT-i is the gold-standard treatment for insomnia. Get comfortable and listen carefully.` },
+    { id: 'learn', icon: 'pulse-outline', weight: 4, instruction: () => 'Focus on the concepts being explained. Understanding the "why" is the foundation of lasting change.' },
+    { id: 'reflect', icon: 'leaf-outline', weight: 3, instruction: () => 'Take a moment to reflect on how this applies to your own sleep patterns and habits.' },
+    { id: 'apply', icon: 'heart-circle-outline', weight: 3, instruction: () => 'Consider one practical action you can take tonight based on what you just learned.' },
+    { id: 'close', icon: 'eye-outline', weight: 2, instruction: () => 'Well done for completing this lesson. Consistency is key — return tomorrow to continue your course.' },
+  ],
   meditation: [
     { id: 'arrive', icon: 'bed-outline', weight: 2, instruction: (title) => `Welcome to ${title}. Settle your body and let your shoulders soften.` },
     { id: 'breath', icon: 'heart-circle-outline', weight: 3, instruction: () => 'Take slow breaths in and out. Let each exhale release tension.' },
@@ -125,8 +171,8 @@ const SESSION_TEMPLATES: Record<string, SessionStepTemplate[]> = {
   ],
 };
 
-const buildSessionSteps = (session: any): SessionStep[] => {
-  const sessionKind = getSessionKind(session);
+const buildSessionSteps = (session: any, categoryHint?: string): SessionStep[] => {
+  const sessionKind = getSessionKind(session, categoryHint);
   const templates = SESSION_TEMPLATES[sessionKind] ?? SESSION_TEMPLATES.meditation;
   const totalSeconds = parseSessionDurationSeconds(session?.duration);
   const totalWeight = templates.reduce((sum, step) => sum + step.weight, 0);
@@ -190,12 +236,10 @@ export default function SessionPlayerScreen() {
     loadSleepSafePreference();
   }, [sleepSafeStorageKey]);
 
-  const sessionSteps = useMemo(() => buildSessionSteps(session), [
-    session?.id,
-    session?.title,
-    session?.duration,
-    session?.description,
-  ]);
+  const sessionSteps = useMemo(
+    () => buildSessionSteps(session, mindfulnessCompletionTracking?.category),
+    [session?.id, session?.title, session?.duration, session?.description, mindfulnessCompletionTracking?.category],
+  );
 
   useEffect(() => {
     // Calculate total duration from steps
@@ -465,11 +509,11 @@ export default function SessionPlayerScreen() {
           <View style={styles(theme).sessionInfo}>
             <View style={styles(theme).infoRow}>
               <View style={styles(theme).infoBadge}>
-                <Clock size={16} color={theme.colors.accent} />
+                <Clock size={16} color={theme.colors.accent} style={{ marginRight: 6 }} />
                 <Text style={styles(theme).infoBadgeText}>{session?.duration}</Text>
               </View>
               <View style={styles(theme).infoBadge}>
-                <Gauge size={16} color={theme.colors.premium} />
+                <Gauge size={16} color={theme.colors.premium} style={{ marginRight: 6 }} />
                 <Text style={styles(theme).infoBadgeText}>{session?.difficulty}</Text>
               </View>
             </View>
@@ -480,10 +524,11 @@ export default function SessionPlayerScreen() {
           {isSessionActive && (
             <BlurView intensity={20} tint="dark" style={styles(theme).stepCard}>
               <View style={styles(theme).stepHeader}>
-                <Ionicons 
-                  name={ICON_MAP[currentStep?.icon] || 'pulse'} 
-                  size={24} 
-                  color={theme.colors.accent} 
+                <Ionicons
+                  name={ICON_MAP[currentStep?.icon] || 'pulse'}
+                  size={24}
+                  color={theme.colors.accent}
+                  style={{ marginRight: 10 }}
                 />
                 <Text style={styles(theme).stepNumber}>
                   Step {currentStepIndex + 1} of {sessionSteps.length}
@@ -546,7 +591,7 @@ export default function SessionPlayerScreen() {
             <BlurView intensity={20} tint="dark" style={styles(theme).volumeCard}>
               <Text style={styles(theme).volumeLabel}>Volume</Text>
               <View style={styles(theme).volumeContainer}>
-                <Volume2 size={20} color={theme.colors.textSecondary} />
+                <Volume2 size={20} color={theme.colors.textSecondary} style={{ marginRight: 12 }} />
                 <Slider
                   style={styles(theme).volumeSlider}
                   value={volume}
@@ -557,7 +602,7 @@ export default function SessionPlayerScreen() {
                   maximumTrackTintColor="#2A2D3A"
                   thumbTintColor={theme.colors.accent}
                 />
-                <Volume2 size={20} color={theme.colors.textSecondary} />
+                <Volume2 size={20} color={theme.colors.textSecondary} style={{ marginLeft: 12, marginRight: 8 }} />
                 <Text style={styles(theme).volumePercent}>{Math.round(volume * 100)}%</Text>
               </View>
             </BlurView>
@@ -608,14 +653,14 @@ export default function SessionPlayerScreen() {
                   colors={[theme.colors.accent, theme.colors.highlight]}
                   style={styles(theme).startGradient}
                 >
-                  <Ionicons name="play" size={32} color="#0F111A" />
+                  <Ionicons name="play" size={32} color="#FFFFFF" style={{ marginRight: 12 }} />
                   <Text style={styles(theme).startButtonText}>Begin Session</Text>
                 </LinearGradient>
               </TouchableOpacity>
             ) : (
               <View style={styles(theme).playbackControls}>
                 <TouchableOpacity
-                  style={styles(theme).controlButton}
+                  style={[styles(theme).controlButton, { marginRight: 20 }]}
                   onPress={handleStop}
                   activeOpacity={0.7}
                 >
@@ -628,7 +673,7 @@ export default function SessionPlayerScreen() {
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  style={styles(theme).playPauseButton}
+                  style={[styles(theme).playPauseButton, { marginRight: 20 }]}
                   onPress={handlePauseResume}
                   activeOpacity={0.8}
                 >
@@ -749,7 +794,6 @@ const styles = (theme: any) => StyleSheet.create({
   },
   infoRow: {
     flexDirection: 'row',
-    gap: 12,
     marginBottom: 12,
   },
   infoBadge: {
@@ -759,7 +803,7 @@ const styles = (theme: any) => StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 12,
-    gap: 6,
+    marginRight: 12,
   },
   infoBadgeText: {
     fontSize: 13,
@@ -784,7 +828,6 @@ const styles = (theme: any) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 12,
-    gap: 10,
   },
   stepNumber: {
     fontSize: 14,
@@ -917,7 +960,6 @@ const styles = (theme: any) => StyleSheet.create({
   },
   safeModeOptions: {
     flexDirection: 'row',
-    gap: 10,
   },
   safeModeOption: {
     paddingHorizontal: 12,
@@ -926,6 +968,7 @@ const styles = (theme: any) => StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.12)',
     backgroundColor: 'rgba(255, 255, 255, 0.03)',
+    marginRight: 10,
   },
   safeModeOptionSelected: {
     borderColor: theme.colors.accent,
@@ -948,7 +991,6 @@ const styles = (theme: any) => StyleSheet.create({
   volumeContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
   },
   volumeSlider: {
     flex: 1,
@@ -972,18 +1014,16 @@ const styles = (theme: any) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 18,
-    gap: 12,
   },
   startButtonText: {
     fontSize: 18,
     fontWeight: '700',
-    color: theme.colors.background,
+    color: '#FFFFFF',
   },
   playbackControls: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 20,
   },
   controlButton: {
     width: 60,
