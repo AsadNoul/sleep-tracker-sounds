@@ -118,6 +118,8 @@ export default function SubscriptionScreen() {
   const [yearlyPricePerMonth, setYearlyPricePerMonth] = useState<string | null>(null);
   const [yearlyTotalPrice, setYearlyTotalPrice] = useState<string | null>(null);
   const [monthlyPrice, setMonthlyPrice] = useState<string | null>(null);
+  // Trial days — read from actual package intro offer (null = no trial configured)
+  const [trialDays, setTrialDays] = useState<number | null>(null);
 
   // Testimonial carousel
   const testimonialRef = useRef<ScrollView>(null);
@@ -191,6 +193,14 @@ export default function SubscriptionScreen() {
           }
           if (id.includes('monthly') || id.includes('month')) {
             setMonthlyPrice(pkg.product.priceString);
+          }
+          // Read actual free trial days from the intro offer (set in Play Console / App Store Connect)
+          // introPrice is present when a trial or intro offer is configured
+          const intro = (pkg.product as any)?.introPrice;
+          if (intro && intro.periodUnit === 'DAY' && intro.price === 0) {
+            setTrialDays(intro.periodNumberOfUnits ?? 3);
+          } else if (intro && intro.periodUnit === 'WEEK' && intro.price === 0) {
+            setTrialDays((intro.periodNumberOfUnits ?? 1) * 7);
           }
         }
       }
@@ -441,11 +451,13 @@ export default function SubscriptionScreen() {
           <Text style={s.heroTitle}>Sleep Better,{'\n'}Every Night</Text>
           <Text style={s.heroSubtitle}>Join thousands of users who improved their sleep with Premium</Text>
 
-          {/* Free trial banner */}
-          <View style={s.trialBanner}>
-            <View style={s.trialBannerIcon}><Gift size={16} color="#10B981" /></View>
-            <Text style={s.trialText}>3 days free — cancel anytime</Text>
-          </View>
+          {/* Free trial banner — only shown when trial is actually configured in stores */}
+          {trialDays != null && (
+            <View style={s.trialBanner}>
+              <View style={s.trialBannerIcon}><Gift size={16} color="#10B981" /></View>
+              <Text style={s.trialText}>{trialDays} days free — cancel anytime</Text>
+            </View>
+          )}
         </View>
 
         {/* ─── TRUST STATS BAR ─── */}
@@ -713,14 +725,20 @@ export default function SubscriptionScreen() {
                 <Text style={s.subscribeBtnText}>
                   {selectedPlan === 'lifetime'
                     ? 'Get Lifetime Access'
-                    : `Start 3-Day Free Trial`}
+                    : trialDays != null
+                      ? `Start ${trialDays}-Day Free Trial`
+                      : 'Get Premium'}
                 </Text>
                 <Text style={s.subscribeBtnSub}>
                   {selectedPlan === 'lifetime'
                     ? `${selectedPackage?.product.priceString || ''} one-time`
                     : selectedPlan === 'yearly'
-                      ? `Then ${yearlyTotalPrice || ''}/year • Cancel anytime`
-                      : `Then ${monthlyPrice || ''}/month • Cancel anytime`}
+                      ? trialDays != null
+                        ? `Free for ${trialDays} days, then ${yearlyTotalPrice || ''}/year`
+                        : `${yearlyTotalPrice || ''}/year • Cancel anytime`
+                      : trialDays != null
+                        ? `Free for ${trialDays} days, then ${monthlyPrice || ''}/month`
+                        : `${monthlyPrice || ''}/month • Cancel anytime`}
                 </Text>
               </>
             )}
@@ -734,7 +752,9 @@ export default function SubscriptionScreen() {
         <Text style={s.termsText}>
           {selectedPlan === 'lifetime'
             ? 'One-time payment. No recurring charges.'
-            : `3-day free trial, then auto-renews. Cancel anytime via ${Platform.OS === 'ios' ? 'App Store Settings' : 'Google Play'}.`}
+            : trialDays != null
+              ? `${trialDays}-day free trial, then auto-renews. Cancel anytime via ${Platform.OS === 'ios' ? 'App Store Settings' : 'Google Play'}.`
+              : `Auto-renews. Cancel anytime via ${Platform.OS === 'ios' ? 'App Store Settings' : 'Google Play'}.`}
           {' '}By subscribing you agree to our Terms & Privacy Policy.
         </Text>
       </View>

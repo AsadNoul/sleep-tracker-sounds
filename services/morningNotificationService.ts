@@ -87,7 +87,9 @@ export async function sendImmediateSleepSummary(session: SleepSession) {
     const durationMins = session.duration % 60;
 
     const title = `${scoreQuality.emoji} Sleep Session Complete`;
-    const body = `${durationHours}h ${durationMins}m sleep • Score: ${sleepScore}/100 (${scoreQuality.label})`;
+    const body = sleepScore > 0
+      ? `${durationHours}h ${durationMins}m sleep • Score: ${sleepScore}/100 (${scoreQuality.label})`
+      : `${durationHours}h ${durationMins}m sleep tracked. Open app to view your summary.`;
 
     await Notifications.scheduleNotificationAsync({
       content: {

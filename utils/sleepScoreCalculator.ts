@@ -35,6 +35,32 @@ export const calculateSleepScore = (
     };
   }
 
+  // No accelerometer stage data — estimate score from duration + wake-ups only
+  if (stages.length === 0) {
+    let durationEst = 0;
+    if (totalDurationMinutes >= 450 && totalDurationMinutes <= 510) durationEst = 30;
+    else {
+      const distance = Math.abs(totalDurationMinutes - 480);
+      durationEst = Math.max(0, 30 - (distance / 420) * 30);
+    }
+    // Assume average efficiency (85%), average deep (18%), average REM (22%) for a typical sleeper
+    const effEst = 18;
+    const deepEst = 19;
+    const remEst = 16;
+    const consistencyEst = Math.max(0, 10 - wakeUps * 2);
+    const estScore = Math.min(100, Math.round(durationEst + effEst + deepEst + remEst + consistencyEst));
+    let quality: 'poor' | 'fair' | 'good' | 'excellent' = 'poor';
+    if (estScore >= 88) quality = 'excellent';
+    else if (estScore >= 75) quality = 'good';
+    else if (estScore >= 60) quality = 'fair';
+    return {
+      score: estScore,
+      quality,
+      breakdown: { duration: Math.round(durationEst), efficiency: effEst, deepSleep: deepEst, remSleep: remEst, consistency: consistencyEst },
+      insights: ['Score estimated from sleep duration and wake-ups.']
+    };
+  }
+
   // 1. Duration Intelligence (max 30 points)
   // Optimal: 7.5 to 8.5 hours (centered around 5 cycles of 90m)
   let durationScore = 0;
