@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Platform } from 'react-native';
+import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Audio } from 'expo-av';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAppTheme } from '../hooks/useAppTheme';
@@ -136,82 +138,82 @@ export default function SnoreDetectionScreen() {
       </View>
 
       <ScrollView style={styles.content}>
-      <View style={[styles.recordingCard, { backgroundColor: theme.colors.card }]}>
-        <TouchableOpacity
-          style={[styles.recordButton, { backgroundColor: isRecording ? '#ff6b6b' : '#45b7d1' }]}
-          onPress={isRecording ? stopRecording : startRecording}
-        >
-          <Text style={styles.recordButtonText}>
-            {isRecording ? 'Stop Monitoring' : 'Start Monitoring'}
-          </Text>
-        </TouchableOpacity>
-        
-        {isRecording && (
-          <View style={styles.recordingIndicator}>
-            <View style={styles.recordingDot} />
-            <Text style={[styles.recordingText, { color: theme.colors.textPrimary }]}>
-              Listening for snores...
+        <BlurView intensity={30} tint="dark" style={styles.recordingCard}>
+          <TouchableOpacity
+            style={[styles.recordButton, { backgroundColor: isRecording ? '#ff6b6b' : theme.colors.accent }]}
+            onPress={isRecording ? stopRecording : startRecording}
+          >
+            <Text style={styles.recordButtonText}>
+              {isRecording ? 'Stop Monitoring' : 'Start Monitoring'}
+            </Text>
+          </TouchableOpacity>
+
+          {isRecording && (
+            <View style={styles.recordingIndicator}>
+              <View style={styles.recordingDot} />
+              <Text style={[styles.recordingText, { color: theme.colors.textPrimary }]}>
+                Listening for snores...
+              </Text>
+            </View>
+          )}
+        </BlurView>
+
+        <View style={[styles.statsCard, { backgroundColor: theme.colors.card }]}>
+          <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>Tonight's Summary</Text>
+
+          <View style={styles.statRow}>
+            <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Total Snores</Text>
+            <Text style={[styles.statValue, { color: theme.colors.textPrimary }]}>{todaySnores.length}</Text>
+          </View>
+
+          <View style={styles.statRow}>
+            <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Peak Intensity</Text>
+            <Text style={[styles.statValue, { color: theme.colors.textPrimary }]}>
+              {todaySnores.length > 0
+                ? Math.max(...todaySnores.map(e => e.intensity)).toFixed(1)
+                : '0'} dB
             </Text>
           </View>
-        )}
-      </View>
 
-      <View style={[styles.statsCard, { backgroundColor: theme.colors.card }]}>
-        <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>Tonight's Summary</Text>
-        
-        <View style={styles.statRow}>
-          <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Total Snores</Text>
-          <Text style={[styles.statValue, { color: theme.colors.textPrimary }]}>{todaySnores.length}</Text>
+          <View style={styles.statRow}>
+            <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Avg Duration</Text>
+            <Text style={[styles.statValue, { color: theme.colors.textPrimary }]}>
+              {todaySnores.length > 0
+                ? (todaySnores.reduce((sum, e) => sum + e.duration, 0) / todaySnores.length).toFixed(1)
+                : '0'}s
+            </Text>
+          </View>
         </View>
 
-        <View style={styles.statRow}>
-          <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Peak Intensity</Text>
-          <Text style={[styles.statValue, { color: theme.colors.textPrimary }]}>
-            {todaySnores.length > 0 
-              ? Math.max(...todaySnores.map(e => e.intensity)).toFixed(1)
-              : '0'} dB
-          </Text>
-        </View>
-
-        <View style={styles.statRow}>
-          <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Avg Duration</Text>
-          <Text style={[styles.statValue, { color: theme.colors.textPrimary }]}>
-            {todaySnores.length > 0
-              ? (todaySnores.reduce((sum, e) => sum + e.duration, 0) / todaySnores.length).toFixed(1)
-              : '0'}s
-          </Text>
-        </View>
-      </View>
-
-      {todaySnores.length > 0 && (
-        <View style={[styles.eventsCard, { backgroundColor: theme.colors.card }]}>
-          <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>Recent Events</Text>
-          {todaySnores.slice(-10).reverse().map((event, index) => (
-            <View key={index} style={[styles.eventRow, { borderBottomColor: theme.colors.backgroundSecondary }]}>
-              <Text style={[styles.eventTime, { color: theme.colors.textPrimary }]}>
-                {formatTime(event.timestamp)}
-              </Text>
-              <View style={styles.eventDetails}>
-                <Text style={[styles.eventText, { color: theme.colors.textSecondary }]}>
-                  {event.duration}s · {event.intensity.toFixed(1)} dB
+        {todaySnores.length > 0 && (
+          <View style={[styles.eventsCard, { backgroundColor: theme.colors.card }]}>
+            <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>Recent Events</Text>
+            {todaySnores.slice(-10).reverse().map((event, index) => (
+              <View key={index} style={[styles.eventRow, { borderBottomColor: theme.colors.backgroundSecondary }]}>
+                <Text style={[styles.eventTime, { color: theme.colors.textPrimary }]}>
+                  {formatTime(event.timestamp)}
                 </Text>
+                <View style={styles.eventDetails}>
+                  <Text style={[styles.eventText, { color: theme.colors.textSecondary }]}>
+                    {event.duration}s · {event.intensity.toFixed(1)} dB
+                  </Text>
+                </View>
               </View>
-            </View>
-          ))}
-        </View>
-      )}
+            ))}
+          </View>
+        )}
 
-      <View style={[styles.tipsCard, { backgroundColor: theme.colors.card }]}>
-        <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>Tips to Reduce Snoring</Text>
-        <Text style={[styles.tipText, { color: theme.colors.textSecondary }]}>
-          • Sleep on your side instead of your back{'\n'}
-          • Maintain a healthy weight{'\n'}
-          • Avoid alcohol before bedtime{'\n'}
-          • Keep nasal passages clear{'\n'}
-          • Use extra pillows to elevate your head
-        </Text>
-      </View>
-    </ScrollView>
+        <View style={[styles.tipsCard, { backgroundColor: theme.colors.card }]}>
+          <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>Tips to Reduce Snoring</Text>
+          <Text style={[styles.tipText, { color: theme.colors.textSecondary }]}>
+            • Sleep on your side instead of your back{'\n'}
+            • Maintain a healthy weight{'\n'}
+            • Avoid alcohol before bedtime{'\n'}
+            • Keep nasal passages clear{'\n'}
+            • Use extra pillows to elevate your head
+          </Text>
+        </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -246,8 +248,11 @@ const styles = StyleSheet.create({
   recordingCard: {
     margin: 20,
     padding: 24,
-    borderRadius: 16,
+    borderRadius: 24,
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    overflow: 'hidden',
   },
   recordButton: {
     paddingHorizontal: 40,

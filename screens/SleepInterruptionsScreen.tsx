@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated, Platform } from 'react-native';
+import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Accelerometer } from 'expo-sensors';
 import { useAppTheme } from '../hooks/useAppTheme';
@@ -158,11 +160,11 @@ export default function SleepInterruptionsScreen() {
       </View>
 
       <ScrollView style={styles.content}>
-        <View style={[styles.trackingCard, { backgroundColor: theme.colors.card }]}>
+        <BlurView intensity={30} tint="dark" style={styles.trackingCard}>
           <Text style={[styles.cardTitle, { color: theme.colors.textPrimary }]}>
             {isTracking ? 'Currently Tracking' : 'Start Tracking Tonight'}
           </Text>
-          
+
           {isTracking && (
             <View style={styles.currentStats}>
               <View style={styles.statBox}>
@@ -196,7 +198,7 @@ export default function SleepInterruptionsScreen() {
                 {isTracking ? 'Stop Tracking' : 'Start Tracking'}
               </Text>
             </TouchableOpacity>
-            
+
             {isTracking && (
               <TouchableOpacity
                 style={[styles.logButton, { backgroundColor: theme.colors.backgroundSecondary }]}
@@ -224,7 +226,7 @@ export default function SleepInterruptionsScreen() {
               ))}
             </View>
           )}
-        </View>
+        </BlurView>
 
         <View style={[styles.summaryCard, { backgroundColor: theme.colors.card }]}>
           <Text style={[styles.cardTitle, { color: theme.colors.textPrimary }]}>30-Day Summary</Text>
@@ -233,8 +235,8 @@ export default function SleepInterruptionsScreen() {
               <Text style={[styles.summaryValue, { color: theme.colors.textPrimary }]}>
                 {history.length > 0
                   ? (
-                      history.reduce((sum, n) => sum + n.totalInterruptions, 0) / history.length
-                    ).toFixed(1)
+                    history.reduce((sum, n) => sum + n.totalInterruptions, 0) / history.length
+                  ).toFixed(1)
                   : '0'}
               </Text>
               <Text style={[styles.summaryLabel, { color: theme.colors.textSecondary }]}>
@@ -245,8 +247,8 @@ export default function SleepInterruptionsScreen() {
               <Text style={[styles.summaryValue, { color: theme.colors.textPrimary }]}>
                 {history.length > 0
                   ? (
-                      history.reduce((sum, n) => sum + n.sleepEfficiency, 0) / history.length
-                    ).toFixed(0)
+                    history.reduce((sum, n) => sum + n.sleepEfficiency, 0) / history.length
+                  ).toFixed(0)
                   : '0'}
                 %
               </Text>
@@ -347,14 +349,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   trackingCard: {
-    padding: 20,
-    borderRadius: 16,
-    marginBottom: 16,
+    padding: 24,
+    borderRadius: 24,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    overflow: 'hidden',
   },
   cardTitle: {
     fontSize: 20,
-    fontWeight: 'bold',
+    fontWeight: '800',
     marginBottom: 16,
+    letterSpacing: 0.5,
   },
   currentStats: {
     flexDirection: 'row',

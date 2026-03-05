@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Image } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Image, Platform } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAppTheme } from '../hooks/useAppTheme';
 import { useNavigation } from '@react-navigation/native';
@@ -61,7 +63,7 @@ export default function CaffeineCalculatorScreen() {
       if (data) {
         const parsed = JSON.parse(data);
         const today = new Date().toISOString().split('T')[0];
-        
+
         // Convert timestamps back to Date objects
         Object.keys(parsed).forEach(date => {
           parsed[date] = parsed[date].map((item: CaffeineItem) => ({
@@ -69,7 +71,7 @@ export default function CaffeineCalculatorScreen() {
             time: new Date(item.time),
           }));
         });
-        
+
         setHistory(parsed);
         setTodayCaffeine(parsed[today] || []);
       }
@@ -135,18 +137,18 @@ export default function CaffeineCalculatorScreen() {
     const now = new Date();
     const bedtime = new Date();
     bedtime.setHours(22, 0, 0, 0);
-    
+
     if (now > bedtime) {
       bedtime.setDate(bedtime.getDate() + 1);
     }
-    
+
     return (bedtime.getTime() - now.getTime()) / (1000 * 60 * 60);
   };
 
   const getCaffeineAtBedtime = () => {
     const hoursToBedtime = getHoursUntilBedtime();
     const now = new Date().getTime();
-    
+
     return todayCaffeine.reduce((total, item) => {
       const hoursSince = (now - item.time.getTime()) / (1000 * 60 * 60);
       const totalHours = hoursSince + hoursToBedtime;
@@ -201,34 +203,39 @@ export default function CaffeineCalculatorScreen() {
       </View>
 
       <ScrollView style={styles.content}>
-        <View style={[styles.statsCard, { backgroundColor: theme.colors.card }]}>
-          <View style={styles.statsRow}>
-            <View style={styles.statBox}>
-              <Text style={[styles.statValue, { color: theme.colors.accent }]}>
-                {getTotalCaffeine()}mg
-              </Text>
-              <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Total Today</Text>
+        <LinearGradient
+          colors={[theme.colors.accent + '30', 'transparent']}
+          style={styles.statsCardGradient}
+        >
+          <BlurView intensity={20} tint="dark" style={styles.statsCard}>
+            <View style={styles.statsRow}>
+              <View style={styles.statBox}>
+                <Text style={[styles.statValue, { color: theme.colors.accent }]}>
+                  {getTotalCaffeine()}mg
+                </Text>
+                <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Total Today</Text>
+              </View>
+              <View style={styles.statBox}>
+                <Text style={[styles.statValue, { color: theme.colors.accent }]}>
+                  {getCurrentCaffeineLevel().toFixed(0)}mg
+                </Text>
+                <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Current Level</Text>
+              </View>
+              <View style={styles.statBox}>
+                <Text style={[styles.statValue, { color: theme.colors.accent }]}>
+                  {getCaffeineAtBedtime().toFixed(0)}mg
+                </Text>
+                <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>At Bedtime</Text>
+              </View>
             </View>
-            <View style={styles.statBox}>
-              <Text style={[styles.statValue, { color: theme.colors.accent }]}>
-                {getCurrentCaffeineLevel().toFixed(0)}mg
-              </Text>
-              <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Current Level</Text>
-            </View>
-            <View style={styles.statBox}>
-              <Text style={[styles.statValue, { color: theme.colors.accent }]}>
-                {getCaffeineAtBedtime().toFixed(0)}mg
-              </Text>
-              <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>At Bedtime</Text>
-            </View>
-          </View>
 
-          <View style={[styles.recommendationBox, { backgroundColor: recommendation.color + '20' }]}>
-            <Text style={[styles.recommendationText, { color: recommendation.color }]}>
-              {recommendation.text}
-            </Text>
-          </View>
-        </View>
+            <View style={[styles.recommendationBox, { backgroundColor: recommendation.color + '20' }]}>
+              <Text style={[styles.recommendationText, { color: recommendation.color }]}>
+                {recommendation.text}
+              </Text>
+            </View>
+          </BlurView>
+        </LinearGradient>
 
         <View style={[styles.addCard, { backgroundColor: theme.colors.card }]}>
           <Text style={[styles.cardTitle, { color: theme.colors.textPrimary }]}>Quick Add</Text>
@@ -242,8 +249,8 @@ export default function CaffeineCalculatorScreen() {
                   onPress={() => addPreset(presetName)}
                 >
                   <View style={styles.imageContainer}>
-                    <Image 
-                      source={{ uri: preset.image }} 
+                    <Image
+                      source={{ uri: preset.image }}
                       style={styles.presetImage}
                       resizeMode="contain"
                     />
@@ -380,8 +387,14 @@ const styles = StyleSheet.create({
   },
   statsCard: {
     padding: 20,
-    borderRadius: 16,
-    marginBottom: 16,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    overflow: 'hidden',
+  },
+  statsCardGradient: {
+    borderRadius: 24,
+    marginBottom: 20,
   },
   statsRow: {
     flexDirection: 'row',

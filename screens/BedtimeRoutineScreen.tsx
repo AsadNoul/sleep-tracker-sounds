@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   View,
   Text,
@@ -11,14 +12,14 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
-import { 
-  ChevronLeft, 
-  CheckCircle2, 
-  Circle, 
-  Moon, 
-  BookOpen, 
-  Wind, 
-  Coffee, 
+import {
+  ChevronLeft,
+  CheckCircle2,
+  Circle,
+  Moon,
+  BookOpen,
+  Wind,
+  Coffee,
   Smartphone,
   Play,
   Pause,
@@ -86,6 +87,34 @@ export default function BedtimeRoutineScreen() {
   const [isActive, setIsActive] = useState(false);
 
   useEffect(() => {
+    loadProgress();
+  }, []);
+
+  const loadProgress = async () => {
+    try {
+      const stored = await AsyncStorage.getItem('bedtime_routine_progress');
+      if (stored) {
+        setCompletedSteps(JSON.parse(stored));
+      }
+    } catch (error) {
+      console.error('Failed to load progress', error);
+    }
+  };
+
+  const saveProgress = async (steps: string[]) => {
+    try {
+      await AsyncStorage.setItem('bedtime_routine_progress', JSON.stringify(steps));
+    } catch (error) {
+      console.error('Failed to save progress', error);
+    }
+  };
+
+  const resetRoutine = async () => {
+    setCompletedSteps([]);
+    await AsyncStorage.removeItem('bedtime_routine_progress');
+  };
+
+  useEffect(() => {
     let interval: NodeJS.Timeout;
     if (isActive && timeLeft > 0) {
       interval = setInterval(() => {
@@ -101,11 +130,14 @@ export default function BedtimeRoutineScreen() {
   }, [isActive, timeLeft, activeStep]);
 
   const handleToggleStep = (id: string) => {
+    let newSteps;
     if (completedSteps.includes(id)) {
-      setCompletedSteps(completedSteps.filter(stepId => stepId !== id));
+      newSteps = completedSteps.filter(stepId => stepId !== id);
     } else {
-      setCompletedSteps([...completedSteps, id]);
+      newSteps = [...completedSteps, id];
     }
+    setCompletedSteps(newSteps);
+    saveProgress(newSteps);
   };
 
   const startTimer = (step: RoutineStep) => {
@@ -135,10 +167,12 @@ export default function BedtimeRoutineScreen() {
             <ChevronLeft size={24} color={theme.colors.textPrimary} />
           </TouchableOpacity>
           <Text style={styles(theme).headerTitle}>Bedtime Routine</Text>
-          <View style={{ width: 40 }} />
+          <TouchableOpacity onPress={resetRoutine} style={styles(theme).resetButton}>
+            <RotateCcw size={20} color={theme.colors.textSecondary} />
+          </TouchableOpacity>
         </View>
 
-        <ScrollView 
+        <ScrollView
           style={styles(theme).content}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles(theme).scrollContent}
@@ -152,13 +186,13 @@ export default function BedtimeRoutineScreen() {
                 </Text>
                 <Text style={styles(theme).timerValue}>{formatTime(timeLeft)}</Text>
                 <View style={styles(theme).timerControls}>
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={styles(theme).controlButton}
                     onPress={() => setIsActive(!isActive)}
                   >
                     {isActive ? <Pause size={24} color="#FFF" /> : <Play size={24} color="#FFF" />}
                   </TouchableOpacity>
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={[styles(theme).controlButton, { backgroundColor: 'rgba(255,255,255,0.1)' }]}
                     onPress={() => {
                       setIsActive(false);
@@ -176,13 +210,13 @@ export default function BedtimeRoutineScreen() {
                 </Text>
                 <Text style={styles(theme).timerValue}>{formatTime(timeLeft)}</Text>
                 <View style={styles(theme).timerControls}>
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={styles(theme).controlButton}
                     onPress={() => setIsActive(!isActive)}
                   >
                     {isActive ? <Pause size={24} color="#FFF" /> : <Play size={24} color="#FFF" />}
                   </TouchableOpacity>
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={[styles(theme).controlButton, { backgroundColor: 'rgba(255,255,255,0.1)' }]}
                     onPress={() => {
                       setIsActive(false);
@@ -220,7 +254,7 @@ export default function BedtimeRoutineScreen() {
                       <Text style={styles(theme).stepTitle}>{step.title}</Text>
                       <Text style={styles(theme).stepDuration}>{step.duration} mins</Text>
                     </View>
-                    <TouchableOpacity 
+                    <TouchableOpacity
                       onPress={(e) => {
                         e.stopPropagation();
                         startTimer(step);
@@ -247,7 +281,7 @@ export default function BedtimeRoutineScreen() {
                       <Text style={styles(theme).stepTitle}>{step.title}</Text>
                       <Text style={styles(theme).stepDuration}>{step.duration} mins</Text>
                     </View>
-                    <TouchableOpacity 
+                    <TouchableOpacity
                       onPress={(e) => {
                         e.stopPropagation();
                         startTimer(step);
@@ -281,7 +315,7 @@ export default function BedtimeRoutineScreen() {
             onPress={() => navigation.goBack()}
           >
             <LinearGradient
-              colors={completedSteps.length === DEFAULT_STEPS.length 
+              colors={completedSteps.length === DEFAULT_STEPS.length
                 ? [theme.colors.accent, theme.colors.highlight]
                 : ['rgba(255,255,255,0.1)', 'rgba(255,255,255,0.05)']}
               style={styles(theme).completeGradient}
@@ -327,6 +361,14 @@ const styles = (theme: any) => StyleSheet.create({
     fontSize: 20,
     fontWeight: '700',
     color: theme.colors.textPrimary,
+  },
+  resetButton: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: 12,
   },
   content: {
     flex: 1,

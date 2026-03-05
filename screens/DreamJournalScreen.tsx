@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   View,
   Text,
@@ -13,14 +14,14 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
-import { 
-  ChevronLeft, 
-  Plus, 
-  Moon, 
-  Cloud, 
-  Zap, 
-  Smile, 
-  Meh, 
+import {
+  ChevronLeft,
+  Plus,
+  Moon,
+  Cloud,
+  Zap,
+  Smile,
+  Meh,
   Frown,
   Calendar,
   Save,
@@ -37,6 +38,8 @@ interface Dream {
   content: string;
   mood: 'happy' | 'neutral' | 'scary';
   isLucid: boolean;
+  keywords?: string[];
+  insight?: string;
 }
 
 export default function DreamJournalScreen() {
@@ -44,24 +47,44 @@ export default function DreamJournalScreen() {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const [isAdding, setIsAdding] = useState(false);
-  const [dreams, setDreams] = useState<Dream[]>([
-    {
-      id: '1',
-      date: 'Dec 20, 2025',
-      title: 'Flying over the ocean',
-      content: 'I was soaring above deep blue waves. The sun was warm on my back.',
-      mood: 'happy',
-      isLucid: true,
-    },
-    {
-      id: '2',
-      date: 'Dec 18, 2025',
-      title: 'Lost in a library',
-      content: 'Infinite shelves of books. I couldn\'t find the exit but felt calm.',
-      mood: 'neutral',
-      isLucid: false,
+  const [dreams, setDreams] = useState<Dream[]>([]);
+
+  useEffect(() => {
+    loadDreams();
+  }, []);
+
+  const loadDreams = async () => {
+    try {
+      const storedDreams = await AsyncStorage.getItem('dream_journal');
+      if (storedDreams) {
+        setDreams(JSON.parse(storedDreams));
+      } else {
+        // Initial defaults if none exist
+        const defaults: Dream[] = [
+          {
+            id: '1',
+            date: 'Dec 20, 2025',
+            title: 'Flying over the ocean',
+            content: 'I was soaring above deep blue waves. The sun was warm on my back.',
+            mood: 'happy',
+            isLucid: true,
+          }
+        ];
+        setDreams(defaults);
+        await AsyncStorage.setItem('dream_journal', JSON.stringify(defaults));
+      }
+    } catch (error) {
+      console.error('Failed to load dreams', error);
     }
-  ]);
+  };
+
+  const saveDreams = async (updatedDreams: Dream[]) => {
+    try {
+      await AsyncStorage.setItem('dream_journal', JSON.stringify(updatedDreams));
+    } catch (error) {
+      console.error('Failed to save dreams', error);
+    }
+  };
 
   const [newDream, setNewDream] = useState<Partial<Dream>>({
     title: '',
@@ -70,22 +93,51 @@ export default function DreamJournalScreen() {
     isLucid: false,
   });
 
+  const analyzeDream = (content: string) => {
+    const commonWords = ['flying', 'falling', 'chase', 'water', 'teeth', 'test', 'exam', 'lost', 'forest', 'beach', 'mountain', 'dark', 'light'];
+    const lowerContent = content.toLowerCase();
+    const foundKeywords = commonWords.filter(word => lowerContent.includes(word));
+
+    // Simple interpretations
+    const interpretations: { [key: string]: string } = {
+      flying: "Control and freedom. You're feeling confident and liberated.",
+      falling: "Anxiety or lack of control in some area of your life.",
+      chase: "You might be avoiding a confrontation or problem.",
+      water: "Represents your emotional state. Calm water means peace; turbulent means stress.",
+      teeth: "Communication issues or concerns about your appearance or power.",
+      exam: "Self-evaluation or feeling unprepared for a challenge.",
+      lost: "You're feeling uncertain about your current path or decisions.",
+    };
+
+    const insight = foundKeywords.length > 0
+      ? interpretations[foundKeywords[0]]
+      : "Your dream reflects your subconscious processing of recent events.";
+
+    return { keywords: foundKeywords, insight };
+  };
+
   const handleSaveDream = () => {
     if (!newDream.title || !newDream.content) {
       Alert.alert('Error', 'Please fill in both title and description');
       return;
     }
 
-    const dream: Dream = {
+    const analysis = analyzeDream(newDream.content!);
+
+    const dream: Dream & { keywords?: string[], insight?: string } = {
       id: Date.now().toString(),
       date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
       title: newDream.title!,
       content: newDream.content!,
       mood: newDream.mood as any,
       isLucid: newDream.isLucid!,
+      keywords: analysis.keywords,
+      insight: analysis.insight
     };
 
-    setDreams([dream, ...dreams]);
+    const updatedDreams = [dream, ...dreams];
+    setDreams(updatedDreams);
+    saveDreams(updatedDreams);
     setIsAdding(false);
     setNewDream({ title: '', content: '', mood: 'neutral', isLucid: false });
   };
@@ -93,7 +145,13 @@ export default function DreamJournalScreen() {
   const deleteDream = (id: string) => {
     Alert.alert('Delete Dream', 'Are you sure you want to remove this entry?', [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: () => setDreams(dreams.filter(d => d.id !== id)) }
+      {
+        text: 'Delete', style: 'destructive', onPress: () => {
+          const updated = dreams.filter(d => d.id !== id);
+          setDreams(updated);
+          saveDreams(updated);
+        }
+      }
     ]);
   };
 
@@ -120,11 +178,11 @@ export default function DreamJournalScreen() {
           </TouchableOpacity>
         </View>
 
-        <KeyboardAvoidingView 
+        <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={{ flex: 1 }}
         >
-          <ScrollView 
+          <ScrollView
             style={styles(theme).content}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles(theme).scrollContent}
@@ -132,7 +190,7 @@ export default function DreamJournalScreen() {
             {isAdding ? (
               <BlurView intensity={30} tint="dark" style={styles(theme).addCard}>
                 <Text style={styles(theme).cardTitle}>Record New Dream</Text>
-                
+
                 <TextInput
                   style={styles(theme).input}
                   placeholder="Dream Title"
@@ -218,68 +276,89 @@ export default function DreamJournalScreen() {
                   </BlurView>
                 </View>
 
+                {dreams.length > 0 && (
+                  <BlurView intensity={20} tint="dark" style={styles(theme).insightCard}>
+                    <View style={styles(theme).insightHeader}>
+                      <Sparkles size={18} color={theme.colors.accent} />
+                      <Text style={[styles(theme).insightTitle, { color: theme.colors.textPrimary }]}>Latest Insights</Text>
+                    </View>
+                    <Text style={[styles(theme).insightText, { color: theme.colors.textSecondary }]}>
+                      {dreams[0]?.insight || "Recording more dreams will help unlock deeper analysis."}
+                    </Text>
+                    {dreams[0]?.keywords && dreams[0].keywords.length > 0 && (
+                      <View style={styles(theme).keywordCloud}>
+                        {dreams[0].keywords.map(kw => (
+                          <View key={kw} style={styles(theme).keywordBadge}>
+                            <Text style={styles(theme).keywordText}>#{kw}</Text>
+                          </View>
+                        ))}
+                      </View>
+                    )}
+                  </BlurView>
+                )}
+
                 {dreams.map((dream) =>
                   Platform.OS === 'ios' ? (
                     <BlurView key={dream.id} intensity={20} tint="dark" style={styles(theme).dreamCard}>
-                    <View style={styles(theme).dreamHeader}>
-                      <View style={styles(theme).dateContainer}>
-                        <Calendar size={14} color={theme.colors.textSecondary} />
-                        <Text style={styles(theme).dreamDate}>{dream.date}</Text>
-                      </View>
-                      {dream.isLucid && (
-                        <View style={styles(theme).lucidBadge}>
-                          <Zap size={12} color={theme.colors.background} fill={theme.colors.background} />
-                          <Text style={styles(theme).lucidBadgeText}>LUCID</Text>
+                      <View style={styles(theme).dreamHeader}>
+                        <View style={styles(theme).dateContainer}>
+                          <Calendar size={14} color={theme.colors.textSecondary} />
+                          <Text style={styles(theme).dreamDate}>{dream.date}</Text>
                         </View>
-                      )}
-                    </View>
-                    
-                    <Text style={styles(theme).dreamTitle}>{dream.title}</Text>
-                    <Text style={styles(theme).dreamContent} numberOfLines={3}>{dream.content}</Text>
-                    
-                    <View style={styles(theme).dreamFooter}>
-                      <View style={styles(theme).moodBadge}>
-                        {dream.mood === 'happy' && <Smile size={16} color="#4ECDC4" />}
-                        {dream.mood === 'neutral' && <Meh size={16} color="#FFE66D" />}
-                        {dream.mood === 'scary' && <Frown size={16} color="#FF6B6B" />}
-                        <Text style={styles(theme).moodBadgeText}>{dream.mood}</Text>
+                        {dream.isLucid && (
+                          <View style={styles(theme).lucidBadge}>
+                            <Zap size={12} color={theme.colors.background} fill={theme.colors.background} />
+                            <Text style={styles(theme).lucidBadgeText}>LUCID</Text>
+                          </View>
+                        )}
                       </View>
-                      <TouchableOpacity onPress={() => deleteDream(dream.id)}>
-                        <Trash2 size={18} color="rgba(255,255,255,0.3)" />
-                      </TouchableOpacity>
-                    </View>
-                  </BlurView>
-                ) : (
-                  <View key={dream.id} style={styles(theme).dreamCard}>
-                    <View style={styles(theme).dreamHeader}>
-                      <View style={styles(theme).dateContainer}>
-                        <Calendar size={14} color={theme.colors.textSecondary} />
-                        <Text style={styles(theme).dreamDate}>{dream.date}</Text>
-                      </View>
-                      {dream.isLucid && (
-                        <View style={styles(theme).lucidBadge}>
-                          <Zap size={12} color={theme.colors.background} fill={theme.colors.background} />
-                          <Text style={styles(theme).lucidBadgeText}>LUCID</Text>
+
+                      <Text style={styles(theme).dreamTitle}>{dream.title}</Text>
+                      <Text style={styles(theme).dreamContent} numberOfLines={3}>{dream.content}</Text>
+
+                      <View style={styles(theme).dreamFooter}>
+                        <View style={styles(theme).moodBadge}>
+                          {dream.mood === 'happy' && <Smile size={16} color="#4ECDC4" />}
+                          {dream.mood === 'neutral' && <Meh size={16} color="#FFE66D" />}
+                          {dream.mood === 'scary' && <Frown size={16} color="#FF6B6B" />}
+                          <Text style={styles(theme).moodBadgeText}>{dream.mood}</Text>
                         </View>
-                      )}
-                    </View>
-
-                    <Text style={styles(theme).dreamTitle}>{dream.title}</Text>
-                    <Text style={styles(theme).dreamContent} numberOfLines={3}>{dream.content}</Text>
-
-                    <View style={styles(theme).dreamFooter}>
-                      <View style={styles(theme).moodBadge}>
-                        {dream.mood === 'happy' && <Smile size={16} color="#4ECDC4" />}
-                        {dream.mood === 'neutral' && <Meh size={16} color="#FFE66D" />}
-                        {dream.mood === 'scary' && <Frown size={16} color="#FF6B6B" />}
-                        <Text style={styles(theme).moodBadgeText}>{dream.mood}</Text>
+                        <TouchableOpacity onPress={() => deleteDream(dream.id)}>
+                          <Trash2 size={18} color="rgba(255,255,255,0.3)" />
+                        </TouchableOpacity>
                       </View>
-                      <TouchableOpacity onPress={() => deleteDream(dream.id)}>
-                        <Trash2 size={18} color="rgba(255,255,255,0.3)" />
-                      </TouchableOpacity>
+                    </BlurView>
+                  ) : (
+                    <View key={dream.id} style={styles(theme).dreamCard}>
+                      <View style={styles(theme).dreamHeader}>
+                        <View style={styles(theme).dateContainer}>
+                          <Calendar size={14} color={theme.colors.textSecondary} />
+                          <Text style={styles(theme).dreamDate}>{dream.date}</Text>
+                        </View>
+                        {dream.isLucid && (
+                          <View style={styles(theme).lucidBadge}>
+                            <Zap size={12} color={theme.colors.background} fill={theme.colors.background} />
+                            <Text style={styles(theme).lucidBadgeText}>LUCID</Text>
+                          </View>
+                        )}
+                      </View>
+
+                      <Text style={styles(theme).dreamTitle}>{dream.title}</Text>
+                      <Text style={styles(theme).dreamContent} numberOfLines={3}>{dream.content}</Text>
+
+                      <View style={styles(theme).dreamFooter}>
+                        <View style={styles(theme).moodBadge}>
+                          {dream.mood === 'happy' && <Smile size={16} color="#4ECDC4" />}
+                          {dream.mood === 'neutral' && <Meh size={16} color="#FFE66D" />}
+                          {dream.mood === 'scary' && <Frown size={16} color="#FF6B6B" />}
+                          <Text style={styles(theme).moodBadgeText}>{dream.mood}</Text>
+                        </View>
+                        <TouchableOpacity onPress={() => deleteDream(dream.id)}>
+                          <Trash2 size={18} color="rgba(255,255,255,0.3)" />
+                        </TouchableOpacity>
+                      </View>
                     </View>
-                  </View>
-                )
+                  )
                 )}
               </>
             )}
@@ -287,7 +366,7 @@ export default function DreamJournalScreen() {
           </ScrollView>
         </KeyboardAvoidingView>
       </LinearGradient>
-    </View>
+    </View >
   );
 }
 
@@ -504,17 +583,56 @@ const styles = (theme: any) => StyleSheet.create({
     fontWeight: '800',
     color: theme.colors.background,
   },
+  dreamContent: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: theme.colors.textSecondary,
+    marginBottom: 16,
+  },
+  insightCard: {
+    padding: 20,
+    borderRadius: 20,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: theme.colors.accent + '30',
+    overflow: 'hidden',
+  },
+  insightHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 10,
+  },
+  insightTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  insightText: {
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: 12,
+  },
+  keywordCloud: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  keywordBadge: {
+    backgroundColor: theme.colors.accent + '20',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  keywordText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: theme.colors.accent,
+  },
   dreamTitle: {
     fontSize: 18,
     fontWeight: '700',
     color: theme.colors.textPrimary,
     marginBottom: 8,
-  },
-  dreamContent: {
-    fontSize: 15,
-    color: theme.colors.textSecondary,
-    lineHeight: 22,
-    marginBottom: 16,
   },
   dreamFooter: {
     flexDirection: 'row',
@@ -526,16 +644,17 @@ const styles = (theme: any) => StyleSheet.create({
     alignItems: 'center',
     backgroundColor: 'rgba(255,255,255,0.05)',
     paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingVertical: 5,
     borderRadius: 8,
     gap: 6,
   },
   moodBadgeText: {
     fontSize: 12,
+    fontWeight: '600',
     color: theme.colors.textSecondary,
     textTransform: 'capitalize',
   },
   bottomSpacing: {
-    height: 40,
+    height: 100,
   },
 });

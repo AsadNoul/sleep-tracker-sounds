@@ -9,6 +9,7 @@ import {
   Dimensions,
   Platform,
   StatusBar,
+  Animated,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
@@ -51,6 +52,39 @@ interface RecordingEvent {
   loudness_db: number;
   audio_file_url?: string;
 }
+
+const AnimatedWaveformBar = ({ index, meterLevel }: { index: number, meterLevel: number }) => {
+  const height = useRef(new Animated.Value(4)).current;
+
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(height, {
+          toValue: 4 + (meterLevel * 40 * (Math.random() * 0.5 + 0.5)),
+          duration: 300 + (index * 50),
+          useNativeDriver: false,
+        }),
+        Animated.timing(height, {
+          toValue: 4,
+          duration: 300 + (index * 50),
+          useNativeDriver: false,
+        }),
+      ])
+    ).start();
+  }, [meterLevel]);
+
+  return (
+    <Animated.View
+      style={{
+        width: 4,
+        height: height,
+        backgroundColor: '#00FFD1',
+        borderRadius: 2,
+        marginHorizontal: 3,
+      }}
+    />
+  );
+};
 
 export default function RoomEnvironmentScreen() {
   const navigation = useNavigation<any>();
@@ -244,7 +278,16 @@ export default function RoomEnvironmentScreen() {
               {isRecording && <Text style={styles.timer}>{recordingDuration}s</Text>}
             </View>
             <View style={styles.viz}>
-              <Text style={[styles.identity, { color: isRecording ? '#00FFD1' : '#A0AEC0' }]}>{voiceIdentity}</Text>
+              {/* Animated Waveform */}
+              {isRecording ? (
+                <View style={styles.waveformContainer}>
+                  {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+                    <AnimatedWaveformBar key={i} index={i} meterLevel={meterLevel} />
+                  ))}
+                </View>
+              ) : (
+                <Text style={[styles.identity, { color: '#A0AEC0' }]}>{voiceIdentity}</Text>
+              )}
             </View>
             <View style={styles.controls}>
               {!isRecording ? (
@@ -314,7 +357,12 @@ const styles = StyleSheet.create({
   dotActive: { backgroundColor: '#FF6B6B' },
   cardTitle: { color: '#FFF', fontWeight: '700', flex: 1 },
   timer: { color: '#FF6B6B', fontWeight: '800' },
-  viz: { height: 60, justifyContent: 'center', alignItems: 'center' },
+  viz: { height: 80, justifyContent: 'center', alignItems: 'center' },
+  waveformContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 60,
+  },
   identity: { fontSize: 18, fontWeight: '800' },
   controls: { flexDirection: 'row', alignItems: 'center', gap: 15 },
   recBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#FF6B6B', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 20 },

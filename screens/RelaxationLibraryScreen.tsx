@@ -7,7 +7,18 @@ import { useAudio } from '../contexts/AudioContext';
 import { useNavigation } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { Heart } from 'lucide-react-native';
+import {
+  Heart,
+  Play,
+  Pause,
+  SkipBack,
+  SkipForward,
+  Volume2,
+  Clock,
+  Save,
+  Trash2,
+  Settings
+} from 'lucide-react-native';
 
 const GITHUB_BASE_URL = 'https://raw.githubusercontent.com/AsadNoul/sleep-tracker-sounds/main';
 
@@ -146,6 +157,69 @@ export default function RelaxationLibraryScreen() {
   const [soundVolumes, setSoundVolumes] = useState<{ [key: string]: number }>({});
   const [selectedStory, setSelectedStory] = useState<Story | null>(null);
   const [mixPlaying, setMixPlaying] = useState(false);
+  const [sleepTimer, setSleepTimer] = useState<number | null>(null);
+  const [timeLeft, setTimeLeft] = useState<number>(0);
+  const [customMixes, setCustomMixes] = useState<{ name: string, sounds: string[] }[]>([]);
+
+  useEffect(() => {
+    loadCustomMixes();
+  }, []);
+
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (mixPlaying && sleepTimer && timeLeft > 0) {
+      interval = setInterval(() => {
+        setTimeLeft(prev => {
+          if (prev <= 1) {
+            pauseMix();
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [mixPlaying, sleepTimer, timeLeft]);
+
+  const loadCustomMixes = async () => {
+    try {
+      const stored = await AsyncStorage.getItem('custom_sound_mixes');
+      if (stored) setCustomMixes(JSON.parse(stored));
+    } catch (e) { console.error(e); }
+  };
+
+  const saveCurrentMix = async () => {
+    if (activeSounds.length === 0) return;
+    Alert.prompt('Save Mix', 'Enter a name for your custom mix', async (name) => {
+      if (name) {
+        const newMixes = [...customMixes, { name, sounds: activeSounds }];
+        setCustomMixes(newMixes);
+        await AsyncStorage.setItem('custom_sound_mixes', JSON.stringify(newMixes));
+      }
+    });
+  };
+
+  const deleteMix = async (index: number) => {
+    const newMixes = customMixes.filter((_, i) => i !== index);
+    setCustomMixes(newMixes);
+    await AsyncStorage.setItem('custom_sound_mixes', JSON.stringify(newMixes));
+  };
+
+  const loadMix = (sounds: string[]) => {
+    setActiveSounds(sounds);
+    setMixPlaying(false);
+  };
+
+  const startTimer = (mins: number) => {
+    setSleepTimer(mins);
+    setTimeLeft(mins * 60);
+  };
+
+  const formatTime = (seconds: number) => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m}:${s < 10 ? '0' : ''}${s}`;
+  };
 
   const toggleSound = async (sound: Sound) => {
     if (!sound.available) {
@@ -298,6 +372,26 @@ export default function RelaxationLibraryScreen() {
               ))}
             </View>
 
+            {customMixes.length > 0 && (
+              <View style={styles.sectionHeader}>
+                <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>Your Mixes</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.mixList}>
+                  {customMixes.map((mix, idx) => (
+                    <TouchableOpacity
+                      key={idx}
+                      style={[styles.mixChip, { backgroundColor: theme.colors.card }]}
+                      onPress={() => loadMix(mix.sounds)}
+                    >
+                      <Text style={[styles.mixChipText, { color: theme.colors.textPrimary }]}>{mix.name}</Text>
+                      <TouchableOpacity onPress={() => deleteMix(idx)}>
+                        <Trash2 size={14} color={theme.colors.danger} />
+                      </TouchableOpacity>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            )}
+
             {activeSounds.length > 0 && (
               <View style={[styles.mixerCard, { backgroundColor: theme.colors.card }]}>
                 <View style={styles.mixerHeader}>
@@ -321,9 +415,32 @@ export default function RelaxationLibraryScreen() {
                   })}
                 </View>
 
+                <View style={styles.timerSection}>
+                  <View style={styles.timerHeader}>
+                    <Clock size={16} color={theme.colors.textSecondary} />
+                    <Text style={[styles.timerTitle, { color: theme.colors.textSecondary }]}>
+                      {timeLeft > 0 ? `Ends in ${formatTime(timeLeft)}` : 'Sleep Timer'}
+                    </Text>
+                  </View>
+                  <View style={styles.timerOptions}>
+                    {[5, 15, 30, 60].map(m => (
+                      <TouchableOpacity
+                        key={m}
+                        onPress={() => startTimer(m)}
+                        style={[styles.timerBtn, sleepTimer === m && { backgroundColor: theme.colors.accent + '40' }]}
+                      >
+                        <Text style={[styles.timerBtnText, { color: theme.colors.textPrimary }]}>{m}m</Text>
+                      </TouchableOpacity>
+                    ))}
+                    <TouchableOpacity onPress={() => { setSleepTimer(null); setTimeLeft(0); }} style={styles.timerBtn}>
+                      <Trash2 size={14} color={theme.colors.danger} />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
                 <View style={styles.playerControls}>
-                  <TouchableOpacity style={styles.controlButton}>
-                    <SkipBack size={24} color={theme.colors.textSecondary} />
+                  <TouchableOpacity style={styles.controlButton} onPress={saveCurrentMix}>
+                    <Save size={24} color={theme.colors.accent} />
                   </TouchableOpacity>
 
                   <TouchableOpacity
@@ -337,8 +454,8 @@ export default function RelaxationLibraryScreen() {
                     )}
                   </TouchableOpacity>
 
-                  <TouchableOpacity style={styles.controlButton}>
-                    <SkipForward size={24} color={theme.colors.textSecondary} />
+                  <TouchableOpacity style={styles.controlButton} onPress={() => setActiveSounds([])}>
+                    <Trash2 size={24} color={theme.colors.danger} />
                   </TouchableOpacity>
                 </View>
 
@@ -616,6 +733,58 @@ const styles = StyleSheet.create({
   },
   mixerSound: {
     fontSize: 16,
+  },
+  timerSection: {
+    marginBottom: 20,
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    padding: 12,
+    borderRadius: 12,
+  },
+  timerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 10,
+  },
+  timerTitle: {
+    fontSize: 12,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+  },
+  timerOptions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  timerBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+  },
+  timerBtnText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  sectionHeader: {
+    marginBottom: 20,
+  },
+  mixList: {
+    marginTop: 10,
+  },
+  mixChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    marginRight: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  mixChipText: {
+    fontSize: 14,
+    fontWeight: '600',
   },
   modalContainer: {
     flex: 1,
