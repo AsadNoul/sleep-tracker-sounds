@@ -43,6 +43,24 @@ screens/SettingsScreen_backup_3.tsx
 screens/SleepAnalysisScreen_BACKUP_20260119_180959.tsx
 ICON_BACKUP.md
 
+# ─── UNUSED FONTS (italic variants not loaded in App.tsx) ───
+assets/fonts/Poppins-ThinItalic.ttf
+assets/fonts/Poppins-ExtraLightItalic.ttf
+assets/fonts/Poppins-LightItalic.ttf
+assets/fonts/Poppins-Italic.ttf
+assets/fonts/Poppins-MediumItalic.ttf
+assets/fonts/Poppins-SemiBoldItalic.ttf
+assets/fonts/Poppins-BoldItalic.ttf
+assets/fonts/Poppins-ExtraBoldItalic.ttf
+assets/fonts/Poppins-BlackItalic.ttf
+assets/fonts/Poppins-Thin.ttf
+assets/fonts/Poppins-ExtraLight.ttf
+assets/fonts/OFL.txt
+assets/fonts/README.md
+
+# ─── UNUSED ASSETS ───
+assets/old icon.png
+
 # ─── DEV/BUILD ARTIFACTS ───
 *.map
 .git/
