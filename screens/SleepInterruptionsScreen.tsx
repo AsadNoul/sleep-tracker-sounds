@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated, Platform } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated, Platform, Alert } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -31,7 +31,7 @@ export default function SleepInterruptionsScreen() {
   const [isTracking, setIsTracking] = useState(false);
   const [currentNight, setCurrentNight] = useState<Interruption[]>([]);
   const [history, setHistory] = useState<NightData[]>([]);
-  const [lastMovement, setLastMovement] = useState<number>(0);
+  const lastMovementRef = useRef<number>(0);
 
   useEffect(() => {
     loadHistory();
@@ -46,10 +46,9 @@ export default function SleepInterruptionsScreen() {
         const now = Date.now();
 
         // Detect significant movement (possible awakening)
-        if (magnitude > 0.3 && now - lastMovement > 60000) {
-          // At least 1 minute between detections
+        if (magnitude > 0.3 && now - lastMovementRef.current > 60000) {
           detectInterruption();
-          setLastMovement(now);
+          lastMovementRef.current = now;
         }
       });
       Accelerometer.setUpdateInterval(1000);
@@ -58,7 +57,7 @@ export default function SleepInterruptionsScreen() {
     return () => {
       if (subscription) subscription.remove();
     };
-  }, [isTracking, lastMovement]);
+  }, [isTracking]);
 
   const loadHistory = async () => {
     try {
@@ -91,20 +90,27 @@ export default function SleepInterruptionsScreen() {
     const newInterruption: Interruption = {
       id: Date.now().toString(),
       timestamp: new Date(),
-      duration: 5, // Estimate 5 minutes
+      duration: 5,
       type: 'detected',
     };
-    setCurrentNight([...currentNight, newInterruption]);
+    setCurrentNight(prev => [...prev, newInterruption]);
   };
 
   const logManualInterruption = () => {
     const newInterruption: Interruption = {
       id: Date.now().toString(),
       timestamp: new Date(),
-      duration: 10, // Default 10 minutes
+      duration: 10,
       type: 'manual',
     };
-    setCurrentNight([...currentNight, newInterruption]);
+    setCurrentNight(prev => [...prev, newInterruption]);
+  };
+
+  const clearTonight = () => {
+    Alert.alert('Clear Tonight', 'Remove all interruptions logged tonight?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Clear', style: 'destructive', onPress: () => setCurrentNight([]) }
+    ]);
   };
 
   const startTracking = () => {

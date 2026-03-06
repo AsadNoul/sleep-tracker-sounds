@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Platform } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -24,7 +24,7 @@ export default function SnoreDetectionScreen() {
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
   const [snoreEvents, setSnoreEvents] = useState<SnoreEvent[]>([]);
   const [totalSnores, setTotalSnores] = useState(0);
-  const [lastSnoreTime, setLastSnoreTime] = useState(0);
+  const lastSnoreTimeRef = useRef(0);
 
   useEffect(() => {
     loadSnoreHistory();
@@ -69,13 +69,12 @@ export default function SnoreDetectionScreen() {
       // Monitor audio levels
       newRecording.setOnRecordingStatusUpdate((status) => {
         if (status.isRecording && status.metering) {
-          // Detect snoring based on audio level patterns
           const level = status.metering;
           const now = Date.now();
-          // Higher threshold (-20 dB) and 5-second cooldown to avoid false positives
-          if (level > -20 && now - lastSnoreTime > 5000) {
+          // useRef instead of useState to avoid stale closure
+          if (level > -20 && now - lastSnoreTimeRef.current > 5000) {
             detectSnore(level);
-            setLastSnoreTime(now);
+            lastSnoreTimeRef.current = now;
           }
         }
       });
@@ -100,8 +99,8 @@ export default function SnoreDetectionScreen() {
   const detectSnore = (intensity: number) => {
     const newEvent: SnoreEvent = {
       timestamp: Date.now(),
-      duration: Math.floor(Math.random() * 4) + 3, // Random 3-6 seconds
-      intensity,
+      duration: Math.floor(Math.random() * 4) + 3,
+      intensity: Math.abs(intensity),
       recordingUri: '',
     };
 
@@ -111,6 +110,26 @@ export default function SnoreDetectionScreen() {
       return updated;
     });
     setTotalSnores(prev => prev + 1);
+  };
+
+  const getSnoreSeverity = () => {
+    if (todaySnores.length === 0) return { label: 'None', color: '#4ade80', icon: 'checkmark-circle' };
+    if (todaySnores.length <= 5) return { label: 'Mild', color: '#fbbf24', icon: 'alert-circle' };
+    if (todaySnores.length <= 15) return { label: 'Moderate', color: '#f97316', icon: 'warning' };
+    return { label: 'Severe', color: '#ef4444', icon: 'alert' };
+  };
+
+  const clearHistory = () => {
+    Alert.alert('Clear Snore History', 'This will delete all recorded snore events. Continue?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Clear', style: 'destructive', onPress: async () => {
+          setSnoreEvents([]);
+          setTotalSnores(0);
+          await AsyncStorage.removeItem('snore_events_history');
+        }
+      }
+    ]);
   };
 
   const formatTime = (timestamp: number) => {
@@ -159,7 +178,19 @@ export default function SnoreDetectionScreen() {
         </BlurView>
 
         <View style={[styles.statsCard, { backgroundColor: theme.colors.card }]}>
-          <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>Tonight's Summary</Text>
+          <View style={styles.sectionHeader}>
+            <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>Tonight's Summary</Text>
+            {todaySnores.length > 0 && (
+              <TouchableOpacity onPress={clearHistory}>
+                <Ionicons name="trash-outline" size={20} color="rgba(255,255,255,0.3)" />
+              </TouchableOpacity>
+            )}
+          </View>
+
+          <View style={[styles.severityBadge, { backgroundColor: getSnoreSeverity().color + '20', borderColor: getSnoreSeverity().color + '40' }]}>
+            <Ionicons name={getSnoreSeverity().icon as any} size={20} color={getSnoreSeverity().color} />
+            <Text style={[styles.severityText, { color: getSnoreSeverity().color }]}>{getSnoreSeverity().label} Snoring</Text>
+          </View>
 
           <View style={styles.statRow}>
             <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Total Snores</Text>
@@ -284,10 +315,30 @@ const styles = StyleSheet.create({
     padding: 20,
     borderRadius: 16,
   },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
   sectionTitle: {
     fontSize: 20,
     fontWeight: 'bold',
+  },
+  severityBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
     marginBottom: 16,
+    alignSelf: 'flex-start',
+  },
+  severityText: {
+    fontSize: 14,
+    fontWeight: '700',
   },
   statRow: {
     flexDirection: 'row',
