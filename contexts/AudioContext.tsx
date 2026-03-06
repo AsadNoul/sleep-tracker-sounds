@@ -375,12 +375,19 @@ export function AudioProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      // Create new sound
+      // Create new sound with timeout
       const soundSource = typeof source === 'string' ? { uri: source } : source;
-      const { sound: newSound } = await Audio.Sound.createAsync(
+
+      const soundPromise = Audio.Sound.createAsync(
         soundSource,
         { shouldPlay: true, volume: 0.5, isLooping: true }
       );
+
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('timeout')), 12000);
+      });
+
+      const { sound: newSound } = await Promise.race([soundPromise, timeoutPromise]);
 
       setActiveMix(prev => ({
         ...prev,
@@ -394,10 +401,23 @@ export function AudioProvider({ children }: { children: ReactNode }) {
 
       setIsLoading(false);
       console.log(`✓ Added to mix: ${name}`);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error adding sound to mix:', error);
       setIsLoading(false);
-      Alert.alert('Error', 'Failed to add sound to mix');
+
+      const msg = error?.message || '';
+      if (msg.includes('hostname') || msg.includes('Network') || msg.includes('timeout') || msg.includes('UnknownHost')) {
+        Alert.alert(
+          'No Internet Connection',
+          'Sounds require an internet connection to stream. Please check your Wi-Fi or mobile data and try again.',
+          [
+            { text: 'Retry', onPress: () => addSoundToMix(soundId, source, name) },
+            { text: 'Cancel', style: 'cancel' },
+          ]
+        );
+      } else {
+        Alert.alert('Error', `Failed to add "${name}" to mix. Please try again.`);
+      }
     }
   };
 

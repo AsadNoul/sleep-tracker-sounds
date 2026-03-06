@@ -1,14 +1,40 @@
 # ═══════════════════════════════════════════════════════════════
 # EAS Build Ignore File
-# Files listed here are excluded from the build bundle
-# They remain on your local machine — nothing is deleted
+# IMPORTANT: .easignore REPLACES .gitignore for EAS builds
+# So we must include all .gitignore patterns here too
 # ═══════════════════════════════════════════════════════════════
 
-# ─── LARGE AUDIO FILES (streamed from GitHub, not needed locally) ───
-# All audio is loaded from raw.githubusercontent.com at runtime
+# ─── FROM .gitignore (must be duplicated here) ───
+node_modules/
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.keystore
+KEYSTORE_CREDENTIALS.md
+.metro-health-check*
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+.DS_Store
+*.pem
+.env
+.env*.local
+*.tsbuildinfo
+nul
+
+# ─── LARGE AUDIO FILES (~72 MB) ───
+# All audio streams from raw.githubusercontent.com at runtime
+# These local files are NOT referenced by any require() or import
 assets/music/
 
-# ─── BACKUP FILES (not imported anywhere) ───
+# ─── BACKUP FILES (~2.5 MB, not imported anywhere) ───
 assets/backup_onboarding/
 backup/
 screens/HomeScreen_backup_3.tsx
@@ -18,7 +44,5 @@ screens/SleepAnalysisScreen_BACKUP_20260119_180959.tsx
 ICON_BACKUP.md
 
 # ─── DEV/BUILD ARTIFACTS ───
-.expo/
-web-build/
-*.tsbuildinfo
 *.map
+.git/
