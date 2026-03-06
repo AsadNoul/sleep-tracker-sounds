@@ -1,0 +1,24 @@
+# ═══════════════════════════════════════════════════════════════
+# EAS Build Ignore File
+# Files listed here are excluded from the build bundle
+# They remain on your local machine — nothing is deleted
+# ═══════════════════════════════════════════════════════════════
+
+# ─── LARGE AUDIO FILES (streamed from GitHub, not needed locally) ───
+# All audio is loaded from raw.githubusercontent.com at runtime
+assets/music/
+
+# ─── BACKUP FILES (not imported anywhere) ───
+assets/backup_onboarding/
+backup/
+screens/HomeScreen_backup_3.tsx
+screens/JournalScreen_Backup.tsx
+screens/SettingsScreen_backup_3.tsx
+screens/SleepAnalysisScreen_BACKUP_20260119_180959.tsx
+ICON_BACKUP.md
+
+# ─── DEV/BUILD ARTIFACTS ───
+.expo/
+web-build/
+*.tsbuildinfo
+*.map
