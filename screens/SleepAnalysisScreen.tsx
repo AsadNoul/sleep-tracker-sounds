@@ -52,8 +52,13 @@ import {
   Pause,
   Mic,
   Waves,
-  ChevronRight
+  ChevronRight,
+  SkipBack,
+  SkipForward,
+  FastForward
 } from 'lucide-react-native';
+import Slider from '@react-native-community/slider';
+import * as Haptics from 'expo-haptics';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSleep } from '../contexts/SleepContext';
@@ -438,6 +443,7 @@ export default function SleepAnalysisScreen({ hideHeader = false, isSubcomponent
   const [sound, setSound] = useState<Audio.Sound | null>(null);
   const [playingAudio, setPlayingAudio] = useState<string | null>(null);
   const [playbackStatus, setPlaybackStatus] = useState<{ position: number, duration: number } | null>(null);
+  const [playbackRate, setPlaybackRate] = useState(1.0);
   const [fullRecordingSound, setFullRecordingSound] = useState<Audio.Sound | null>(null);
   const [fullRecordingPlaying, setFullRecordingPlaying] = useState(false);
   const [fullRecordingStatus, setFullRecordingStatus] = useState<{ position: number, duration: number } | null>(null);
@@ -447,7 +453,7 @@ export default function SleepAnalysisScreen({ hideHeader = false, isSubcomponent
   const isPremium = useMemo(() => isPremiumActive(user?.subscription_status, user?.subscription_end_date, user?.role, user?.email), [user]);
 
   const handleUnlock = (feature: string = 'analysis_module') => {
-    analyticsService.trackFeatureGateHit(feature).catch(() => {});
+    analyticsService.trackFeatureGateHit(feature).catch(() => { });
     navigation.navigate('Subscription', { source: feature });
   };
 
@@ -573,14 +579,14 @@ export default function SleepAnalysisScreen({ hideHeader = false, isSubcomponent
         setSound(null);
         setPlaybackStatus(null);
         setPlayingAudio(null);
-        try { await prevSound.unloadAsync(); } catch {}
+        try { await prevSound.unloadAsync(); } catch { }
       }
 
       if (!uri) return;
 
       const { sound: newSound } = await Audio.Sound.createAsync(
         { uri },
-        { shouldPlay: true }
+        { shouldPlay: true, rate: playbackRate, shouldCorrectPitch: true }
       );
 
       setSound(newSound);
@@ -593,7 +599,7 @@ export default function SleepAnalysisScreen({ hideHeader = false, isSubcomponent
             setPlayingAudio(null);
             setPlaybackStatus(null);
             // Auto unload to free memory
-            newSound.unloadAsync().catch(() => {});
+            newSound.unloadAsync().catch(() => { });
           }
         }
       });
@@ -601,6 +607,27 @@ export default function SleepAnalysisScreen({ hideHeader = false, isSubcomponent
       console.error('Error playing sound:', error);
       showToast('Could not play recording', 'error');
     }
+  };
+
+  const skipAudio = async (direction: 'forward' | 'backward') => {
+    if (!sound || !playbackStatus) return;
+    const newPosition = playbackStatus.position + (direction === 'forward' ? 15000 : -15000);
+    const clampedPos = Math.max(0, Math.min(newPosition, playbackStatus.duration));
+    await sound.setPositionAsync(clampedPos);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  };
+
+  const togglePlaybackSpeed = async () => {
+    if (!sound) return;
+    const nextSpeed = playbackRate === 1.0 ? 1.5 : playbackRate === 1.5 ? 2.0 : 1.0;
+    setPlaybackRate(nextSpeed);
+    await sound.setRateAsync(nextSpeed, true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+  };
+
+  const handleSeek = async (value: number) => {
+    if (!sound || !playbackStatus) return;
+    await sound.setPositionAsync(value);
   };
 
   const handleFullRecordingPlay = async (uri: string) => {
@@ -650,7 +677,7 @@ export default function SleepAnalysisScreen({ hideHeader = false, isSubcomponent
 
   const handleGenerateReport = async () => {
     if (!isPremium) {
-      analyticsService.trackFeatureGateHit('sleep_report').catch(() => {});
+      analyticsService.trackFeatureGateHit('sleep_report').catch(() => { });
       navigation.navigate('Subscription', { source: 'sleep_report' });
       return;
     }
@@ -682,10 +709,10 @@ export default function SleepAnalysisScreen({ hideHeader = false, isSubcomponent
       // Sleep stages
       const stagesHtml = session.sleepStages && session.sleepStages.length > 0
         ? session.sleepStages.map((s: any) => {
-            const dur = Math.round((new Date(s.endTime).getTime() - new Date(s.startTime).getTime()) / 60000);
-            const pct = session.duration > 0 ? Math.round((dur / session.duration) * 100) : 0;
-            const stageColor = s.stage === 'deep' ? '#6366f1' : s.stage === 'rem' ? '#8b5cf6' : s.stage === 'light' ? '#a78bfa' : '#cbd5e1';
-            return `<tr>
+          const dur = Math.round((new Date(s.endTime).getTime() - new Date(s.startTime).getTime()) / 60000);
+          const pct = session.duration > 0 ? Math.round((dur / session.duration) * 100) : 0;
+          const stageColor = s.stage === 'deep' ? '#6366f1' : s.stage === 'rem' ? '#8b5cf6' : s.stage === 'light' ? '#a78bfa' : '#cbd5e1';
+          return `<tr>
               <td style="padding:10px 14px;border-bottom:1px solid #e9ecef;text-transform:capitalize;font-weight:600;color:#1e293b;">${s.stage}</td>
               <td style="padding:10px 14px;border-bottom:1px solid #e9ecef;color:#475569;">${dur} min</td>
               <td style="padding:10px 14px;border-bottom:1px solid #e9ecef;">
@@ -697,7 +724,7 @@ export default function SleepAnalysisScreen({ hideHeader = false, isSubcomponent
                 </div>
               </td>
             </tr>`;
-          }).join('')
+        }).join('')
         : '<tr><td colspan="3" style="padding:14px;color:#94a3b8;text-align:center;">No sleep stage data recorded for this session.</td></tr>';
 
       // AI Insights
@@ -1316,7 +1343,7 @@ export default function SleepAnalysisScreen({ hideHeader = false, isSubcomponent
                     key={tf}
                     onPress={() => {
                       if (isLocked) {
-                        analyticsService.trackFeatureGateHit(`timeframe_${tf}`).catch(() => {});
+                        analyticsService.trackFeatureGateHit(`timeframe_${tf}`).catch(() => { });
                         navigation.navigate('Subscription', { source: `timeframe_${tf}` });
                         return;
                       }
@@ -1463,40 +1490,64 @@ export default function SleepAnalysisScreen({ hideHeader = false, isSubcomponent
                       const isPlaying = playingAudio === `rec_${i}`;
                       const typeLabel = rec.type === 'snoring' ? 'Snoring' :
                         rec.type === 'sleep_talk' ? 'Sleep Talk' :
-                        rec.type === 'breathing' ? 'Breathing' :
-                        rec.type === 'dreaming' ? 'Dreaming' : 'Noise';
+                          rec.type === 'breathing' ? 'Breathing' :
+                            rec.type === 'dreaming' ? 'Dreaming' : 'Noise';
                       const typeColor = rec.type === 'snoring' ? '#F59E0B' :
                         rec.type === 'sleep_talk' ? '#8B5CF6' :
-                        rec.type === 'breathing' ? '#10B981' :
-                        rec.type === 'dreaming' ? '#6366F1' : '#A8B5C7';
+                          rec.type === 'breathing' ? '#10B981' :
+                            rec.type === 'dreaming' ? '#6366F1' : '#A8B5C7';
                       return (
-                        <View key={i} style={[styles(theme, isDark).recordingItem, isPlaying && styles(theme, isDark).recordingItemActive, { marginBottom: 10 }]}>
-                          <View style={[styles(theme, isDark).recordingIconObj, { backgroundColor: `${typeColor}22`, marginRight: 10 }]}>
-                            <Mic size={14} color={typeColor} />
+                        <View key={i} style={[styles(theme, isDark).recordingItem, isPlaying && styles(theme, isDark).recordingItemActive, { marginBottom: 10, flexDirection: 'column', alignItems: 'stretch' }]}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                            <View style={[styles(theme, isDark).recordingIconObj, { backgroundColor: `${typeColor}22`, marginRight: 10 }]}>
+                              <Mic size={14} color={typeColor} />
+                            </View>
+                            <View style={{ flex: 1 }}>
+                              <Text style={styles(theme, isDark).recordingTitle}>{typeLabel}</Text>
+                              <Text style={styles(theme, isDark).recordingTime}>
+                                {new Date(rec.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                {rec.duration ? ` • ${Math.round(rec.duration)}s` : ''}
+                              </Text>
+                            </View>
+                            <TouchableOpacity
+                              style={[styles(theme, isDark).playBtn, { backgroundColor: rec.audioUri ? typeColor : (isDark ? 'rgba(255,255,255,0.1)' : '#e2e8f0') }]}
+                              onPress={() => rec.audioUri && handlePlayAudio(rec.audioUri, `rec_${i}`)}
+                              disabled={!rec.audioUri}
+                              activeOpacity={rec.audioUri ? 0.7 : 1}
+                            >
+                              {isPlaying
+                                ? <Pause size={12} color="#FFF" fill="#FFF" />
+                                : <Play size={12} color={rec.audioUri ? '#FFF' : (isDark ? 'rgba(255,255,255,0.3)' : '#94a3b8')} fill={rec.audioUri ? '#FFF' : 'none'} />
+                              }
+                            </TouchableOpacity>
                           </View>
-                          <View style={{ flex: 1 }}>
-                            <Text style={styles(theme, isDark).recordingTitle}>{typeLabel}</Text>
-                            <Text style={styles(theme, isDark).recordingTime}>
-                              {new Date(rec.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                              {rec.duration ? ` • ${Math.round(rec.duration)}s` : ''}
-                            </Text>
-                            {isPlaying && playbackStatus && (
-                              <View style={{ height: 3, backgroundColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.1)', marginTop: 6, borderRadius: 2, overflow: 'hidden', width: '90%' }}>
-                                <View style={{ height: '100%', backgroundColor: typeColor, width: `${(playbackStatus.position / playbackStatus.duration) * 100}%`, borderRadius: 2 }} />
+
+                          {/* Expanded Player Controls when playing */}
+                          {isPlaying && playbackStatus && (
+                            <View style={{ marginTop: 15, paddingHorizontal: 5 }}>
+                              <Slider
+                                style={{ width: '100%', height: 30 }}
+                                minimumValue={0}
+                                maximumValue={playbackStatus.duration}
+                                value={playbackStatus.position}
+                                onSlidingComplete={handleSeek}
+                                minimumTrackTintColor={typeColor}
+                                maximumTrackTintColor={isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}
+                                thumbTintColor={typeColor}
+                              />
+                              <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 5, gap: 20 }}>
+                                <TouchableOpacity onPress={() => skipAudio('backward')} style={{ padding: 10 }}>
+                                  <SkipBack size={20} color={isDark ? '#FFF' : '#333'} />
+                                </TouchableOpacity>
+                                <TouchableOpacity onPress={togglePlaybackSpeed} style={{ padding: 10, backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)', borderRadius: 15, paddingHorizontal: 15 }}>
+                                  <Text style={{ color: isDark ? '#FFF' : '#333', fontSize: 12, fontWeight: 'bold' }}>{playbackRate}x</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity onPress={() => skipAudio('forward')} style={{ padding: 10 }}>
+                                  <SkipForward size={20} color={isDark ? '#FFF' : '#333'} />
+                                </TouchableOpacity>
                               </View>
-                            )}
-                          </View>
-                          <TouchableOpacity
-                            style={[styles(theme, isDark).playBtn, { backgroundColor: rec.audioUri ? typeColor : (isDark ? 'rgba(255,255,255,0.1)' : '#e2e8f0') }]}
-                            onPress={() => rec.audioUri && handlePlayAudio(rec.audioUri, `rec_${i}`)}
-                            disabled={!rec.audioUri}
-                            activeOpacity={rec.audioUri ? 0.7 : 1}
-                          >
-                            {isPlaying
-                              ? <Pause size={12} color="#FFF" fill="#FFF" />
-                              : <Play size={12} color={rec.audioUri ? '#FFF' : (isDark ? 'rgba(255,255,255,0.3)' : '#94a3b8')} fill={rec.audioUri ? '#FFF' : 'none'} />
-                            }
-                          </TouchableOpacity>
+                            </View>
+                          )}
                         </View>
                       );
                     })}
