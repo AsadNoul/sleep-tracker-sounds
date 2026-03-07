@@ -561,24 +561,19 @@ export default function SleepAnalysisScreen({ hideHeader = false, isSubcomponent
 
   const handlePlayAudio = async (uri: string, id: string) => {
     try {
-      // Tapping the same item while playing → pause it
       if (playingAudio === id && sound) {
         await sound.pauseAsync();
         setPlayingAudio(null);
         return;
       }
 
-      // Tapping the same item while paused → resume
-      if (playingAudio === null && sound) {
-        // Different item — unload the previous sound
-      }
-
-      // Always unload any existing sound before creating a new one
+      // 🛡️ Lock and clear existing sound thoroughly
       if (sound) {
-        try { await sound.unloadAsync(); } catch {}
+        const prevSound = sound;
         setSound(null);
         setPlaybackStatus(null);
         setPlayingAudio(null);
+        try { await prevSound.unloadAsync(); } catch {}
       }
 
       if (!uri) return;
@@ -597,6 +592,8 @@ export default function SleepAnalysisScreen({ hideHeader = false, isSubcomponent
           if (status.didJustFinish) {
             setPlayingAudio(null);
             setPlaybackStatus(null);
+            // Auto unload to free memory
+            newSound.unloadAsync().catch(() => {});
           }
         }
       });
