@@ -75,7 +75,12 @@ import { formatDuration, format12HourTime } from '../utils/dateFormatting';
 import Svg, { Path, Circle, Rect, Line, Text as SvgText, G, Defs, LinearGradient as SvgLinearGradient, Stop, Polyline } from 'react-native-svg';
 import { Audio } from 'expo-av';
 import * as FileSystem from 'expo-file-system/legacy';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import NetInfo from '@react-native-community/netinfo';
 import SleepAnalysisScreen from './SleepAnalysisScreen';
+
+const JOURNAL_CACHE_KEY = '@journal_entries_cache';
+const JOURNAL_OFFLINE_QUEUE_KEY = '@journal_offline_queue';
 
 export default function JournalScreen() {
   const { width: SCREEN_WIDTH } = useWindowDimensions();
@@ -295,8 +300,8 @@ export default function JournalScreen() {
 
     setTimeout(() => setIsLoading(false), 500);
 
-    // Set up real-time subscription for journal entries
     if (user && user.id !== 'guest') {
+      // Set up real-time subscription for journal entries (online only)
       const journalChannel = supabase
         .channel('journal_entries_changes')
         .on(
@@ -313,14 +318,30 @@ export default function JournalScreen() {
         )
         .subscribe();
 
+      // Sync offline queue when reconnecting
+      const unsubNetInfo = NetInfo.addEventListener(state => {
+        if (state.isConnected && state.isInternetReachable !== false) {
+          syncOfflineQueue();
+        }
+      });
+
       return () => {
         supabase.removeChannel(journalChannel);
+        unsubNetInfo();
       };
     }
   }, [user, selectedDaySession?.id]);
 
   const loadJournalEntries = async () => {
     if (user && user.id !== 'guest') {
+      // Show cached data immediately while fetching
+      try {
+        const cached = await AsyncStorage.getItem(`${JOURNAL_CACHE_KEY}_${user.id}`);
+        if (cached) {
+          setJournalEntries(JSON.parse(cached));
+        }
+      } catch {}
+
       try {
         const { data, error } = await supabase
           .from('journal_entries')
@@ -331,9 +352,15 @@ export default function JournalScreen() {
 
         if (!error && data) {
           setJournalEntries(data);
+          // Update cache with fresh data
+          AsyncStorage.setItem(
+            `${JOURNAL_CACHE_KEY}_${user.id}`,
+            JSON.stringify(data)
+          ).catch(() => {});
         }
       } catch (error) {
         console.error('Error loading journal entries:', error);
+        // Cached data already shown above — nothing more to do
       }
     }
   };
@@ -391,18 +418,43 @@ export default function JournalScreen() {
     setIsSaving(true);
     try {
       if (user && user.id !== 'guest') {
+        const newEntry = {
+          id: `journal_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          user_id: user.id,
+          entry_text: journalEntry,
+          mood: selectedMood,
+          tags: selectedTags,
+          entry_date: selectedDate.toISOString().split('T')[0],
+          created_at: new Date().toISOString(),
+        };
+
+        const netState = await NetInfo.fetch();
+        const isOnline = netState.isConnected && netState.isInternetReachable !== false;
+
+        if (!isOnline) {
+          // Queue the entry locally and show it immediately
+          const queueRaw = await AsyncStorage.getItem(`${JOURNAL_OFFLINE_QUEUE_KEY}_${user.id}`);
+          const queue = queueRaw ? JSON.parse(queueRaw) : [];
+          queue.push(newEntry);
+          await AsyncStorage.setItem(`${JOURNAL_OFFLINE_QUEUE_KEY}_${user.id}`, JSON.stringify(queue));
+
+          // Add to local cache so it appears immediately
+          const cachedRaw = await AsyncStorage.getItem(`${JOURNAL_CACHE_KEY}_${user.id}`);
+          const cached = cachedRaw ? JSON.parse(cachedRaw) : [];
+          cached.unshift(newEntry);
+          await AsyncStorage.setItem(`${JOURNAL_CACHE_KEY}_${user.id}`, JSON.stringify(cached));
+          setJournalEntries(cached);
+
+          Alert.alert('Saved Offline', "You're offline. Your entry has been saved and will sync when you reconnect.");
+          setJournalEntry('');
+          setSelectedMood(null);
+          setSelectedTags([]);
+          return;
+        }
+
         const { error } = await supabase
           .from('journal_entries')
-          .insert([
-            {
-              id: `journal_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-              user_id: user.id,
-              entry_text: journalEntry,
-              mood: selectedMood,
-              tags: selectedTags,
-              entry_date: selectedDate.toISOString().split('T')[0],
-            },
-          ]);
+          .insert([newEntry]);
 
         if (error) throw error;
         Alert.alert('Success', 'Journal entry saved!');
@@ -415,10 +467,27 @@ export default function JournalScreen() {
       }
     } catch (error) {
       console.error('Error saving journal:', error);
-      Alert.alert('Error', 'Could not save entry.');
+      Alert.alert('Error', 'Could not save entry. Please check your connection and try again.');
     } finally {
       setIsSaving(false);
     }
+  };
+
+  // Sync queued offline entries when back online
+  const syncOfflineQueue = async () => {
+    if (!user || user.id === 'guest') return;
+    try {
+      const queueRaw = await AsyncStorage.getItem(`${JOURNAL_OFFLINE_QUEUE_KEY}_${user.id}`);
+      if (!queueRaw) return;
+      const queue: any[] = JSON.parse(queueRaw);
+      if (queue.length === 0) return;
+
+      const { error } = await supabase.from('journal_entries').insert(queue);
+      if (!error) {
+        await AsyncStorage.removeItem(`${JOURNAL_OFFLINE_QUEUE_KEY}_${user.id}`);
+        loadJournalEntries();
+      }
+    } catch {}
   };
 
   const toggleTag = (tag: string) => {

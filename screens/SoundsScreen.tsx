@@ -180,6 +180,7 @@ export default function SoundsScreen() {
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [showFullPlayer, setShowFullPlayer] = useState(false);
+  const [failedImages, setFailedImages] = useState<Set<string>>(new Set());
   const scrollY = useRef(new Animated.Value(0)).current;
 
   const findSoundById = (id: string | null) => {
@@ -364,7 +365,15 @@ export default function SoundsScreen() {
                   style={themedStyles.gridItem}
                 >
                   <GlassView intensity={12} style={[themedStyles.gridInner, currentSound === sound.id && { borderColor: '#8B5CF6', borderWidth: 1.5 }]}>
-                    <Image source={{ uri: SOUND_IMAGES[sound.id] || 'https://images.unsplash.com/photo-1511379938547-c1f69419868d?w=400&q=80' }} style={[themedStyles.gridImage, isLocked && { opacity: 0.4 }]} />
+                    {failedImages.has(sound.id) ? (
+                      <View style={[themedStyles.gridImage, { backgroundColor: '#1E1B4B' }, isLocked && { opacity: 0.4 }]} />
+                    ) : (
+                      <Image
+                        source={{ uri: SOUND_IMAGES[sound.id] || 'https://images.unsplash.com/photo-1511379938547-c1f69419868d?w=400&q=80' }}
+                        style={[themedStyles.gridImage, isLocked && { opacity: 0.4 }]}
+                        onError={() => setFailedImages(prev => new Set([...prev, sound.id]))}
+                      />
+                    )}
                     <View style={themedStyles.gridOverlay}>
                       <Text style={themedStyles.gridName} numberOfLines={1}>{sound.name}</Text>
                     </View>
@@ -397,7 +406,15 @@ export default function SoundsScreen() {
               {/* Blue tint overlay for visibility */}
               <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(59, 130, 246, 0.15)' }]} />
 
-              <Image source={{ uri: (currentSound ? SOUND_IMAGES[currentSound] : null) || 'https://images.unsplash.com/photo-1511379938547-c1f69419868d?w=100' }} style={themedStyles.miniArtwork} />
+              {currentSound && failedImages.has(currentSound) ? (
+                <View style={[themedStyles.miniArtwork, { backgroundColor: '#1E1B4B' }]} />
+              ) : (
+                <Image
+                  source={{ uri: (currentSound ? SOUND_IMAGES[currentSound] : null) || 'https://images.unsplash.com/photo-1511379938547-c1f69419868d?w=100' }}
+                  style={themedStyles.miniArtwork}
+                  onError={() => currentSound && setFailedImages(prev => new Set([...prev, currentSound]))}
+                />
+              )}
               <View style={themedStyles.playerControls}>
                 <View style={themedStyles.playerInfo}>
                   <Text style={themedStyles.playerName} numberOfLines={1}>{currentPlayingSound?.name || 'Unknown'}</Text>
@@ -440,7 +457,15 @@ export default function SoundsScreen() {
 
             <View style={themedStyles.playerMainContent}>
               <View style={themedStyles.artworkContainer}>
-                <Image source={{ uri: (currentSound ? SOUND_IMAGES[currentSound] : null) || 'https://images.unsplash.com/photo-1511379938547-c1f69419868d?w=400' }} style={themedStyles.largeArtwork} />
+                {currentSound && failedImages.has(currentSound) ? (
+                  <View style={[themedStyles.largeArtwork, { backgroundColor: '#1E1B4B' }]} />
+                ) : (
+                  <Image
+                    source={{ uri: (currentSound ? SOUND_IMAGES[currentSound] : null) || 'https://images.unsplash.com/photo-1511379938547-c1f69419868d?w=400' }}
+                    style={themedStyles.largeArtwork}
+                    onError={() => currentSound && setFailedImages(prev => new Set([...prev, currentSound]))}
+                  />
+                )}
               </View>
 
               <View style={themedStyles.trackInfoContainer}>

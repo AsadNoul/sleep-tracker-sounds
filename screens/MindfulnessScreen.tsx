@@ -696,6 +696,7 @@ export default function MindfulnessScreen() {
 
   const [selectedCategory, setSelectedCategory] = useState('meditation');
   const [selectedSession, setSelectedSession] = useState<MindfulnessSessionItem | null>(null);
+  const [failedImages, setFailedImages] = useState<Set<string>>(new Set());
   const activeSessionRef = useRef<MindfulnessSessionItem | null>(null);
   const [showSessionModal, setShowSessionModal] = useState(false);
   const [showBreathingCoach, setShowBreathingCoach] = useState(false);
@@ -1306,7 +1307,15 @@ export default function MindfulnessScreen() {
                   activeOpacity={0.85}
                 >
                   <View style={themedStyles.sessionImageWrap}>
-                    <Image source={{ uri: session.image }} style={themedStyles.sessionImage} />
+                    {failedImages.has(session.id) ? (
+                      <View style={[themedStyles.sessionImage, { backgroundColor: '#1E1B4B' }]} />
+                    ) : (
+                      <Image
+                        source={{ uri: session.image }}
+                        style={themedStyles.sessionImage}
+                        onError={() => setFailedImages(prev => new Set([...prev, session.id]))}
+                      />
+                    )}
                     {/* Gradient overlay at bottom of image */}
                     <LinearGradient
                       colors={['transparent', 'rgba(0,0,0,0.55)']}
@@ -1446,7 +1455,15 @@ export default function MindfulnessScreen() {
 
               {selectedSession && (
                 <>
-                  <Image source={{ uri: selectedSession.image }} style={themedStyles.modalImage} />
+                  {failedImages.has(selectedSession.id) ? (
+                    <View style={[themedStyles.modalImage, { backgroundColor: '#1E1B4B' }]} />
+                  ) : (
+                    <Image
+                      source={{ uri: selectedSession.image }}
+                      style={themedStyles.modalImage}
+                      onError={() => setFailedImages(prev => new Set([...prev, selectedSession.id]))}
+                    />
+                  )}
                   <View style={themedStyles.modalBody}>
                     <Text style={[themedStyles.modalTitle, { color: theme.colors.textPrimary }]}>
                       {selectedSession.title}
