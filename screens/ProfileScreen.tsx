@@ -697,7 +697,7 @@ const styles = (theme: any) => StyleSheet.create({
   },
   section: {
     marginBottom: 24,
-    gap: 16,
+    rowGap: 16, columnGap: 16,
   },
   sectionTitle: {
     fontSize: 20,
@@ -730,7 +730,7 @@ const styles = (theme: any) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 16,
-    gap: 12,
+    rowGap: 12, columnGap: 12,
     zIndex: 1,
   },
   cardTitle: {
@@ -769,7 +769,7 @@ const styles = (theme: any) => StyleSheet.create({
   profileButtonRow: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
-    gap: 12,
+    rowGap: 12, columnGap: 12,
     zIndex: 1,
   },
   profileButton: {
@@ -779,7 +779,7 @@ const styles = (theme: any) => StyleSheet.create({
     borderRadius: 12,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    rowGap: 8, columnGap: 8,
   },
   profileButtonText: {
     color: theme.colors.background,
@@ -802,7 +802,7 @@ const styles = (theme: any) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
+    rowGap: 8, columnGap: 8,
     marginTop: 8,
     zIndex: 1,
   },
@@ -817,7 +817,7 @@ const styles = (theme: any) => StyleSheet.create({
   tagContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    rowGap: 8, columnGap: 8,
     zIndex: 1,
   },
   tag: {
@@ -843,7 +843,7 @@ const styles = (theme: any) => StyleSheet.create({
   infoRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    rowGap: 12, columnGap: 12,
     marginTop: 8,
     zIndex: 1,
   },

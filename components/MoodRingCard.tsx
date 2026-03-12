@@ -205,7 +205,7 @@ const styles = StyleSheet.create({
     paddingVertical: 18,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.08)',
-    gap: 14,
+    rowGap: 14, columnGap: 14,
   },
   iconWrapper: {
     width: 52,
@@ -245,7 +245,7 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
     borderRadius: 12,
     borderWidth: 1,
-    gap: 2,
+    rowGap: 2, columnGap: 2,
   },
   scoreText: {
     fontSize: 18,

@@ -420,7 +420,7 @@ const styles = (theme: any) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 16,
-    gap: 12,
+    rowGap: 12, columnGap: 12,
   },
   googleButtonText: {
     fontSize: 16,

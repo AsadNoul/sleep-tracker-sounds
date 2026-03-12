@@ -160,7 +160,7 @@ const styles = (theme: any) => StyleSheet.create({
     fontWeight: '500',
   },
   buttonContainer: {
-    gap: 16,
+    rowGap: 16, columnGap: 16,
   },
   primaryButton: {
     borderRadius: 16,

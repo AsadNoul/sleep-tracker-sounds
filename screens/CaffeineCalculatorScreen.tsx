@@ -436,7 +436,7 @@ const styles = StyleSheet.create({
   presetGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    rowGap: 8, columnGap: 8,
     marginBottom: 16,
   },
   presetButton: {
@@ -482,7 +482,7 @@ const styles = StyleSheet.create({
   },
   customForm: {
     marginTop: 16,
-    gap: 8,
+    rowGap: 8, columnGap: 8,
   },
   input: {
     padding: 12,

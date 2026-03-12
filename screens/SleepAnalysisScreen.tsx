@@ -396,7 +396,7 @@ const GlassModule = memo(({ title, children, theme, isDark, icon: Icon, pro = fa
       <View style={styles(theme, isDark).moduleHeader}>
         <View style={styles(theme, isDark).moduleTitleRow}>
           {Icon && <Icon size={18} color="#8B5CF6" strokeWidth={2.5} />}
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', rowGap: 6, columnGap: 6, flex: 1 }}>
             <Text style={styles(theme, isDark).moduleTitle} numberOfLines={1} ellipsizeMode="tail">{title}</Text>
             {beta && (
               <View style={styles(theme, isDark).betaBadge}>
@@ -1240,7 +1240,7 @@ export default function SleepAnalysisScreen({ hideHeader = false, isSubcomponent
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={() => setShowCalendar(true)}
-                style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
+                style={{ flexDirection: 'row', alignItems: 'center', columnGap: 6, rowGap: 6 }}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
                 <Text style={styles(theme, isDark).headerDateText}>
@@ -1355,7 +1355,7 @@ export default function SleepAnalysisScreen({ hideHeader = false, isSubcomponent
                       isLocked && styles(theme, isDark).timeframeTabLocked,
                     ]}
                   >
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', columnGap: 4, rowGap: 4 }}>
                       {isLocked && <Lock size={10} color="#64748B" />}
                       <Text style={[
                         styles(theme, isDark).timeframeTabText,
@@ -1535,7 +1535,7 @@ export default function SleepAnalysisScreen({ hideHeader = false, isSubcomponent
                                 maximumTrackTintColor={isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}
                                 thumbTintColor={typeColor}
                               />
-                              <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 5, gap: 20 }}>
+                              <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 5, columnGap: 20, rowGap: 20 }}>
                                 <TouchableOpacity onPress={() => skipAudio('backward')} style={{ padding: 10 }}>
                                   <SkipBack size={20} color={isDark ? '#FFF' : '#333'} />
                                 </TouchableOpacity>
@@ -1602,7 +1602,7 @@ export default function SleepAnalysisScreen({ hideHeader = false, isSubcomponent
                 <View style={styles(theme, isDark).vitalCard}>
                   <View style={styles(theme, isDark).vitalHeader}>
                     <AlertCircle size={16} color="#EF4444" />
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', columnGap: 4, rowGap: 4 }}>
                       <Text style={styles(theme, isDark).vitalTitle}>Sleep Disruption</Text>
                     </View>
                   </View>
@@ -1747,7 +1747,7 @@ export default function SleepAnalysisScreen({ hideHeader = false, isSubcomponent
             {/* Sleep Debt Bar */}
             <View style={styles(theme, isDark).sectionStack}>
               <View style={styles(theme, isDark).sectionStackHeader}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', columnGap: 8, rowGap: 8 }}>
                   <TrendingDown size={18} color="#EF4444" />
                   <Text style={styles(theme, isDark).stackTitle}>Sleep Debt</Text>
                 </View>
@@ -1977,7 +1977,7 @@ function styles(theme: any, isDark: boolean) {
     headerLeft: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 12,
+      rowGap: 12, columnGap: 12,
     },
     headerCenter: {
       flex: 1,
@@ -1988,7 +1988,7 @@ function styles(theme: any, isDark: boolean) {
     datePickerRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 12,
+      rowGap: 12, columnGap: 12,
       marginTop: 4,
     },
     headerDateText: {
@@ -2003,7 +2003,7 @@ function styles(theme: any, isDark: boolean) {
     },
     dateStripContent: {
       paddingHorizontal: 24,
-      gap: 12,
+      rowGap: 12, columnGap: 12,
     },
     dateCard: {
       width: 60,
@@ -2125,12 +2125,12 @@ function styles(theme: any, isDark: boolean) {
       borderRadius: 20,
       paddingVertical: 12,
       paddingHorizontal: 20,
-      gap: 15,
+      rowGap: 15, columnGap: 15,
     },
     heroStatItem: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 6,
+      rowGap: 6, columnGap: 6,
     },
     heroStatValue: {
       color: '#A8B5C7',
@@ -2160,7 +2160,7 @@ function styles(theme: any, isDark: boolean) {
     moduleTitleRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 10,
+      rowGap: 10, columnGap: 10,
     },
     moduleTitle: {
       color: '#FFF',
@@ -2182,10 +2182,10 @@ function styles(theme: any, isDark: boolean) {
     chartContainer: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 12,
+      rowGap: 12, columnGap: 12,
     },
     chartYAxis: {
-      gap: 14,
+      rowGap: 14, columnGap: 14,
       justifyContent: 'space-between',
       paddingVertical: 10,
     },
@@ -2233,7 +2233,7 @@ function styles(theme: any, isDark: boolean) {
     compositionContainer: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 24,
+      rowGap: 24, columnGap: 24,
     },
     compositionChart: {
       width: 120,
@@ -2255,12 +2255,12 @@ function styles(theme: any, isDark: boolean) {
     },
     compositionLegend: {
       flex: 1,
-      gap: 8,
+      rowGap: 8, columnGap: 8,
     },
     legendItem: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 8,
+      rowGap: 8, columnGap: 8,
     },
     legendDot: {
       width: 8,
@@ -2281,7 +2281,7 @@ function styles(theme: any, isDark: boolean) {
     },
     vitalsGrid: {
       flexDirection: 'row',
-      gap: 14,
+      rowGap: 14, columnGap: 14,
       marginBottom: 20,
     },
     vitalCard: {
@@ -2295,7 +2295,7 @@ function styles(theme: any, isDark: boolean) {
     vitalHeader: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 8,
+      rowGap: 8, columnGap: 8,
       marginBottom: 12,
     },
     vitalTitle: {
@@ -2314,7 +2314,7 @@ function styles(theme: any, isDark: boolean) {
     miniTrendContainer: {
       flexDirection: 'row',
       alignItems: 'flex-end',
-      gap: 4,
+      rowGap: 4, columnGap: 4,
       height: 15,
     },
     miniTrendBar: {
@@ -2323,7 +2323,7 @@ function styles(theme: any, isDark: boolean) {
       opacity: 0.8,
     },
     aiInsightWrapper: {
-      gap: 15,
+      rowGap: 15, columnGap: 15,
     },
     aiInsightText: {
       color: '#A8B5C7',
@@ -2333,7 +2333,7 @@ function styles(theme: any, isDark: boolean) {
     },
     tagsRow: {
       flexDirection: 'row',
-      gap: 10,
+      rowGap: 10, columnGap: 10,
     },
     insightTag: {
       paddingHorizontal: 12,
@@ -2425,7 +2425,7 @@ function styles(theme: any, isDark: boolean) {
       fontFamily: theme.typography.fontFamily.medium,
     },
     hrvWrapper: {
-      gap: 15,
+      rowGap: 15, columnGap: 15,
     },
     hrvGraphContainer: {
       flexDirection: 'row',
@@ -2470,7 +2470,7 @@ function styles(theme: any, isDark: boolean) {
     consistencyInfo: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 30,
+      rowGap: 30, columnGap: 30,
     },
     consistRing: {
       width: 80,
@@ -2480,12 +2480,12 @@ function styles(theme: any, isDark: boolean) {
     },
     consistencyData: {
       flex: 1,
-      gap: 16,
+      rowGap: 16, columnGap: 16,
     },
     consistRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 12,
+      rowGap: 12, columnGap: 12,
     },
     consistLabel: {
       color: 'rgba(255, 255, 255, 0.4)',
@@ -2502,7 +2502,7 @@ function styles(theme: any, isDark: boolean) {
     regularityContainer: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 20,
+      rowGap: 20, columnGap: 20,
       paddingTop: 10,
     },
     regularityChart: {
@@ -2514,7 +2514,7 @@ function styles(theme: any, isDark: boolean) {
     },
     regBarColumn: {
       alignItems: 'center',
-      gap: 8,
+      rowGap: 8, columnGap: 8,
     },
     regBar: {
       width: 12,
@@ -2543,15 +2543,15 @@ function styles(theme: any, isDark: boolean) {
       fontFamily: theme.typography.fontFamily.medium,
     },
     envWrapper: {
-      gap: 16,
+      rowGap: 16, columnGap: 16,
     },
     envItem: {
-      gap: 8,
+      rowGap: 8, columnGap: 8,
     },
     envHeader: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 8,
+      rowGap: 8, columnGap: 8,
     },
     envTitle: {
       color: '#A8B5C7',
@@ -2576,7 +2576,7 @@ function styles(theme: any, isDark: boolean) {
       borderRadius: 3,
     },
     recordingsContainer: {
-      gap: 12,
+      rowGap: 12, columnGap: 12,
     },
     recordingsSubtitle: {
       color: '#64748B',
@@ -2613,7 +2613,7 @@ function styles(theme: any, isDark: boolean) {
     },
     recordingInfo: {
       flex: 1,
-      gap: 2,
+      rowGap: 2, columnGap: 2,
     },
     recordingType: {
       color: '#FFF',
@@ -2671,7 +2671,7 @@ function styles(theme: any, isDark: boolean) {
       justifyContent: 'center',
     },
     movementWrapper: {
-      gap: 15,
+      rowGap: 15, columnGap: 15,
     },
     movementHeader: {
       flexDirection: 'row',
@@ -2715,12 +2715,12 @@ function styles(theme: any, isDark: boolean) {
       borderRadius: 2,
     },
     circadianWrapper: {
-      gap: 20,
+      rowGap: 20, columnGap: 20,
     },
     personaCard: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 15,
+      rowGap: 15, columnGap: 15,
       backgroundColor: 'rgba(139, 92, 246, 0.08)',
       padding: 15,
       borderRadius: 20,
@@ -2749,7 +2749,7 @@ function styles(theme: any, isDark: boolean) {
       justifyContent: 'space-between',
     },
     windowItem: {
-      gap: 4,
+      rowGap: 4, columnGap: 4,
     },
     windowLabel: {
       color: '#64748B',
@@ -2768,7 +2768,7 @@ function styles(theme: any, isDark: boolean) {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
-      gap: 12,
+      rowGap: 12, columnGap: 12,
       overflow: 'hidden',
       marginTop: 10,
       marginBottom: 40,
@@ -2785,7 +2785,7 @@ function styles(theme: any, isDark: boolean) {
     heatmapGrid: {
       flexDirection: 'row',
       flexWrap: 'wrap',
-      gap: 8,
+      rowGap: 8, columnGap: 8,
       justifyContent: 'center',
     },
     heatmapSquare: {
@@ -2878,7 +2878,7 @@ function styles(theme: any, isDark: boolean) {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
-      gap: 8,
+      rowGap: 8, columnGap: 8,
     },
     premiumUnlockBtnText: {
       color: '#FFF',

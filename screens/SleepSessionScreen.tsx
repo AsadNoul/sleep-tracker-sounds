@@ -1596,7 +1596,7 @@ const styles = (theme: any) => StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginVertical: 16,
-    gap: 8,
+    rowGap: 8, columnGap: 8,
   },
   starButton: {
     padding: 4,
@@ -1974,7 +1974,7 @@ const styles = (theme: any) => StyleSheet.create({
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'center',
-    gap: 10,
+    rowGap: 10, columnGap: 10,
   },
   pickerDoneText: {
     fontSize: 16,
@@ -2003,7 +2003,7 @@ const styles = (theme: any) => StyleSheet.create({
   },
   pickerButtonContainer: {
     flexDirection: 'row',
-    gap: 12,
+    rowGap: 12, columnGap: 12,
     marginTop: 20,
   },
   pickerCancelButton: {
@@ -2044,7 +2044,7 @@ const styles = (theme: any) => StyleSheet.create({
     padding: 12,
     borderRadius: 12,
     marginBottom: 20,
-    gap: 10,
+    rowGap: 10, columnGap: 10,
     borderWidth: 1,
     borderColor: 'rgba(99, 102, 241, 0.2)',
   },
@@ -2067,7 +2067,7 @@ const styles = (theme: any) => StyleSheet.create({
   quickPresetsButtons: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    gap: 8,
+    rowGap: 8, columnGap: 8,
   },
   presetButton: {
     flex: 1,

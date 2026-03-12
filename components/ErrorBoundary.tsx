@@ -260,7 +260,7 @@ const styles = (theme: any) => StyleSheet.create({
   },
   buttonContainer: {
     flexDirection: 'row',
-    gap: 12,
+    rowGap: 12, columnGap: 12,
     marginBottom: 24,
   },
   resetButton: {
@@ -273,7 +273,7 @@ const styles = (theme: any) => StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 8,
+    rowGap: 8, columnGap: 8,
   },
   resetButtonText: {
     fontSize: 16,
@@ -375,7 +375,7 @@ export class ScreenErrorBoundary extends React.Component<ScreenErrorBoundaryProp
               borderColor: theme.colors.accent,
               flexDirection: 'row',
               alignItems: 'center',
-              gap: 8,
+              rowGap: 8, columnGap: 8,
             }}
           >
             <RefreshCw size={18} color={theme.colors.accent} />

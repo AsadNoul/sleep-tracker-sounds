@@ -18,22 +18,23 @@ type RootStackParamList = {
 
 interface SplashScreenProps {
   onFinish?: () => void;
+  splashDuration?: number;
 }
 
-export default function SplashScreen({ onFinish }: SplashScreenProps) {
+export default function SplashScreen({ onFinish, splashDuration = 2000 }: SplashScreenProps) {
   const { theme } = useAppTheme();
   const { user, isLoading } = useAuth();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
-  const fadeAnim = new Animated.Value(0);
-  const scaleAnim = new Animated.Value(0.9);
-  const textAnim = new Animated.Value(15);
+  const fadeAnim = React.useRef(new Animated.Value(0)).current;
+  const scaleAnim = React.useRef(new Animated.Value(0.9)).current;
+  const textAnim = React.useRef(new Animated.Value(15)).current;
 
   useEffect(() => {
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
-        duration: 600,
+        duration: 500,
         useNativeDriver: true,
       }),
       Animated.spring(scaleAnim, {
@@ -44,8 +45,8 @@ export default function SplashScreen({ onFinish }: SplashScreenProps) {
       }),
       Animated.timing(textAnim, {
         toValue: 0,
-        duration: 500,
-        delay: 200,
+        duration: 400,
+        delay: 150,
         useNativeDriver: true,
       }),
     ]).start();
@@ -60,10 +61,10 @@ export default function SplashScreen({ onFinish }: SplashScreenProps) {
           navigation.replace('Welcome');
         }
       }
-    }, 1800);
+    }, splashDuration);
 
     return () => clearTimeout(timer);
-  }, [user, isLoading, navigation, onFinish]);
+  }, [user, isLoading, navigation, onFinish, splashDuration]);
 
   return (
     <View style={styles(theme).container}>
@@ -157,7 +158,6 @@ const styles = (theme: any) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginTop: 15,
-    gap: 15,
   },
   line: {
     width: 40,
@@ -170,6 +170,7 @@ const styles = (theme: any) => StyleSheet.create({
     letterSpacing: 4,
     fontWeight: '700',
     opacity: 0.9,
+    marginHorizontal: 15,
   },
   footer: {
     position: 'absolute',

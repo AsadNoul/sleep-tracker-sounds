@@ -291,7 +291,7 @@ const styles = StyleSheet.create({
     width: 150,
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 6,
+    rowGap: 6, columnGap: 6,
     backgroundColor: 'rgba(15, 23, 42, 0.95)',
     borderWidth: 1,
     borderRadius: 10,

@@ -348,7 +348,7 @@ const styles = (theme: any) =>
     },
     buttonRow: {
       flexDirection: 'row',
-      gap: 12,
+      rowGap: 12, columnGap: 12,
       marginTop: 8,
     },
     cancelButton: {
@@ -435,7 +435,7 @@ const styles = (theme: any) =>
     alarmActions: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 12,
+      rowGap: 12, columnGap: 12,
     },
     deleteButton: {
       padding: 8,
@@ -446,7 +446,7 @@ const styles = (theme: any) =>
       backgroundColor: 'rgba(255, 255, 255, 0.05)',
       borderRadius: 8,
       padding: 10,
-      gap: 8,
+      rowGap: 8, columnGap: 8,
     },
     soundBadgeText: {
       color: theme.colors.textPrimary,

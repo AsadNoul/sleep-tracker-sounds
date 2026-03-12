@@ -25,7 +25,7 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         paddingVertical: 8,
         paddingHorizontal: 16,
-        gap: 8,
+        rowGap: 8, columnGap: 8,
     },
     text: {
         color: '#FFF',

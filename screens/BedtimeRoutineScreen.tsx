@@ -399,7 +399,7 @@ const styles = (theme: any) => StyleSheet.create({
   timerControls: {
     flexDirection: 'row',
     marginTop: 20,
-    gap: 15,
+    rowGap: 15, columnGap: 15,
   },
   controlButton: {
     width: 50,

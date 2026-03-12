@@ -433,7 +433,7 @@ export function SleepProvider({ children }: { children: ReactNode }) {
         const parsedHistory = history.map((session: any) => ({
           ...session,
           startTime: new Date(session.startTime),
-          endTime: new Date(session.endTime),
+          endTime: session.endTime ? new Date(session.endTime) : null,
         }));
         setSleepHistory(parsedHistory);
       }

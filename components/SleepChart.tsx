@@ -244,7 +244,7 @@ const styles = (theme: any) => StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     marginTop: 16,
-    gap: 20,
+    rowGap: 20, columnGap: 20,
   },
   legendItem: {
     flexDirection: 'row',

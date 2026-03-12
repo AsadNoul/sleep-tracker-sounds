@@ -589,10 +589,10 @@ export default function HomeScreen() {
                   label={isTracking ? 'TRACKING' : (sleepScore === 0 ? 'NO DATA' : (displayMode === 'daytime' ? 'READINESS' : 'SLEEP SCORE'))}
                   sublabel={
                     isTracking ? 'In Progress'
-                    : sleepScore === 0 ? 'Start tracking'
-                    : displayMode === 'daytime'
-                      ? (readinessScore >= 85 ? '👑 Peak' : '⚡ Good')
-                      : undefined
+                      : sleepScore === 0 ? 'Start tracking'
+                        : displayMode === 'daytime'
+                          ? (readinessScore >= 85 ? '👑 Peak' : '⚡ Good')
+                          : undefined
                   }
                   sublabelColor={scoreQuality.color}
                   isTracking={isTracking}

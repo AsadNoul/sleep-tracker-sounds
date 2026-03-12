@@ -257,7 +257,7 @@ const styles = (theme: any) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 18,
-    gap: 10,
+    rowGap: 10, columnGap: 10,
   },
   buttonText: {
     fontSize: 18,
@@ -284,7 +284,7 @@ const styles = (theme: any) => StyleSheet.create({
   testButtonContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 16,
+    rowGap: 16, columnGap: 16,
   },
   testButtonText: {
     flex: 1,
@@ -307,7 +307,7 @@ const styles = (theme: any) => StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderColor: 'rgba(0, 255, 209, 0.2)',
-    gap: 12,
+    rowGap: 12, columnGap: 12,
   },
   infoText: {
     flex: 1,

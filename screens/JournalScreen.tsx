@@ -1006,7 +1006,7 @@ function createStyles(theme: any, SCREEN_WIDTH: number, CHART_HEIGHT: number) {
       flexDirection: 'row',
       alignItems: 'center',
       marginTop: 4,
-      gap: 8,
+      rowGap: 8, columnGap: 8,
     },
     statusIndicator: {
       width: 8,
@@ -1190,7 +1190,7 @@ function createStyles(theme: any, SCREEN_WIDTH: number, CHART_HEIGHT: number) {
     scoreFooter: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 8,
+      rowGap: 8, columnGap: 8,
       backgroundColor: 'rgba(255, 255, 255, 0.05)',
       paddingHorizontal: 16,
       paddingVertical: 8,
@@ -1218,7 +1218,7 @@ function createStyles(theme: any, SCREEN_WIDTH: number, CHART_HEIGHT: number) {
     sectionHeader: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 10,
+      rowGap: 10, columnGap: 10,
       marginBottom: 20,
     },
     sectionTitle: {
@@ -1250,7 +1250,7 @@ function createStyles(theme: any, SCREEN_WIDTH: number, CHART_HEIGHT: number) {
       flex: 1,
       flexDirection: 'row',
       alignItems: 'flex-end',
-      gap: 4,
+      rowGap: 4, columnGap: 4,
       paddingBottom: 10,
     },
     chartBar: {
@@ -1260,7 +1260,7 @@ function createStyles(theme: any, SCREEN_WIDTH: number, CHART_HEIGHT: number) {
     chartLegend: {
       flexDirection: 'row',
       flexWrap: 'wrap',
-      gap: 16,
+      rowGap: 16, columnGap: 16,
       paddingTop: 12,
       borderTopWidth: 1,
       borderTopColor: 'rgba(255, 255, 255, 0.05)',
@@ -1268,7 +1268,7 @@ function createStyles(theme: any, SCREEN_WIDTH: number, CHART_HEIGHT: number) {
     legendItem: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 6,
+      rowGap: 6, columnGap: 6,
     },
     legendDot: {
       width: 8,
@@ -1298,7 +1298,7 @@ function createStyles(theme: any, SCREEN_WIDTH: number, CHART_HEIGHT: number) {
     statsGrid: {
       flexDirection: 'row',
       flexWrap: 'wrap',
-      gap: 12,
+      rowGap: 12, columnGap: 12,
       marginBottom: 24,
     },
     statCard: {
@@ -1311,7 +1311,7 @@ function createStyles(theme: any, SCREEN_WIDTH: number, CHART_HEIGHT: number) {
     statHeader: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 8,
+      rowGap: 8, columnGap: 8,
       marginBottom: 12,
     },
     statLabel: {
@@ -1332,12 +1332,12 @@ function createStyles(theme: any, SCREEN_WIDTH: number, CHART_HEIGHT: number) {
       borderColor: 'rgba(255, 255, 255, 0.08)',
     },
     disruptionsList: {
-      gap: 12,
+      rowGap: 12, columnGap: 12,
     },
     disruptionItem: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 16,
+      rowGap: 16, columnGap: 16,
       padding: 12,
       backgroundColor: 'rgba(255, 255, 255, 0.03)',
       borderRadius: 20,
@@ -1428,7 +1428,7 @@ function createStyles(theme: any, SCREEN_WIDTH: number, CHART_HEIGHT: number) {
     tagsGrid: {
       flexDirection: 'row',
       flexWrap: 'wrap',
-      gap: 8,
+      rowGap: 8, columnGap: 8,
       marginBottom: 24,
     },
     tagButton: {
@@ -1478,7 +1478,7 @@ function createStyles(theme: any, SCREEN_WIDTH: number, CHART_HEIGHT: number) {
     entryDateBadge: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 6,
+      rowGap: 6, columnGap: 6,
       backgroundColor: 'rgba(139, 92, 246, 0.1)',
       paddingHorizontal: 12,
       paddingVertical: 6,
@@ -1503,7 +1503,7 @@ function createStyles(theme: any, SCREEN_WIDTH: number, CHART_HEIGHT: number) {
     savedTagsContainer: {
       flexDirection: 'row',
       flexWrap: 'wrap',
-      gap: 8,
+      rowGap: 8, columnGap: 8,
       marginBottom: 12,
     },
     savedTag: {

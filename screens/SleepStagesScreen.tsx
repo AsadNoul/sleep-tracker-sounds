@@ -382,7 +382,7 @@ const styles = StyleSheet.create({
   alarmHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    rowGap: 12, columnGap: 12,
     marginBottom: 10,
   },
   alarmTitle: {
@@ -418,7 +418,7 @@ const styles = StyleSheet.create({
   intelHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    rowGap: 10, columnGap: 10,
     marginBottom: 12,
   },
   intelTitle: {
@@ -455,7 +455,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     borderRadius: 30,
     marginTop: 24,
-    gap: 12,
+    rowGap: 12, columnGap: 12,
     elevation: 4,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },

@@ -465,7 +465,7 @@ const styles = (theme: any) => StyleSheet.create({
   alarmTimeInfo: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    rowGap: 10, columnGap: 10,
   },
   alarmTimeLabel: {
     fontSize: 14,
@@ -474,7 +474,7 @@ const styles = (theme: any) => StyleSheet.create({
   alarmTimeValueContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    rowGap: 4, columnGap: 4,
   },
   alarmTimeValue: {
     fontSize: 16,

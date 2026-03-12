@@ -365,7 +365,7 @@ const styles = (theme: any) =>
     },
     statsRow: {
       flexDirection: 'row',
-      gap: 12,
+      rowGap: 12, columnGap: 12,
       marginBottom: 20,
     },
     statCard: {
@@ -398,7 +398,7 @@ const styles = (theme: any) =>
     },
     categoryContainer: {
       paddingHorizontal: 20,
-      gap: 10,
+      rowGap: 10, columnGap: 10,
     },
     categoryChip: {
       flexDirection: 'row',
@@ -409,7 +409,7 @@ const styles = (theme: any) =>
       backgroundColor: 'rgba(255, 255, 255, 0.05)',
       borderWidth: 1,
       borderColor: 'rgba(255, 255, 255, 0.1)',
-      gap: 6,
+      rowGap: 6, columnGap: 6,
     },
     categoryChipActive: {
       backgroundColor: 'rgba(139, 92, 246, 0.2)',
@@ -426,7 +426,7 @@ const styles = (theme: any) =>
     achievementsGrid: {
       flexDirection: 'row',
       flexWrap: 'wrap',
-      gap: 12,
+      rowGap: 12, columnGap: 12,
     },
     achievementCard: {
       width: '48%',
@@ -486,7 +486,7 @@ const styles = (theme: any) =>
       marginTop: 12,
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 8,
+      rowGap: 8, columnGap: 8,
     },
     achievementProgressBg: {
       flex: 1,

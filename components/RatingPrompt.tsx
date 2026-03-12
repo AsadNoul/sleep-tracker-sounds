@@ -254,7 +254,7 @@ const styles = StyleSheet.create({
   starsRow: {
     flexDirection: 'row',
     marginBottom: 24,
-    gap: 8,
+    rowGap: 8, columnGap: 8,
   },
   starIcon: {
     marginHorizontal: 2,
@@ -270,7 +270,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'center',
-    gap: 8,
+    rowGap: 8, columnGap: 8,
   },
   rateButtonText: {
     color: '#FFFFFF',

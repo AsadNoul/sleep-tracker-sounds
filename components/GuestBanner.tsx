@@ -89,7 +89,7 @@ const styles = StyleSheet.create({
   },
   content: {
     flexDirection: 'column',
-    gap: 12,
+    rowGap: 12, columnGap: 12,
   },
   textContainer: {
     flex: 1,
@@ -105,7 +105,7 @@ const styles = StyleSheet.create({
   },
   buttonContainer: {
     flexDirection: 'row',
-    gap: 10,
+    rowGap: 10, columnGap: 10,
   },
   button: {
     flexDirection: 'row',
@@ -113,7 +113,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
-    gap: 6,
+    rowGap: 6, columnGap: 6,
   },
   buttonText: {
     color: '#FFF',
@@ -127,7 +127,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 20,
     borderWidth: 1,
-    gap: 6,
+    rowGap: 6, columnGap: 6,
   },
   outlineButtonText: {
     fontWeight: '600',

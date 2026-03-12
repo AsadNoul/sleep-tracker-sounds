@@ -14,6 +14,7 @@ import notificationService from '../services/notificationService';
 import welcomeService from '../services/welcomeService';
 import analyticsService from '../services/analyticsService';
 import countryService from '../services/countryService';
+import NetInfo from '@react-native-community/netinfo';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -89,14 +90,22 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           loadedUserIdRef.current = session.user.id;
         } catch (err) {
           console.error('Failed to load profile during init:', err);
+          // Network failure — try cached profile so app works offline
+          await loadCachedUser();
         }
       } else {
-        await checkGuestMode();
+        // No session — check if we have a cached logged-in user (offline returning user)
+        const didLoadCached = await loadCachedUser();
+        if (!didLoadCached) {
+          await checkGuestMode();
+        }
       }
       setIsLoading(false);
-    }).catch((error) => {
+    }).catch(async (error) => {
       // CRITICAL: Always clear loading state even if getSession fails
       console.error('Auth initialization failed:', error);
+      // Still try to load cached user so offline users can access their data
+      await loadCachedUser();
       setIsLoading(false);
     });
 
@@ -120,8 +129,26 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       }
     });
 
+    // When network comes back online, refresh the cached user's profile
+    // so subscription status and other fields are up to date
+    const unsubscribeNetInfo = NetInfo.addEventListener(state => {
+      const online = state.isConnected && state.isInternetReachable;
+      if (online) {
+        supabase.auth.getSession().then(({ data: { session } }) => {
+          if (session?.user && loadedUserIdRef.current !== session.user.id) {
+            loadedUserIdRef.current = session.user.id;
+            loadUserProfile(session.user.id);
+          } else if (session?.user) {
+            // Already loaded same user — just silently refresh profile to pick up subscription changes
+            loadUserProfile(session.user.id);
+          }
+        }).catch(() => {});
+      }
+    });
+
     return () => {
       subscription.unsubscribe();
+      unsubscribeNetInfo();
       if (loadingTimeoutRef.current) clearTimeout(loadingTimeoutRef.current);
     };
   }, []);
@@ -132,6 +159,23 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       anyConstants?.executionEnvironment === 'storeClient' ||
       anyConstants?.appOwnership === 'expo'
     );
+  };
+
+  // Load the last known user from AsyncStorage (for offline returning users)
+  const loadCachedUser = async (): Promise<boolean> => {
+    try {
+      const cached = await AsyncStorage.getItem('@cached_user_profile');
+      if (cached) {
+        const cachedUser: User = JSON.parse(cached);
+        setUser(cachedUser);
+        setHasCompletedOnboarding(true);
+        console.log('📦 Loaded cached user profile (offline mode):', cachedUser.email);
+        return true;
+      }
+    } catch (e) {
+      console.error('Error loading cached user:', e);
+    }
+    return false;
   };
 
   const checkGuestMode = async () => {
@@ -214,14 +258,17 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
       if (data) {
         setProfile(data);
-        setUser({
+        const userObj: User = {
           id: data.id,
           email: data.email || '',
           full_name: data.full_name,
           subscription_status: data.subscription_status,
           role: data.role,
           isPremium: data.role === 'admin' || data.email === 'admin@naulx.com' || data.subscription_status === 'premium_monthly' || data.subscription_status === 'premium_yearly',
-        });
+        };
+        setUser(userObj);
+        // Cache user locally so app works offline for returning users
+        AsyncStorage.setItem('@cached_user_profile', JSON.stringify(userObj)).catch(() => {});
 
         // Set RevenueCat user ID so webhooks can identify this user
         try {
@@ -664,6 +711,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       if (error) throw error;
 
       await AsyncStorage.removeItem('@onboarding_complete');
+      await AsyncStorage.removeItem('@cached_user_profile');
       setUser(null);
       setProfile(null);
       setSession(null);

@@ -328,7 +328,7 @@ const styles = StyleSheet.create({
   severityBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    rowGap: 8, columnGap: 8,
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 12,

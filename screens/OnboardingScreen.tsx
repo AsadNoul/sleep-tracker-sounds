@@ -1017,7 +1017,7 @@ const styles = (theme: any) => StyleSheet.create({
   optionsContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
+    rowGap: 12, columnGap: 12,
     paddingHorizontal: 4,
   },
   optionCard: {
@@ -1029,7 +1029,7 @@ const styles = (theme: any) => StyleSheet.create({
     padding: 16,
     borderWidth: 2,
     borderColor: 'rgba(100, 120, 255, 0.15)',
-    gap: 10,
+    rowGap: 10, columnGap: 10,
     shadowColor: '#6478FF',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
@@ -1082,7 +1082,7 @@ const styles = (theme: any) => StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'center',
-    gap: 10,
+    rowGap: 10, columnGap: 10,
   },
   hourButton: {
     width: 70,
@@ -1120,10 +1120,10 @@ const styles = (theme: any) => StyleSheet.create({
     fontWeight: '800',
   },
   formContainer: {
-    gap: 20,
+    rowGap: 20, columnGap: 20,
   },
   inputGroup: {
-    gap: 10,
+    rowGap: 10, columnGap: 10,
   },
   inputLabel: {
     fontSize: 15,
@@ -1142,7 +1142,7 @@ const styles = (theme: any) => StyleSheet.create({
   genderButtons: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    rowGap: 8, columnGap: 8,
   },
   genderButton: {
     paddingHorizontal: 20,
@@ -1171,7 +1171,7 @@ const styles = (theme: any) => StyleSheet.create({
     fontWeight: '600',
   },
   summaryContainer: {
-    gap: 20,
+    rowGap: 20, columnGap: 20,
     marginTop: 32,
   },
   summaryItem: {
@@ -1180,7 +1180,7 @@ const styles = (theme: any) => StyleSheet.create({
     backgroundColor: 'rgba(27, 29, 42, 0.7)',
     borderRadius: 16,
     padding: 20,
-    gap: 16,
+    rowGap: 16, columnGap: 16,
   },
   summaryText: {
     flex: 1,
@@ -1191,7 +1191,7 @@ const styles = (theme: any) => StyleSheet.create({
   progressBarContainer: {
     marginVertical: 32,
     alignItems: 'center',
-    gap: 16,
+    rowGap: 16, columnGap: 16,
   },
   progressBarBackground: {
     width: '100%',
@@ -1260,13 +1260,13 @@ const styles = (theme: any) => StyleSheet.create({
   },
   welcomeBenefits: {
     width: '100%',
-    gap: 16,
+    rowGap: 16, columnGap: 16,
     marginBottom: 32,
   },
   benefitItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    rowGap: 12, columnGap: 12,
     paddingVertical: 8,
   },
   benefitText: {
@@ -1285,7 +1285,7 @@ const styles = (theme: any) => StyleSheet.create({
   presetsContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
+    rowGap: 12, columnGap: 12,
     marginTop: 20,
   },
   presetCard: {
@@ -1318,7 +1318,7 @@ const styles = (theme: any) => StyleSheet.create({
   },
   presetTextContainer: {
     alignItems: 'flex-start',
-    gap: 4,
+    rowGap: 4, columnGap: 4,
   },
   presetTitle: {
     fontSize: 16,
@@ -1344,7 +1344,7 @@ const styles = (theme: any) => StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 16,
     paddingBottom: Platform.OS === 'android' ? 24 : 16,
-    gap: 12,
+    rowGap: 12, columnGap: 12,
     backgroundColor: '#0A0B14',
     borderTopWidth: 1,
     borderTopColor: 'rgba(255, 255, 255, 0.05)',
@@ -1377,7 +1377,7 @@ const styles = (theme: any) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 16,
-    gap: 8,
+    rowGap: 8, columnGap: 8,
   },
   nextButtonText: {
     fontSize: 18,

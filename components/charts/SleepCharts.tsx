@@ -238,7 +238,7 @@ const styles = (theme: any, isDark: boolean) => StyleSheet.create({
     compositionContainer: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 30,
+        rowGap: 30, columnGap: 30,
         paddingVertical: 10,
     },
     compositionChart: {
@@ -258,12 +258,12 @@ const styles = (theme: any, isDark: boolean) => StyleSheet.create({
     },
     compositionLegend: {
         flex: 1,
-        gap: 8,
+        rowGap: 8, columnGap: 8,
     },
     legendItem: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 8,
+        rowGap: 8, columnGap: 8,
     },
     legendDot: {
         width: 10,

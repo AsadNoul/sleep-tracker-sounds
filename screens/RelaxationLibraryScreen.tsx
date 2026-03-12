@@ -627,7 +627,7 @@ const styles = StyleSheet.create({
   soundGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
+    rowGap: 12, columnGap: 12,
     marginBottom: 20,
   },
   soundCard: {
@@ -657,7 +657,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 16,
-    gap: 12,
+    rowGap: 12, columnGap: 12,
   },
   mixerTitle: {
     fontSize: 18,
@@ -668,7 +668,7 @@ const styles = StyleSheet.create({
   soundsList: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    rowGap: 8, columnGap: 8,
     marginBottom: 20,
   },
   activeSoundChip: {
@@ -685,7 +685,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 24,
+    rowGap: 24, columnGap: 24,
     marginBottom: 12,
   },
   controlButton: {
@@ -710,7 +710,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
+    rowGap: 8, columnGap: 8,
   },
   playingDot: {
     width: 8,
@@ -743,7 +743,7 @@ const styles = StyleSheet.create({
   timerHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    rowGap: 8, columnGap: 8,
     marginBottom: 10,
   },
   timerTitle: {
@@ -753,7 +753,7 @@ const styles = StyleSheet.create({
   },
   timerOptions: {
     flexDirection: 'row',
-    gap: 8,
+    rowGap: 8, columnGap: 8,
   },
   timerBtn: {
     paddingHorizontal: 12,
@@ -774,7 +774,7 @@ const styles = StyleSheet.create({
   mixChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    rowGap: 8, columnGap: 8,
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 20,

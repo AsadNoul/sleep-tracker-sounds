@@ -77,7 +77,7 @@ const styles = (theme: any) => StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 12,
     paddingTop: 50, // Account for status bar
-    gap: 8,
+    rowGap: 8, columnGap: 8,
   },
   text: {
     color: theme.colors.textPrimary,

@@ -914,7 +914,7 @@ export default function AdminScreen() {
             return (
               <BlurView intensity={20} tint="dark" style={s.userCard}>
                 <View style={s.userInfo}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', columnGap: 6, rowGap: 6 }}>
                     {user.country && (
                       <Text style={{ fontSize: 16 }}>
                         {String.fromCodePoint(...[...user.country.toUpperCase()].map(c => 0x1F1E6 - 65 + c.charCodeAt(0)))}
@@ -959,7 +959,7 @@ export default function AdminScreen() {
                         Sub Ends: {new Date(user.subscription_end_date).toLocaleDateString()}
                       </Text>
                     )}
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', rowGap: 6, columnGap: 6, marginTop: 4 }}>
                       <Bell size={12} color={user.expo_push_token ? '#10B981' : '#EF4444'} />
                       <Text style={[s.metaText, { color: user.expo_push_token ? '#10B981' : '#EF4444' }]}>
                         Notifications: {user.expo_push_token ? 'Enabled' : 'Disabled'}
@@ -1037,7 +1037,7 @@ const styles = (theme: any) =>
     },
     statsRow: {
       flexDirection: 'row',
-      gap: 12,
+      rowGap: 12, columnGap: 12,
       marginBottom: 20,
     },
     statCard: {
@@ -1092,7 +1092,7 @@ const styles = (theme: any) =>
       overflow: 'hidden',
     },
     userGridRow: {
-      gap: 12,
+      rowGap: 12, columnGap: 12,
     },
     userInfo: {
       flex: 1,
@@ -1110,7 +1110,7 @@ const styles = (theme: any) =>
     },
     userMetaColumn: {
       marginTop: 10,
-      gap: 4,
+      rowGap: 4, columnGap: 4,
     },
     metaText: {
       fontSize: 12,
@@ -1118,7 +1118,7 @@ const styles = (theme: any) =>
     },
     userActions: {
       flexDirection: 'row',
-      gap: 8,
+      rowGap: 8, columnGap: 8,
       marginTop: 12,
     },
     actionButton: {
@@ -1163,7 +1163,7 @@ const styles = (theme: any) =>
     pillsRow: {
       flexDirection: 'row',
       flexWrap: 'wrap',
-      gap: 8,
+      rowGap: 8, columnGap: 8,
     },
     pill: {
       paddingHorizontal: 10,
@@ -1224,7 +1224,7 @@ const styles = (theme: any) =>
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
-      gap: 8,
+      rowGap: 8, columnGap: 8,
       backgroundColor: theme.colors.accent,
       padding: 14,
       borderRadius: 12,
@@ -1250,7 +1250,7 @@ const styles = (theme: any) =>
       flexDirection: 'row',
       alignItems: 'center',
       paddingVertical: 10,
-      gap: 12,
+      rowGap: 12, columnGap: 12,
       borderBottomWidth: 1,
       borderBottomColor: 'rgba(255, 255, 255, 0.05)',
     },
@@ -1276,7 +1276,7 @@ const styles = (theme: any) =>
     },
     tabContainer: {
       flexDirection: 'row',
-      gap: 8,
+      rowGap: 8, columnGap: 8,
       marginBottom: 20,
       marginTop: 10,
     },
@@ -1285,7 +1285,7 @@ const styles = (theme: any) =>
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
-      gap: 6,
+      rowGap: 6, columnGap: 6,
       padding: 12,
       borderRadius: 12,
       backgroundColor: 'rgba(255, 255, 255, 0.05)',
@@ -1308,7 +1308,7 @@ const styles = (theme: any) =>
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
-      gap: 8,
+      rowGap: 8, columnGap: 8,
       backgroundColor: theme.colors.accent,
       padding: 14,
       borderRadius: 12,
@@ -1357,7 +1357,7 @@ const styles = (theme: any) =>
       flexDirection: 'row',
       alignItems: 'center',
       marginBottom: 12,
-      gap: 12,
+      rowGap: 12, columnGap: 12,
     },
     heatmapLabel: {
       color: '#CBD5E1',

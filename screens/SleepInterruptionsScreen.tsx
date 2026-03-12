@@ -386,7 +386,7 @@ const styles = StyleSheet.create({
   },
   buttonRow: {
     flexDirection: 'row',
-    gap: 12,
+    rowGap: 12, columnGap: 12,
   },
   trackButton: {
     flex: 1,

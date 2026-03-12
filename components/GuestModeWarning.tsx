@@ -184,7 +184,7 @@ const styles = (theme: any) => StyleSheet.create({
   },
   actions: {
     flexDirection: 'column',
-    gap: 12,
+    rowGap: 12, columnGap: 12,
   },
   primaryButton: {
     backgroundColor: theme.colors.accent,

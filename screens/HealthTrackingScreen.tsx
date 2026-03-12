@@ -644,7 +644,7 @@ const styles = StyleSheet.create({
   mealTypeContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    rowGap: 8, columnGap: 8,
     marginBottom: 12,
   },
   mealTypeButton: {
@@ -655,7 +655,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'center',
-    gap: 6,
+    rowGap: 6, columnGap: 6,
   },
   mealTypeText: {
     fontSize: 14,
@@ -673,7 +673,7 @@ const styles = StyleSheet.create({
   },
   intensityContainer: {
     flexDirection: 'row',
-    gap: 8,
+    rowGap: 8, columnGap: 8,
     marginBottom: 12,
   },
   intensityButton: {
@@ -683,7 +683,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'center',
-    gap: 6,
+    rowGap: 6, columnGap: 6,
   },
   intensityText: {
     fontSize: 14,

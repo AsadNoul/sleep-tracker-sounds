@@ -416,7 +416,7 @@ const styles = (theme: any) => StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginBottom: 24,
-    gap: 12,
+    rowGap: 12, columnGap: 12,
   },
   statBox: {
     flex: 1,
@@ -476,7 +476,7 @@ const styles = (theme: any) => StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginBottom: 24,
-    gap: 10,
+    rowGap: 10, columnGap: 10,
   },
   moodButton: {
     flex: 1,
@@ -539,7 +539,7 @@ const styles = (theme: any) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 16,
-    gap: 10,
+    rowGap: 10, columnGap: 10,
   },
   saveText: {
     fontSize: 16,
@@ -563,7 +563,7 @@ const styles = (theme: any) => StyleSheet.create({
   dateContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    rowGap: 6, columnGap: 6,
   },
   dreamDate: {
     fontSize: 13,
@@ -576,7 +576,7 @@ const styles = (theme: any) => StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,
-    gap: 4,
+    rowGap: 4, columnGap: 4,
   },
   lucidBadgeText: {
     fontSize: 10,
@@ -600,7 +600,7 @@ const styles = (theme: any) => StyleSheet.create({
   insightHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    rowGap: 8, columnGap: 8,
     marginBottom: 10,
   },
   insightTitle: {
@@ -615,7 +615,7 @@ const styles = (theme: any) => StyleSheet.create({
   keywordCloud: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    rowGap: 8, columnGap: 8,
   },
   keywordBadge: {
     backgroundColor: theme.colors.accent + '20',
@@ -646,7 +646,7 @@ const styles = (theme: any) => StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 8,
-    gap: 6,
+    rowGap: 6, columnGap: 6,
   },
   moodBadgeText: {
     fontSize: 12,

@@ -185,10 +185,23 @@ function MainNavigator() {
 function AppNavigator() {
   const { user, isLoading, hasCompletedOnboarding } = useAuth();
   const [showSplash, setShowSplash] = useState(true);
+  const [splashDuration, setSplashDuration] = useState(2000);
 
-  // Show splash screen while loading OR for 2 seconds
+  // Determine splash duration: 1s for returning users, 2s for first-timers
+  useEffect(() => {
+    AsyncStorage.getItem('@has_launched_before').then(val => {
+      if (val === 'true') {
+        setSplashDuration(1000);
+      } else {
+        AsyncStorage.setItem('@has_launched_before', 'true');
+        setSplashDuration(2000);
+      }
+    });
+  }, []);
+
+  // Show splash screen while loading
   if (isLoading || showSplash) {
-    return <SplashScreen onFinish={() => setShowSplash(false)} />;
+    return <SplashScreen onFinish={() => setShowSplash(false)} splashDuration={splashDuration} />;
   }
 
   return (

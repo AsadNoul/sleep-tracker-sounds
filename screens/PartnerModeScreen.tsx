@@ -547,7 +547,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'center',
-    gap: 6,
+    rowGap: 6, columnGap: 6,
   },
   tabText: {
     fontSize: 13,
@@ -606,7 +606,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 12,
-    gap: 12,
+    rowGap: 12, columnGap: 12,
   },
   insightTitle: {
     fontSize: 18,

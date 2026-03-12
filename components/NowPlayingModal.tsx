@@ -352,7 +352,7 @@ const styles = (theme: any) => StyleSheet.create({
   playingIndicator: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    rowGap: 6, columnGap: 6,
   },
   waveBar: {
     width: 4,
@@ -370,7 +370,7 @@ const styles = (theme: any) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 12,
+    rowGap: 12, columnGap: 12,
     marginBottom: 16,
   },
   volumeLabel: {
@@ -404,7 +404,7 @@ const styles = (theme: any) => StyleSheet.create({
   },
   controlButton: {
     alignItems: 'center',
-    gap: 8,
+    rowGap: 8, columnGap: 8,
   },
   secondaryButtonInner: {
     width: 56,
@@ -452,7 +452,7 @@ const styles = (theme: any) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 10,
+    rowGap: 10, columnGap: 10,
   },
   infoText: {
     fontSize: 13,
