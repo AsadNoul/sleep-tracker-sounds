@@ -118,7 +118,10 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         // Skip duplicate profile load if same user was already loaded
         if (loadedUserIdRef.current !== session.user.id) {
           loadedUserIdRef.current = session.user.id;
-          loadUserProfile(session.user.id);
+          loadUserProfile(session.user.id).catch(async (err) => {
+            console.error('onAuthStateChange: failed to load profile, using cache:', err);
+            await loadCachedUser();
+          });
         }
       } else {
         loadedUserIdRef.current = null;
@@ -384,6 +387,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       }
     } catch (error) {
       console.error('Error loading user profile:', error);
+      throw error; // Re-throw so callers can fall back to cached profile
     }
   };
 
@@ -723,36 +727,41 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   };
 
   const completeOnboarding = async () => {
-    try {
-      await AsyncStorage.setItem('@onboarding_complete', 'true');
-      setHasCompletedOnboarding(true);
+    // Always mark locally first — this must never fail
+    await AsyncStorage.setItem('@onboarding_complete', 'true');
+    setHasCompletedOnboarding(true);
 
-      // If user is authenticated, mark onboarding as complete in Supabase
-      if (session?.user) {
+    // If no user at all, set guest user so navigation goes to Main
+    if (!user) {
+      const guestUser: User = {
+        id: 'guest',
+        email: 'guest@local',
+        full_name: 'Guest',
+        subscription_status: 'free',
+        role: 'user',
+        isPremium: false,
+      };
+      setUser(guestUser);
+    }
+
+    // Sync to Supabase only if authenticated (don't throw if offline)
+    if (session?.user) {
+      try {
         await supabase
           .from('user_profiles')
-          .update({
-            onboarding_completed_at: new Date().toISOString(),
-          })
+          .update({ onboarding_completed_at: new Date().toISOString() })
           .eq('id', session.user.id);
 
-        // Create their settings
-        const { error } = await supabase.from('user_settings').upsert({
+        await supabase.from('user_settings').upsert({
           user_id: session.user.id,
           notifications: true,
           sleep_reminder: false,
           theme_mode: 'dark',
-        }, {
-          onConflict: 'user_id'
-        });
-
-        if (error) {
-          console.error('Error creating settings:', error);
-        }
+        }, { onConflict: 'user_id' });
+      } catch (error) {
+        // Offline — not a problem, data will sync when online
+        console.warn('Could not sync onboarding to Supabase (offline):', error);
       }
-    } catch (error) {
-      console.error('Error completing onboarding:', error);
-      throw error;
     }
   };
 
@@ -848,7 +857,11 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   const reloadProfile = async () => {
     if (user && user.id !== 'guest') {
-      await loadUserProfile(user.id);
+      try {
+        await loadUserProfile(user.id);
+      } catch (err) {
+        console.warn('reloadProfile: offline, keeping cached profile');
+      }
     }
   };
 

@@ -241,11 +241,21 @@ const SettingsScreen = () => {
 
             if (error) {
                 console.error('Error loading onboarding data:', error);
+                // Offline fallback: try cached onboarding profile
+                const cached = await AsyncStorage.getItem('@cached_onboarding_profile');
+                if (cached) setOnboardingProfile(JSON.parse(cached));
             } else {
                 setOnboardingProfile(data);
+                // Cache for offline use
+                AsyncStorage.setItem('@cached_onboarding_profile', JSON.stringify(data)).catch(() => {});
             }
         } catch (error) {
             console.error('Error loading onboarding data:', error);
+            // Offline fallback
+            try {
+                const cached = await AsyncStorage.getItem('@cached_onboarding_profile');
+                if (cached) setOnboardingProfile(JSON.parse(cached));
+            } catch {}
         } finally {
             setIsLoadingProfile(false);
         }

@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Animated, Dimensions, Image } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
@@ -29,8 +29,17 @@ export default function SplashScreen({ onFinish, splashDuration = 2000 }: Splash
   const fadeAnim = React.useRef(new Animated.Value(0)).current;
   const scaleAnim = React.useRef(new Animated.Value(0.9)).current;
   const textAnim = React.useRef(new Animated.Value(15)).current;
+  const glowPulse = useRef(new Animated.Value(0.6)).current;
 
   useEffect(() => {
+    // Glow ring pulse animation
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(glowPulse, { toValue: 1, duration: 1800, useNativeDriver: true }),
+        Animated.timing(glowPulse, { toValue: 0.6, duration: 1800, useNativeDriver: true }),
+      ])
+    ).start();
+
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
@@ -83,6 +92,10 @@ export default function SplashScreen({ onFinish, splashDuration = 2000 }: Splash
           ]}
         >
           <View style={styles(theme).logoContainer}>
+            {/* Outer glow ring */}
+            <Animated.View style={[styles(theme).glowRingOuter, { opacity: glowPulse, transform: [{ scale: glowPulse }] }]} />
+            {/* Inner glow ring */}
+            <Animated.View style={[styles(theme).glowRingInner, { opacity: glowPulse }]} />
             <View style={styles(theme).logoWrapper}>
               <Image
                 source={require('../assets/app_logo.png')}
@@ -126,6 +139,31 @@ const styles = (theme: any) => StyleSheet.create({
   },
   logoContainer: {
     alignItems: 'center',
+    justifyContent: 'center',
+  },
+  glowRingOuter: {
+    position: 'absolute',
+    width: 280,
+    height: 280,
+    borderRadius: 140,
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: 'rgba(139, 92, 246, 0.25)',
+    top: -40,
+    shadowColor: '#8B5CF6',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.6,
+    shadowRadius: 30,
+  },
+  glowRingInner: {
+    position: 'absolute',
+    width: 230,
+    height: 230,
+    borderRadius: 115,
+    backgroundColor: 'rgba(139, 92, 246, 0.07)',
+    borderWidth: 1,
+    borderColor: 'rgba(0, 255, 209, 0.2)',
+    top: -15,
   },
   logoWrapper: {
     width: 200,
@@ -135,8 +173,8 @@ const styles = (theme: any) => StyleSheet.create({
     marginBottom: 40,
     shadowColor: '#8B5CF6',
     shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.5,
-    shadowRadius: 20,
+    shadowOpacity: 0.6,
+    shadowRadius: 30,
     elevation: 15,
   },
   logoImage: {
@@ -150,9 +188,9 @@ const styles = (theme: any) => StyleSheet.create({
     color: '#FFFFFF',
     letterSpacing: 2,
     textAlign: 'center',
-    textShadowColor: 'rgba(0, 0, 0, 0.5)',
+    textShadowColor: 'rgba(139, 92, 246, 0.4)',
     textShadowOffset: { width: 0, height: 4 },
-    textShadowRadius: 10,
+    textShadowRadius: 12,
   },
   subtitleContainer: {
     flexDirection: 'row',
@@ -162,14 +200,14 @@ const styles = (theme: any) => StyleSheet.create({
   line: {
     width: 40,
     height: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    backgroundColor: 'rgba(201, 162, 39, 0.5)',
   },
   subtitle: {
-    fontSize: 14,
-    color: '#00FFD1',
-    letterSpacing: 4,
-    fontWeight: '700',
-    opacity: 0.9,
+    fontSize: 13,
+    color: '#C9A227',
+    letterSpacing: 5,
+    fontWeight: '800',
+    opacity: 0.95,
     marginHorizontal: 15,
   },
   footer: {

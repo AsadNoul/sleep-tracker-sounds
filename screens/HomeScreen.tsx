@@ -64,6 +64,7 @@ import { formatDuration, format12HourTime } from '../utils/dateFormatting';
 import { Modal, TextInput } from 'react-native';
 import alarmService from '../services/alarmService';
 import { isPremiumActive } from '../utils/subscriptionHelpers';
+import PushNotificationPrompt from '../components/PushNotificationPrompt';
 
 const isIOS = Platform.OS === 'ios';
 
@@ -996,6 +997,12 @@ export default function HomeScreen() {
           <TrendingUp size={22} color="#FFFFFF" strokeWidth={2.5} />
         </LinearGradient>
       </TouchableOpacity>
+
+      {/* Push Notification Prompt - shown on first visit to home */}
+      <PushNotificationPrompt
+        userId={user?.id !== 'guest' ? user?.id : undefined}
+        trigger="first_session"
+      />
     </View >
   );
 }

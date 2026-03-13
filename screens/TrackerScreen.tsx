@@ -68,15 +68,19 @@ export default function TrackerScreen() {
   // Load user age and latest insight on mount
   useEffect(() => {
     const loadData = async () => {
-      const age = await loadUserAge();
-      if (age !== null) {
-        setUserAge(age);
-      } else {
-        await saveUserAge(25);
-      }
+      try {
+        const age = await loadUserAge();
+        if (age !== null) {
+          setUserAge(age);
+        } else {
+          await saveUserAge(25);
+        }
 
-      const insight = await getLatestInsight();
-      setLatestInsight(insight);
+        const insight = await getLatestInsight();
+        setLatestInsight(insight);
+      } catch (err) {
+        console.warn('TrackerScreen: failed to load data (offline?):', err);
+      }
     };
     loadData();
   }, []);

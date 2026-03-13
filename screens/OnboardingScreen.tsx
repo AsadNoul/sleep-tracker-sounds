@@ -437,29 +437,40 @@ export default function OnboardingScreen() {
             <Text style={styles(theme).stepTitle}>Choose Your Profile</Text>
             <Text style={styles(theme).stepSubtitle}>We'll customize your experience based on your needs</Text>
             <View style={styles(theme).presetsContainer}>
-              {PROFESSIONAL_PRESETS.map((preset) => (
-                <TouchableOpacity
-                  key={preset.id}
-                  style={styles(theme).presetCard}
-                  onPress={() => handlePresetSelect(preset.id)}
-                  activeOpacity={0.8}
-                >
-                  <Image
-                    source={{ uri: preset.image }}
-                    style={styles(theme).presetBackgroundImage}
-                    resizeMode="cover"
-                  />
-                  <LinearGradient
-                    colors={['transparent', 'rgba(0,0,0,0.85)']}
-                    style={styles(theme).presetBlurOverlay}
+              {PROFESSIONAL_PRESETS.map((preset) => {
+                const PresetIcon = preset.icon;
+                return (
+                  <TouchableOpacity
+                    key={preset.id}
+                    style={styles(theme).presetCard}
+                    onPress={() => handlePresetSelect(preset.id)}
+                    activeOpacity={0.85}
                   >
+                    {/* Photo background */}
+                    <Image
+                      source={{ uri: preset.image }}
+                      style={styles(theme).presetBackgroundImage}
+                      resizeMode="cover"
+                    />
+                    {/* Dark gradient overlay from bottom */}
+                    <LinearGradient
+                      colors={['transparent', 'rgba(0,0,0,0.45)', 'rgba(0,0,0,0.82)']}
+                      style={styles(theme).presetOverlay}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 0, y: 1 }}
+                    />
+                    {/* Icon top-left badge */}
+                    <View style={[styles(theme).presetIconBadge, { backgroundColor: preset.gradient[0] + 'CC' }]}>
+                      <PresetIcon size={18} color="#FFFFFF" />
+                    </View>
+                    {/* Text at bottom */}
                     <View style={styles(theme).presetTextContainer}>
                       <Text style={styles(theme).presetTitle}>{preset.title}</Text>
                       <Text style={styles(theme).presetSubtitle}>{preset.subtitle}</Text>
                     </View>
-                  </LinearGradient>
-                </TouchableOpacity>
-              ))}
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           </View>
         );
@@ -965,29 +976,28 @@ const styles = (theme: any) => StyleSheet.create({
     alignSelf: 'center',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 32,
-    marginTop: 10,
-    width: 200,
-    height: 200,
+    marginBottom: 20,
+    marginTop: 4,
+    width: 120,
+    height: 120,
   },
   iconGlow: {
     position: 'absolute',
-    width: 220,
-    height: 220,
-    borderRadius: 110,
+    width: 136,
+    height: 136,
+    borderRadius: 68,
     backgroundColor: theme.colors.accent,
     opacity: 0.12,
     shadowColor: theme.colors.accent,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.5,
-    shadowRadius: 30,
-    // Remove elevation on Android to avoid blocky shapes
-    elevation: Platform.OS === 'ios' ? 10 : 0,
+    shadowRadius: 20,
+    elevation: Platform.OS === 'ios' ? 8 : 0,
   },
   iconImage: {
-    width: 180,
-    height: 180,
-    borderRadius: 24,
+    width: 110,
+    height: 110,
+    borderRadius: 18,
     zIndex: 1,
     overflow: 'hidden',
   },
@@ -1006,12 +1016,12 @@ const styles = (theme: any) => StyleSheet.create({
     letterSpacing: -0.5,
   },
   stepSubtitle: {
-    fontSize: 16,
+    fontSize: 15,
     color: theme.colors.textSecondary,
     textAlign: 'center',
-    marginBottom: 32,
+    marginBottom: 20,
     paddingHorizontal: 24,
-    lineHeight: 24,
+    lineHeight: 22,
     opacity: 0.8,
   },
   optionsContainer: {
@@ -1025,48 +1035,48 @@ const styles = (theme: any) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'rgba(30, 35, 60, 0.5)',
-    borderRadius: 20,
-    padding: 16,
+    borderRadius: 16,
+    padding: 12,
     borderWidth: 2,
     borderColor: 'rgba(100, 120, 255, 0.15)',
-    rowGap: 10, columnGap: 10,
+    rowGap: 6, columnGap: 6,
     shadowColor: '#6478FF',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
     shadowRadius: 12,
     elevation: Platform.OS === 'ios' ? 3 : 0,
-    minHeight: 100,
+    minHeight: 76,
     width: '48%',
   },
   optionCardSelected: {
-    borderColor: '#00FFD1',
-    backgroundColor: 'rgba(0, 255, 209, 0.12)',
-    borderWidth: 2.5,
-    shadowColor: '#00FFD1',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.4,
-    shadowRadius: 20,
-    elevation: Platform.OS === 'ios' ? 8 : 0,
+    borderColor: '#8B5CF6',
+    backgroundColor: 'rgba(139, 92, 246, 0.18)',
+    borderWidth: 2,
+    shadowColor: '#8B5CF6',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 16,
+    elevation: Platform.OS === 'ios' ? 6 : 0,
     transform: [{ scale: 1.02 }],
   },
   optionText: {
-    fontSize: 15,
+    fontSize: 13,
     color: theme.colors.textPrimary,
     fontWeight: '600',
     letterSpacing: -0.2,
     textAlign: 'center',
   },
   optionTextSelected: {
-    color: theme.colors.accent,
+    color: '#FFFFFF',
     fontWeight: '700',
   },
   emoji: {
-    fontSize: 36,
+    fontSize: 26,
     marginRight: 4,
   },
   goalEmoji: {
-    fontSize: 40,
-    marginBottom: 8,
+    fontSize: 28,
+    marginBottom: 4,
   },
   sliderContainer: {
     alignItems: 'center',
@@ -1285,19 +1295,33 @@ const styles = (theme: any) => StyleSheet.create({
   presetsContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    rowGap: 12, columnGap: 12,
     marginTop: 20,
+    marginHorizontal: -6,
   },
   presetCard: {
-    width: '48%',
-    height: 200,
-    borderRadius: 24,
+    width: '50%',
+    height: 180,
+    paddingHorizontal: 6,
+    marginBottom: 12,
+    borderRadius: 20,
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.4,
-    shadowRadius: 20,
-    elevation: 12,
+  },
+  presetCardHeader: {
+    height: 110,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  presetCardFooter: {
+    backgroundColor: 'rgba(27, 29, 50, 0.9)',
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderTopWidth: 0,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
   },
   presetBackgroundImage: {
     position: 'absolute',
@@ -1305,6 +1329,33 @@ const styles = (theme: any) => StyleSheet.create({
     height: '100%',
     top: 0,
     left: 0,
+    borderRadius: 16,
+  },
+  presetOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: '75%',
+    borderBottomLeftRadius: 16,
+    borderBottomRightRadius: 16,
+  },
+  presetIconBadge: {
+    position: 'absolute',
+    top: 10,
+    left: 16,
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  presetIconBox: {
+    width: 52,
+    height: 52,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   presetBlurOverlay: {
     position: 'absolute',
@@ -1317,24 +1368,28 @@ const styles = (theme: any) => StyleSheet.create({
     paddingBottom: 16,
   },
   presetTextContainer: {
-    alignItems: 'flex-start',
-    rowGap: 4, columnGap: 4,
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 12,
+    paddingBottom: 14,
   },
   presetTitle: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '800',
-    color: '#fff',
-    letterSpacing: 0.3,
-    textShadowColor: 'rgba(0, 0, 0, 0.5)',
-    textShadowOffset: { width: 0, height: 2 },
+    color: '#FFFFFF',
+    marginBottom: 2,
+    textShadowColor: 'rgba(0,0,0,0.6)',
+    textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 4,
   },
   presetSubtitle: {
-    fontSize: 11,
-    color: 'rgba(255,255,255,0.95)',
-    lineHeight: 14,
+    fontSize: 10,
+    color: 'rgba(255,255,255,0.75)',
     fontWeight: '500',
-    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    lineHeight: 14,
+    textShadowColor: 'rgba(0,0,0,0.5)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 3,
   },

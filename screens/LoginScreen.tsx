@@ -13,7 +13,6 @@ import {
   Image,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
 import { ChevronLeft, Moon, Mail, Lock, Eye, EyeOff, Chrome } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -119,26 +118,30 @@ export default function LoginScreen() {
 
             {/* Form */}
             <View style={styles(theme).formContainer}>
-              <BlurView intensity={20} tint="dark" style={styles(theme).inputContainer}>
-                <Mail size={20} color={theme.colors.textSecondary} style={styles(theme).inputIcon} />
+              <View style={styles(theme).inputContainer}>
+                <View style={styles(theme).inputIconBox}>
+                  <Mail size={18} color={theme.colors.accent} />
+                </View>
                 <TextInput
                   style={styles(theme).input}
-                  placeholder="Email"
-                  placeholderTextColor={theme.colors.textSecondary}
+                  placeholder="Email address"
+                  placeholderTextColor="rgba(255,255,255,0.3)"
                   value={email}
                   onChangeText={setEmail}
                   keyboardType="email-address"
                   autoCapitalize="none"
                   autoCorrect={false}
                 />
-              </BlurView>
+              </View>
 
-              <BlurView intensity={20} tint="dark" style={styles(theme).inputContainer}>
-                <Lock size={20} color={theme.colors.textSecondary} style={styles(theme).inputIcon} />
+              <View style={styles(theme).inputContainer}>
+                <View style={styles(theme).inputIconBox}>
+                  <Lock size={18} color={theme.colors.accent} />
+                </View>
                 <TextInput
                   style={styles(theme).input}
                   placeholder="Password"
-                  placeholderTextColor={theme.colors.textSecondary}
+                  placeholderTextColor="rgba(255,255,255,0.3)"
                   value={password}
                   onChangeText={setPassword}
                   secureTextEntry={!showPassword}
@@ -150,12 +153,12 @@ export default function LoginScreen() {
                   style={styles(theme).eyeIcon}
                 >
                   {showPassword ? (
-                    <Eye size={20} color={theme.colors.textSecondary} />
+                    <Eye size={18} color="rgba(255,255,255,0.4)" />
                   ) : (
-                    <EyeOff size={20} color={theme.colors.textSecondary} />
+                    <EyeOff size={18} color="rgba(255,255,255,0.4)" />
                   )}
                 </TouchableOpacity>
-              </BlurView>
+              </View>
 
               <TouchableOpacity
                 style={styles(theme).forgotPassword}
@@ -249,37 +252,44 @@ const styles = (theme: any) => StyleSheet.create({
     marginBottom: 20,
   },
   backButton: {
-    width: 44,
-    height: 44,
+    width: 42,
+    height: 42,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(27, 29, 42, 0.6)',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
     borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   logoContainer: {
     alignItems: 'center',
-    marginBottom: 40,
+    marginBottom: 36,
   },
   iconCircle: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
+    width: 110,
+    height: 110,
+    borderRadius: 55,
     backgroundColor: 'rgba(139, 92, 246, 0.1)',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 20,
-    borderWidth: 2,
-    borderColor: 'rgba(139, 92, 246, 0.3)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(139, 92, 246, 0.35)',
+    shadowColor: '#8B5CF6',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.35,
+    shadowRadius: 20,
+    elevation: 10,
   },
   title: {
-    fontSize: 32,
-    fontWeight: '700',
+    fontSize: 30,
+    fontWeight: '800',
     color: theme.colors.textPrimary,
-    marginBottom: 8,
+    marginBottom: 6,
   },
   subtitle: {
-    fontSize: 16,
-    color: theme.colors.textSecondary,
+    fontSize: 15,
+    color: 'rgba(255,255,255,0.45)',
     textAlign: 'center',
   },
   formContainer: {
@@ -288,29 +298,34 @@ const styles = (theme: any) => StyleSheet.create({
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(27, 29, 42, 0.7)',
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    marginBottom: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    marginBottom: 14,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
-    overflow: 'hidden',
+    borderColor: 'rgba(255, 255, 255, 0.09)',
   },
-  inputIcon: {
+  inputIconBox: {
+    width: 34,
+    height: 34,
+    borderRadius: 9,
+    backgroundColor: 'rgba(0, 255, 209, 0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
     marginRight: 12,
   },
   input: {
     flex: 1,
     paddingVertical: 16,
-    fontSize: 16,
+    fontSize: 15,
     color: theme.colors.textPrimary,
   },
   eyeIcon: {
-    padding: 4,
+    padding: 6,
   },
   forgotPassword: {
     alignSelf: 'flex-end',
-    marginBottom: 24,
+    marginBottom: 22,
   },
   forgotPasswordText: {
     fontSize: 14,
@@ -318,44 +333,46 @@ const styles = (theme: any) => StyleSheet.create({
     fontWeight: '600',
   },
   loginButton: {
-    borderRadius: 16,
+    borderRadius: 14,
     overflow: 'hidden',
     shadowColor: theme.colors.accent,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 14,
     elevation: 8,
   },
   loginButtonGradient: {
-    paddingVertical: 18,
+    paddingVertical: 17,
     alignItems: 'center',
     justifyContent: 'center',
   },
   loginButtonText: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '700',
-    color: theme.colors.background,
+    color: '#0A0D1A',
+    letterSpacing: 0.3,
   },
   divider: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginVertical: 24,
+    marginVertical: 20,
   },
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
   },
   dividerText: {
-    fontSize: 14,
-    color: theme.colors.textSecondary,
-    marginHorizontal: 16,
-    fontWeight: '600',
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.3)',
+    marginHorizontal: 14,
+    fontWeight: '700',
+    letterSpacing: 1,
   },
   socialButtons: {
     flexDirection: 'row',
     justifyContent: 'center',
-    rowGap: 16, columnGap: 16,
+    gap: 16,
     marginBottom: 24,
   },
   socialButton: {
@@ -372,46 +389,45 @@ const styles = (theme: any) => StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 14,
   },
   signupText: {
-    fontSize: 16,
-    color: theme.colors.textSecondary,
+    fontSize: 15,
+    color: 'rgba(255,255,255,0.4)',
   },
   signupLink: {
-    fontSize: 16,
+    fontSize: 15,
     color: theme.colors.accent,
     fontWeight: '700',
   },
   skipButton: {
-    paddingVertical: 16,
+    paddingVertical: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 8,
+    marginTop: 4,
     marginBottom: 40,
   },
   skipButtonText: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '500',
-    color: theme.colors.textSecondary,
+    color: 'rgba(255,255,255,0.3)',
   },
   googleButton: {
-    backgroundColor: 'rgba(27, 29, 42, 0.7)',
-    borderRadius: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
-    marginBottom: 24,
-    overflow: 'hidden',
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    marginBottom: 20,
   },
   googleButtonContent: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 16,
-    rowGap: 12, columnGap: 12,
+    paddingVertical: 15,
+    gap: 12,
   },
   googleButtonText: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
     color: theme.colors.textPrimary,
   },

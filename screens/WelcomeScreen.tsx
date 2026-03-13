@@ -45,16 +45,31 @@ export default function WelcomeScreen() {
           {/* Features Preview */}
           <View style={styles(theme).featuresPreview}>
             <View style={styles(theme).featureItem}>
-              <BarChart3 size={24} color={theme.colors.accent} />
-              <Text style={styles(theme).featureText}>Track Sleep Quality</Text>
+              <View style={[styles(theme).featureIconBox, { backgroundColor: 'rgba(0, 255, 209, 0.12)' }]}>
+                <BarChart3 size={22} color={theme.colors.accent} />
+              </View>
+              <View style={styles(theme).featureTextGroup}>
+                <Text style={styles(theme).featureText}>Track Sleep Quality</Text>
+                <Text style={styles(theme).featureSubText}>AI-powered insights nightly</Text>
+              </View>
             </View>
             <View style={styles(theme).featureItem}>
-              <Music size={24} color="#33C6FF" />
-              <Text style={styles(theme).featureText}>Relaxing Sounds</Text>
+              <View style={[styles(theme).featureIconBox, { backgroundColor: 'rgba(51, 198, 255, 0.12)' }]}>
+                <Music size={22} color="#33C6FF" />
+              </View>
+              <View style={styles(theme).featureTextGroup}>
+                <Text style={styles(theme).featureText}>Relaxing Sounds</Text>
+                <Text style={styles(theme).featureSubText}>Nature, white noise & more</Text>
+              </View>
             </View>
             <View style={styles(theme).featureItem}>
-              <Lightbulb size={24} color="#FFD700" />
-              <Text style={styles(theme).featureText}>Smart Recommendations</Text>
+              <View style={[styles(theme).featureIconBox, { backgroundColor: 'rgba(255, 215, 0, 0.12)' }]}>
+                <Lightbulb size={22} color="#FFD700" />
+              </View>
+              <View style={styles(theme).featureTextGroup}>
+                <Text style={styles(theme).featureText}>Smart Recommendations</Text>
+                <Text style={styles(theme).featureSubText}>Personalized to your sleep profile</Text>
+              </View>
             </View>
           </View>
 
@@ -124,21 +139,27 @@ const styles = (theme: any) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 24,
-    borderWidth: 2,
-    borderColor: 'rgba(139, 92, 246, 0.3)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(139, 92, 246, 0.4)',
+    shadowColor: '#8B5CF6',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.35,
+    shadowRadius: 24,
+    elevation: 12,
   },
   appName: {
     fontSize: 36,
-    fontWeight: '700',
+    fontWeight: '800',
     color: theme.colors.textPrimary,
     marginBottom: 8,
     letterSpacing: 1,
   },
   tagline: {
-    fontSize: 16,
+    fontSize: 15,
     color: theme.colors.textSecondary,
     fontWeight: '500',
-    letterSpacing: 0.5,
+    letterSpacing: 0.3,
+    textAlign: 'center',
   },
   featuresPreview: {
     marginVertical: 40,
@@ -146,29 +167,45 @@ const styles = (theme: any) => StyleSheet.create({
   featureItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(27, 29, 42, 0.6)',
-    padding: 16,
+    backgroundColor: 'rgba(27, 29, 42, 0.7)',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
     borderRadius: 16,
-    marginBottom: 12,
+    marginBottom: 10,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
+    borderColor: 'rgba(255, 255, 255, 0.07)',
+  },
+  featureIconBox: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  featureTextGroup: {
+    marginLeft: 14,
+    flex: 1,
   },
   featureText: {
-    fontSize: 16,
+    fontSize: 15,
     color: theme.colors.textPrimary,
-    marginLeft: 16,
-    fontWeight: '500',
+    fontWeight: '600',
+  },
+  featureSubText: {
+    fontSize: 12,
+    color: theme.colors.textSecondary,
+    marginTop: 2,
   },
   buttonContainer: {
-    rowGap: 16, columnGap: 16,
+    gap: 12,
   },
   primaryButton: {
     borderRadius: 16,
     overflow: 'hidden',
     shadowColor: theme.colors.accent,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 14,
     elevation: 8,
   },
   buttonGradient: {
@@ -177,32 +214,33 @@ const styles = (theme: any) => StyleSheet.create({
     justifyContent: 'center',
   },
   primaryButtonText: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '700',
-    color: theme.colors.background,
+    color: '#0A0D1A',
+    letterSpacing: 0.3,
   },
   secondaryButton: {
-    paddingVertical: 18,
+    paddingVertical: 17,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(27, 29, 42, 0.6)',
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: 'rgba(255, 255, 255, 0.12)',
   },
   secondaryButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: theme.colors.accent,
+    color: theme.colors.textPrimary,
   },
   skipButton: {
-    paddingVertical: 16,
+    paddingVertical: 14,
     alignItems: 'center',
     justifyContent: 'center',
   },
   skipButtonText: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '500',
-    color: theme.colors.textSecondary,
+    color: 'rgba(255, 255, 255, 0.35)',
   },
 });
