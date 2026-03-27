@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { View, Text, StyleSheet, Dimensions, TouchableOpacity } from 'react-native';
 import { SleepStageSegment } from '../services/sleepTrackingService';
 import { useAppTheme } from '../hooks/useAppTheme';
@@ -85,6 +85,24 @@ export default function Hypnogram({ stages }: HypnogramProps) {
   const endTime = stages[stages.length - 1].endTime;
   const totalDuration = endTime - startTime;
 
+  // Generate time labels for X-axis (every 2 hours or based on duration)
+  const timeLabels = useMemo(() => {
+    const labels = [];
+    const numLabels = Math.min(6, Math.ceil(totalDuration / (2 * 60 * 60 * 1000))); // Split into up to 6 labels
+    
+    for (let i = 0; i <= numLabels; i++) {
+      const labelTime = new Date(startTime + (i / numLabels) * totalDuration);
+      labels.push(
+        labelTime.toLocaleTimeString('en-US', {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true,
+        })
+      );
+    }
+    return labels;
+  }, [startTime, totalDuration]);
+
   // Touch handler: converts the X tap position into a time → segment
   const handleChartTouch = (locationX: number) => {
     const ratio = Math.max(0, Math.min(1, locationX / CHART_WIDTH));
@@ -95,8 +113,8 @@ export default function Hypnogram({ stages }: HypnogramProps) {
     );
     if (tapped) {
       setTooltip({ x: locationX, segment: tapped });
-      // Auto-dismiss after 3 s
-      setTimeout(() => setTooltip(null), 3000);
+      // Auto-dismiss after 6 seconds (better for health data)
+      setTimeout(() => setTooltip(null), 6000);
     } else {
       setTooltip(null);
     }
@@ -149,6 +167,64 @@ export default function Hypnogram({ stages }: HypnogramProps) {
                 },
               ]}
             />
+          );
+        })}
+
+        {/* Tooltip */}
+        {tooltip && (
+          <View
+            style={[
+              styles.tooltip,
+              { left: tooltipLeft },
+            ]}
+          >
+            <Text style={styles.tooltipStage}>{STAGE_LABELS[tooltip.segment.stage]}</Text>
+            <Text style={styles.tooltipTime}>
+              {formatStageTime(tooltip.segment.startTime)} - {formatStageTime(tooltip.segment.endTime)}
+            </Text>
+            <Text style={styles.tooltipDuration}>
+              {formatDurationMin(tooltip.segment.endTime - tooltip.segment.startTime)}
+            </Text>
+          </View>
+        )}
+      </View>
+
+      {/* X-Axis labels - Time markers */}
+      <View style={styles.xAxis}>
+        {timeLabels.map((label, i) => (
+          <Text
+            key={i}
+            style={[
+              styles.xLabel,
+              { marginLeft: i === 0 ? 0 : -20 },
+            ]}
+          >
+            {label}
+          </Text>
+        ))}
+      </View>
+
+      {/* Legend */}
+      <View style={styles.legend}>
+        <View style={styles.legendItem}>
+          <View style={[styles.legendDot, { backgroundColor: STAGE_COLORS.awake }]} />
+          <Text style={styles.legendLabel}>Awake</Text>
+        </View>
+        <View style={styles.legendItem}>
+          <View style={[styles.legendDot, { backgroundColor: STAGE_COLORS.rem }]} />
+          <Text style={styles.legendLabel}>REM</Text>
+        </View>
+        <View style={styles.legendItem}>
+          <View style={[styles.legendDot, { backgroundColor: STAGE_COLORS.light }]} />
+          <Text style={styles.legendLabel}>Light</Text>
+        </View>
+        <View style={styles.legendItem}>
+          <View style={[styles.legendDot, { backgroundColor: STAGE_COLORS.deep }]} />
+          <Text style={styles.legendLabel}>Deep</Text>
+        </View>
+      </View>
+    </View>
+  );
           );
         })}
 
@@ -332,4 +408,40 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.2)',
     letterSpacing: 0.5,
   },
+  // X-Axis and Legend
+  xAxis: {
+    flexDirection: 'row',
+    height: 24,
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginTop: 8,
+    marginBottom: 8,
+  },
+  xLabel: {
+    fontSize: 9,
+    color: 'rgba(255, 255, 255, 0.5)',
+    textAlign: 'center',
+  },
+  legend: {
+    flexDirection: 'row',
+    justifyContent: 'flex-start',
+    gap: 12,
+    marginTop: 12,
+    paddingHorizontal: 8,
+  },
+  legendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  legendDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  legendLabel: {
+    fontSize: 11,
+    color: 'rgba(255, 255, 255, 0.7)',
+  },
 });
+

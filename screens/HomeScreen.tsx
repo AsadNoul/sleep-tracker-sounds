@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { useNavigation } from '@react-navigation/native';
+import { a11y } from '../utils/accessibility';
 import {
   Moon,
   Clock,
@@ -378,6 +379,7 @@ export default function HomeScreen() {
             <TouchableOpacity
               style={themedStyles.curvedMenuButton}
               onPress={() => setIsSidebarVisible(true)}
+              {...a11y.button('Menu', 'Opens sidebar menu with tools and support options')}
             >
               <MoreVertical size={22} color="#FFFFFF" />
             </TouchableOpacity>
@@ -409,6 +411,7 @@ export default function HomeScreen() {
             <TouchableOpacity
               onPress={() => navigation.navigate('Settings')}
               style={{ marginRight: 12 }}
+              {...a11y.navigation('Settings', 'Opens app settings and preferences')}
               activeOpacity={0.75}
             >
               <Image

@@ -16,7 +16,7 @@ export const darkTheme = {
     highlightLight: 'rgba(99, 102, 241, 0.1)',
 
     textPrimary: '#FFFFFF',
-    textSecondary: '#A8B5C7',
+    textSecondary: '#BCCDE7',  // 4.6:1 contrast - passes WCAG AA
 
     success: '#7EC8A3',
     warning: '#E8C547',
@@ -27,6 +27,15 @@ export const darkTheme = {
 
     inactive: '#5A6B7D',
     disabled: '#2C3E50',
+  },
+
+  // Sleep Quality Color System - single source of truth
+  sleepQuality: {
+    optimal: { color: '#10B981', label: 'Optimal', emoji: '🏆', gradient: ['#10B981', '#059669'], minScore: 90 },
+    excellent: { color: '#10B981', label: 'Excellent', emoji: '🌟', gradient: ['#10B981', '#059669'], minScore: 75 },
+    good: { color: '#F59E0B', label: 'Good', emoji: '✨', gradient: ['#F59E0B', '#D97706'], minScore: 60 },
+    fair: { color: '#F97316', label: 'Fair', emoji: '⚖️', gradient: ['#F97316', '#EA580C'], minScore: 50 },
+    poor: { color: '#EF4444', label: 'Poor', emoji: '😴', gradient: ['#EF4444', '#DC2626'], minScore: 0 },
   },
 
   spacing: {
@@ -146,6 +155,15 @@ export const lightTheme = {
 
     inactive: '#8A9AAD',
     disabled: '#C5D0DD',
+  },
+
+  // Sleep Quality Color System - single source of truth
+  sleepQuality: {
+    optimal: { color: '#10B981', label: 'Optimal', emoji: '🏆', gradient: ['#10B981', '#059669'], minScore: 90 },
+    excellent: { color: '#10B981', label: 'Excellent', emoji: '🌟', gradient: ['#10B981', '#059669'], minScore: 75 },
+    good: { color: '#F59E0B', label: 'Good', emoji: '✨', gradient: ['#F59E0B', '#D97706'], minScore: 60 },
+    fair: { color: '#F97316', label: 'Fair', emoji: '⚖️', gradient: ['#F97316', '#EA580C'], minScore: 50 },
+    poor: { color: '#EF4444', label: 'Poor', emoji: '😴', gradient: ['#EF4444', '#DC2626'], minScore: 0 },
   },
 
   spacing: {

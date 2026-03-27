@@ -1,6 +1,9 @@
+import { darkTheme } from '../constants/theme';
+
 /**
- * Sleep Quality Color System
- * Provides consistent color coding throughout the app
+ * UNIFIED Sleep Quality Color System
+ * Single source of truth - all colors defined in constants/theme.ts
+ * This file now acts as a pure utility layer
  */
 
 export interface SleepQualityLevel {
@@ -10,88 +13,111 @@ export interface SleepQualityLevel {
   gradient: string[];
 }
 
+/**
+ * Get color for sleep SCORE (0-100 scale)
+ * Used for: Sleep score rings, badges, highlights
+ * Examples: 95 = Optimal, 80 = Excellent, 65 = Good, 55 = Fair, 35 = Poor
+ */
+export function getSleepScoreColor(score: number): SleepQualityLevel {
+  const palette = darkTheme.sleepQuality;
+
+  if (score >= palette.optimal.minScore) {
+    return {
+      color: palette.optimal.color,
+      label: palette.optimal.label,
+      emoji: palette.optimal.emoji,
+      gradient: palette.optimal.gradient,
+    };
+  } else if (score >= palette.excellent.minScore) {
+    return {
+      color: palette.excellent.color,
+      label: palette.excellent.label,
+      emoji: palette.excellent.emoji,
+      gradient: palette.excellent.gradient,
+    };
+  } else if (score >= palette.good.minScore) {
+    return {
+      color: palette.good.color,
+      label: palette.good.label,
+      emoji: palette.good.emoji,
+      gradient: palette.good.gradient,
+    };
+  } else if (score >= palette.fair.minScore) {
+    return {
+      color: palette.fair.color,
+      label: palette.fair.label,
+      emoji: palette.fair.emoji,
+      gradient: palette.fair.gradient,
+    };
+  } else {
+    return {
+      color: palette.poor.color,
+      label: palette.poor.label,
+      emoji: palette.poor.emoji,
+      gradient: palette.poor.gradient,
+    };
+  }
+}
+
+/**
+ * Get color for sleep DURATION (in hours)
+ * Used for: Duration bars, duration analysis
+ * Examples: 6h = Fair, 7h = Good, 8.5h = Excellent, 5h = Poor
+ */
 export function getSleepQualityColor(hours: number): SleepQualityLevel {
+  const palette = darkTheme.sleepQuality;
+
   if (hours >= 8 && hours <= 10) {
     return {
-      color: '#10B981', // Green
-      label: 'Excellent',
-      emoji: '🌟',
-      gradient: ['#10B981', '#059669']
+      color: palette.excellent.color,
+      label: palette.excellent.label,
+      emoji: palette.excellent.emoji,
+      gradient: palette.excellent.gradient,
     };
   } else if (hours >= 7 && hours < 8) {
     return {
-      color: '#F59E0B', // Gold/Yellow
-      label: 'Good',
-      emoji: '✨',
-      gradient: ['#F59E0B', '#D97706']
+      color: palette.good.color,
+      label: palette.good.label,
+      emoji: palette.good.emoji,
+      gradient: palette.good.gradient,
     };
   } else if (hours >= 6 && hours < 7) {
     return {
-      color: '#F97316', // Orange
-      label: 'Fair',
-      emoji: '⚠️',
-      gradient: ['#F97316', '#EA580C']
+      color: palette.fair.color,
+      label: palette.fair.label,
+      emoji: palette.fair.emoji,
+      gradient: palette.fair.gradient,
     };
   } else {
     return {
-      color: '#EF4444', // Red
-      label: 'Poor',
-      emoji: '😴',
-      gradient: ['#EF4444', '#DC2626']
+      color: palette.poor.color,
+      label: palette.poor.label,
+      emoji: palette.poor.emoji,
+      gradient: palette.poor.gradient,
     };
   }
 }
 
-export function getSleepScoreColor(score: number): SleepQualityLevel {
-  if (score >= 90) {
-    return {
-      color: '#F59E0B', // Premium Gold
-      label: 'Optimal',
-      emoji: '🏆',
-      gradient: ['#F59E0B', '#B45309']
-    };
-  } else if (score >= 75) {
-    return {
-      color: '#10B981', // Vibrant Green
-      label: 'Excellent',
-      emoji: '🌟',
-      gradient: ['#10B981', '#059669']
-    };
-  } else if (score >= 60) {
-    return {
-      color: '#06B6D4', // Cyan/Teal (Positive but room for improvement)
-      label: 'Good',
-      emoji: '✨',
-      gradient: ['#06B6D4', '#0891B2']
-    };
-  } else if (score >= 50) {
-    return {
-      color: '#EAB308', // Yellow
-      label: 'Fair',
-      emoji: '⚖️',
-      gradient: ['#EAB308', '#CA8A04']
-    };
-  } else if (score >= 40) {
-    return {
-      color: '#F97316', // Orange
-      label: 'Mediocre',
-      emoji: '⚠️',
-      gradient: ['#F97316', '#EA580C']
-    };
-  } else {
-    return {
-      color: '#EF4444', // Red
-      label: 'Poor',
-      emoji: '😴',
-      gradient: ['#EF4444', '#DC2626']
-    };
-  }
+/**
+ * Universal function - use for charts to ensure consistency
+ * Intelligently picks correct palette based on whether you're using score or duration
+ */
+export function getQualityColor(metric: number, isScore: boolean = true): SleepQualityLevel {
+  return isScore ? getSleepScoreColor(metric) : getSleepQualityColor(metric);
 }
 
+/**
+ * Get hex color only (for simple use cases)
+ */
+export function getQualityHexColor(metric: number, isScore: boolean = true): string {
+  return getQualityColor(metric, isScore).color;
+}
+
+/**
+ * Legacy function - for rating colors (deprecated, use getSleepScoreColor instead)
+ */
 export function getQualityRatingColor(rating: number): string {
-  // For 1-10 quality ratings
-  if (rating >= 8) return '#10B981';
-  if (rating >= 6) return '#F59E0B';
-  if (rating >= 4) return '#F97316';
-  return '#EF4444';
+  // Convert 1-10 scale to 0-100 scale
+  const score = rating * 10;
+  return getQualityHexColor(score, true);
 }
