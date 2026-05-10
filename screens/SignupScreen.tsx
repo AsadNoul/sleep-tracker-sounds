@@ -10,10 +10,11 @@ import {
   Platform,
   ScrollView,
   Alert,
+  Image,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
-import { ChevronLeft, Moon, User, Mail, Lock, Eye, EyeOff, Chrome } from 'lucide-react-native';
+import { ChevronLeft, User, Mail, Lock, Eye, EyeOff, Chrome } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAuth } from '../contexts/AuthContext';
@@ -31,9 +32,7 @@ export default function SignupScreen() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
 
@@ -47,7 +46,7 @@ export default function SignupScreen() {
     const trimmedEmail = email.trim().toLowerCase();
     const trimmedPassword = password.trim();
 
-    if (!trimmedName || !trimmedEmail || !trimmedPassword || !confirmPassword) {
+    if (!trimmedName || !trimmedEmail || !trimmedPassword) {
       Alert.alert('Error', 'Please fill in all fields');
       return;
     }
@@ -56,11 +55,6 @@ export default function SignupScreen() {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(trimmedEmail)) {
       Alert.alert('Invalid Email', 'Please enter a valid email address');
-      return;
-    }
-
-    if (trimmedPassword !== confirmPassword.trim()) {
-      Alert.alert('Error', 'Passwords do not match');
       return;
     }
 
@@ -118,7 +112,11 @@ export default function SignupScreen() {
             {/* Logo */}
             <View style={styles(theme).logoContainer}>
               <View style={styles(theme).iconCircle}>
-                <Moon size={60} color={theme.colors.accent} />
+                <Image
+                  source={require('../assets/app_logo.png')}
+                  style={{ width: 90, height: 90 }}
+                  resizeMode="contain"
+                />
               </View>
               <Text style={styles(theme).title}>Create Account</Text>
               <Text style={styles(theme).subtitle}>Start your journey to better sleep</Text>
@@ -170,30 +168,6 @@ export default function SignupScreen() {
                   style={styles(theme).eyeIcon}
                 >
                   {showPassword ? (
-                    <Eye size={20} color={theme.colors.textSecondary} />
-                  ) : (
-                    <EyeOff size={20} color={theme.colors.textSecondary} />
-                  )}
-                </TouchableOpacity>
-              </BlurView>
-
-              <BlurView intensity={20} tint="dark" style={styles(theme).inputContainer}>
-                <Lock size={20} color={theme.colors.textSecondary} style={styles(theme).inputIcon} />
-                <TextInput
-                  style={styles(theme).input}
-                  placeholder="Confirm Password"
-                  placeholderTextColor={theme.colors.textSecondary}
-                  value={confirmPassword}
-                  onChangeText={setConfirmPassword}
-                  secureTextEntry={!showConfirmPassword}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                />
-                <TouchableOpacity
-                  onPress={() => setShowConfirmPassword(!showConfirmPassword)}
-                  style={styles(theme).eyeIcon}
-                >
-                  {showConfirmPassword ? (
                     <Eye size={20} color={theme.colors.textSecondary} />
                   ) : (
                     <EyeOff size={20} color={theme.colors.textSecondary} />
@@ -312,15 +286,16 @@ const styles = (theme: any) => StyleSheet.create({
     marginBottom: 32,
   },
   iconCircle: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: 'rgba(139, 92, 246, 0.1)',
+    width: 110,
+    height: 110,
+    borderRadius: 24,
+    backgroundColor: 'rgba(139, 92, 246, 0.12)',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 16,
-    borderWidth: 2,
-    borderColor: 'rgba(139, 92, 246, 0.3)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(139, 92, 246, 0.4)',
+    overflow: 'hidden',
   },
   title: {
     fontSize: 32,

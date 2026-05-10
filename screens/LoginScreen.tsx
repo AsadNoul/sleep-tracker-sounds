@@ -106,14 +106,14 @@ export default function LoginScreen() {
             {/* Logo */}
             <View style={styles(theme).logoContainer}>
               <View style={styles(theme).iconCircle}>
-                <Image 
-                  source={require('../assets/app_logo.png')} 
-                  style={{ width: 80, height: 80, borderRadius: 20 }} 
+                <Image
+                  source={require('../assets/app_logo.png')}
+                  style={{ width: 90, height: 90 }}
                   resizeMode="contain"
                 />
               </View>
               <Text style={styles(theme).title}>Welcome Back</Text>
-              <Text style={styles(theme).subtitle}>Sign in to your VIP Sleep Suite</Text>
+              <Text style={styles(theme).subtitle}>Sign in to your Sleep Architect</Text>
             </View>
 
             {/* Form */}
@@ -268,18 +268,19 @@ const styles = (theme: any) => StyleSheet.create({
   iconCircle: {
     width: 110,
     height: 110,
-    borderRadius: 55,
-    backgroundColor: 'rgba(139, 92, 246, 0.1)',
+    borderRadius: 24,
+    backgroundColor: 'rgba(139, 92, 246, 0.12)',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 20,
     borderWidth: 1.5,
-    borderColor: 'rgba(139, 92, 246, 0.35)',
+    borderColor: 'rgba(139, 92, 246, 0.4)',
     shadowColor: '#8B5CF6',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.35,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
     shadowRadius: 20,
     elevation: 10,
+    overflow: 'hidden',
   },
   title: {
     fontSize: 30,
