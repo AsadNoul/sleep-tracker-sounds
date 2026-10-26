@@ -34,6 +34,7 @@ import ScheduleStep from './onboarding/ScheduleStep';
 import FeelingStep from './onboarding/FeelingStep';
 import AboutStep from './onboarding/AboutStep';
 import HealthStep from './onboarding/HealthStep';
+import AnalyzingStep from './onboarding/AnalyzingStep';
 import PlanStep from './onboarding/PlanStep';
 import { derivedSleepHours } from './onboarding/timeUtils';
 
@@ -55,7 +56,15 @@ import { derivedSleepHours } from './onboarding/timeUtils';
 //    5  FeelingStep     (App-Feeling)      Step 6 of 9
 //    6  AboutStep       (Ob-About)         Step 7 of 9
 //    7  HealthStep      (Ob-Health)        Step 8 of 9
-//    8  PlanStep        (App-Plan)         no header, static
+//    8  AnalyzingStep   (restored)         no header, auto-advances
+//    9  PlanStep        (App-Plan)         no header, static
+//
+// AnalyzingStep restores the original onboarding's 3-second animated
+// "analyzing" moment (pulse + progress fill) that this redesign had
+// initially dropped in favor of an instant static Plan screen — brought
+// back per explicit instruction, re-skinned to the theme system instead of
+// its old hardcoded colors. It auto-advances to PlanStep; Health's Continue
+// and Skip both still land here first rather than skipping straight to Plan.
 
 const PROFESSIONAL_PRESETS = [
   {
@@ -173,8 +182,8 @@ const HEALTH_CONDITIONS = [
   { id: 'other', label: 'Other', emoji: '📋' },
 ];
 
-/** The Plan screen is the last step; Skip jumps here rather than out of the flow. */
-const PLAN_STEP = 8;
+/** Skip jumps straight to the Plan screen, past Health and Analyzing. */
+const PLAN_STEP = 9;
 
 export default function OnboardingScreen() {
   const { theme } = useAppTheme();
@@ -201,7 +210,7 @@ export default function OnboardingScreen() {
     profession: undefined,
   });
 
-  const totalSteps = 9; // Total visible steps for user (Welcome through Plan)
+  const totalSteps = 10; // Total visible steps for user (Welcome through Plan)
 
   const toggleSelection = (field: keyof OnboardingData, value: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -305,8 +314,8 @@ export default function OnboardingScreen() {
           return;
         }
         break;
-      case 8: // Plan screen - no validation
-        break;
+      // Step 8 (AnalyzingStep) is never reached through handleNext — it
+      // auto-advances itself via onDone, see renderStep's case 8 below.
     }
 
     if (currentStep < totalSteps - 1) {
@@ -558,6 +567,14 @@ export default function OnboardingScreen() {
         );
 
       case 8:
+        return (
+          <AnalyzingStep
+            theme={theme}
+            onDone={() => setCurrentStep(9)}
+          />
+        );
+
+      case 9:
         return (
           <PlanStep
             theme={theme}
