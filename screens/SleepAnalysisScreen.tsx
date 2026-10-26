@@ -16,7 +16,7 @@ import {
   Modal,
   Animated,
 } from 'react-native';
-import { Audio } from 'expo-av';
+import { createAudioPlayer, type AudioPlayer } from 'expo-audio';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system';
@@ -440,11 +440,11 @@ export default function SleepAnalysisScreen({ hideHeader = false, isSubcomponent
   const [fetchedSession, setFetchedSession] = useState<any>(null);
   const [recordings, setRecordings] = useState<any[]>([]);
   const [sessionAudioUri, setSessionAudioUri] = useState<string | null>(null);
-  const [sound, setSound] = useState<Audio.Sound | null>(null);
+  const [sound, setSound] = useState<AudioPlayer | null>(null);
   const [playingAudio, setPlayingAudio] = useState<string | null>(null);
   const [playbackStatus, setPlaybackStatus] = useState<{ position: number, duration: number } | null>(null);
   const [playbackRate, setPlaybackRate] = useState(1.0);
-  const [fullRecordingSound, setFullRecordingSound] = useState<Audio.Sound | null>(null);
+  const [fullRecordingSound, setFullRecordingSound] = useState<AudioPlayer | null>(null);
   const [fullRecordingPlaying, setFullRecordingPlaying] = useState(false);
   const [fullRecordingStatus, setFullRecordingStatus] = useState<{ position: number, duration: number } | null>(null);
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
@@ -554,10 +554,10 @@ export default function SleepAnalysisScreen({ hideHeader = false, isSubcomponent
     // Cleanup sounds on unmount or session change
     return () => {
       if (sound) {
-        sound.unloadAsync();
+        sound.remove();
       }
       if (fullRecordingSound) {
-        fullRecordingSound.unloadAsync();
+        fullRecordingSound.remove();
         setFullRecordingSound(null);
         setFullRecordingPlaying(false);
         setFullRecordingStatus(null);
@@ -568,7 +568,7 @@ export default function SleepAnalysisScreen({ hideHeader = false, isSubcomponent
   const handlePlayAudio = async (uri: string, id: string) => {
     try {
       if (playingAudio === id && sound) {
-        await sound.pauseAsync();
+        sound.pause();
         setPlayingAudio(null);
         return;
       }
@@ -579,27 +579,27 @@ export default function SleepAnalysisScreen({ hideHeader = false, isSubcomponent
         setSound(null);
         setPlaybackStatus(null);
         setPlayingAudio(null);
-        try { await prevSound.unloadAsync(); } catch { }
+        try { prevSound.remove(); } catch { }
       }
 
       if (!uri) return;
 
-      const { sound: newSound } = await Audio.Sound.createAsync(
-        { uri },
-        { shouldPlay: true, rate: playbackRate, shouldCorrectPitch: true }
-      );
+      const newSound = createAudioPlayer({ uri });
+      newSound.setPlaybackRate(playbackRate);
+      newSound.shouldCorrectPitch = true;
+      newSound.play();
 
       setSound(newSound);
       setPlayingAudio(id);
 
-      newSound.setOnPlaybackStatusUpdate((status) => {
+      newSound.addListener('playbackStatusUpdate', (status) => {
         if (status.isLoaded) {
-          setPlaybackStatus({ position: status.positionMillis, duration: status.durationMillis || 1 });
+          setPlaybackStatus({ position: status.currentTime * 1000, duration: (status.duration || 0.001) * 1000 });
           if (status.didJustFinish) {
             setPlayingAudio(null);
             setPlaybackStatus(null);
             // Auto unload to free memory
-            newSound.unloadAsync().catch(() => { });
+            try { newSound.remove(); } catch { }
           }
         }
       });
@@ -613,7 +613,7 @@ export default function SleepAnalysisScreen({ hideHeader = false, isSubcomponent
     if (!sound || !playbackStatus) return;
     const newPosition = playbackStatus.position + (direction === 'forward' ? 15000 : -15000);
     const clampedPos = Math.max(0, Math.min(newPosition, playbackStatus.duration));
-    await sound.setPositionAsync(clampedPos);
+    await sound.seekTo(clampedPos / 1000);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   };
 
@@ -621,37 +621,38 @@ export default function SleepAnalysisScreen({ hideHeader = false, isSubcomponent
     if (!sound) return;
     const nextSpeed = playbackRate === 1.0 ? 1.5 : playbackRate === 1.5 ? 2.0 : 1.0;
     setPlaybackRate(nextSpeed);
-    await sound.setRateAsync(nextSpeed, true);
+    sound.setPlaybackRate(nextSpeed, 'high');
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
   };
 
   const handleSeek = async (value: number) => {
     if (!sound || !playbackStatus) return;
-    await sound.setPositionAsync(value);
+    await sound.seekTo(value / 1000);
   };
 
   const handleFullRecordingPlay = async (uri: string) => {
     try {
       if (fullRecordingPlaying && fullRecordingSound) {
-        await fullRecordingSound.pauseAsync();
+        fullRecordingSound.pause();
         setFullRecordingPlaying(false);
         return;
       }
       if (fullRecordingSound && !fullRecordingPlaying) {
-        await fullRecordingSound.playAsync();
+        fullRecordingSound.play();
         setFullRecordingPlaying(true);
         return;
       }
       if (fullRecordingSound) {
-        await fullRecordingSound.unloadAsync();
+        fullRecordingSound.remove();
       }
-      const { sound: newSound } = await Audio.Sound.createAsync({ uri }, { shouldPlay: true });
+      const newSound = createAudioPlayer({ uri });
+      newSound.play();
       setFullRecordingSound(newSound);
       setFullRecordingPlaying(true);
-      newSound.setOnPlaybackStatusUpdate((status) => {
+      newSound.addListener('playbackStatusUpdate', (status) => {
         if (status.isLoaded) {
-          const pos = status.positionMillis;
-          const dur = status.durationMillis || 1;
+          const pos = status.currentTime * 1000;
+          const dur = (status.duration || 0.001) * 1000;
           setFullRecordingStatus({ position: pos, duration: dur });
           Animated.timing(progressAnim, {
             toValue: pos / dur,
@@ -670,8 +671,8 @@ export default function SleepAnalysisScreen({ hideHeader = false, isSubcomponent
 
   const handleFullRecordingSeek = async (ratio: number) => {
     if (fullRecordingSound && fullRecordingStatus) {
-      const seekMs = ratio * fullRecordingStatus.duration;
-      await fullRecordingSound.setPositionAsync(seekMs);
+      const seekSeconds = (ratio * fullRecordingStatus.duration) / 1000;
+      await fullRecordingSound.seekTo(seekSeconds);
     }
   };
 

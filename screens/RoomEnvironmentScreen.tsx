@@ -13,7 +13,15 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
-import { Audio } from 'expo-av';
+import {
+  AudioModule,
+  createAudioPlayer,
+  setAudioModeAsync,
+  requestRecordingPermissionsAsync,
+  RecordingPresets,
+  type AudioPlayer,
+  type AudioRecorder,
+} from 'expo-audio';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import * as Haptics from 'expo-haptics';
@@ -94,19 +102,20 @@ export default function RoomEnvironmentScreen() {
   const [recordings, setRecordings] = useState<RecordingEvent[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [playingRecording, setPlayingRecording] = useState<string | null>(null);
-  const [sound, setSound] = useState<Audio.Sound | null>(null);
+  const [sound, setSound] = useState<AudioPlayer | null>(null);
   const [playbackPosition, setPlaybackPosition] = useState<Record<string, number>>({});
   const [selectedType, setSelectedType] = useState<string>('all');
 
   // Live Recording State
   const [isRecording, setIsRecording] = useState(false);
-  const [recording, setRecording] = useState<Audio.Recording | null>(null);
+  const [recording, setRecording] = useState<AudioRecorder | null>(null);
   const [meterLevel, setMeterLevel] = useState(0);
   const [lastRecordingUri, setLastRecordingUri] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [voiceIdentity, setVoiceIdentity] = useState<string>('Silent');
   const [recordingDuration, setRecordingDuration] = useState(0);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const meterIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const audioBuffer = useRef<number[]>([]);
 
   const analyzeAudioPattern = (currentLevel: number) => {
@@ -127,9 +136,10 @@ export default function RoomEnvironmentScreen() {
   useEffect(() => {
     fetchRecordings();
     return () => {
-      if (sound) sound.unloadAsync();
-      if (recording) recording.stopAndUnloadAsync();
+      if (sound) sound.remove();
+      if (recording) recording.stop().catch(() => {});
       if (timerRef.current) clearInterval(timerRef.current);
+      if (meterIntervalRef.current) clearInterval(meterIntervalRef.current);
     };
   }, [user]);
 
@@ -156,20 +166,29 @@ export default function RoomEnvironmentScreen() {
 
   const startRecording = async () => {
     try {
-      const permission = await Audio.requestPermissionsAsync();
+      const permission = await requestRecordingPermissionsAsync();
       if (permission.status !== 'granted') return Alert.alert('Mic required');
-      await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
-      const { recording: newRecording } = await Audio.Recording.createAsync(
-        Audio.RecordingOptionsPresets.HIGH_QUALITY,
-        (status) => {
-          if (status.metering !== undefined) {
-            const normalized = Math.max(0, (status.metering + 160) / 160);
-            setMeterLevel(normalized);
-            setVoiceIdentity(analyzeAudioPattern(normalized));
-          }
-        },
-        100
-      );
+      await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+
+      const newRecording = new AudioModule.AudioRecorder({
+        ...RecordingPresets.HIGH_QUALITY,
+        isMeteringEnabled: true,
+      });
+
+      // Poll metering at 100ms, same cadence as the old progressUpdateInterval,
+      // for a smooth live waveform.
+      meterIntervalRef.current = setInterval(() => {
+        const status = newRecording.getStatus();
+        if (status.metering !== undefined) {
+          const normalized = Math.max(0, (status.metering + 160) / 160);
+          setMeterLevel(normalized);
+          setVoiceIdentity(analyzeAudioPattern(normalized));
+        }
+      }, 100);
+
+      await newRecording.prepareToRecordAsync();
+      newRecording.record();
+
       setRecording(newRecording);
       setIsRecording(true);
       setRecordingDuration(0);
@@ -183,12 +202,13 @@ export default function RoomEnvironmentScreen() {
     if (!recording) return;
     setIsRecording(false);
     if (timerRef.current) clearInterval(timerRef.current);
-    await recording.stopAndUnloadAsync();
-    setLastRecordingUri(recording.getURI());
+    if (meterIntervalRef.current) clearInterval(meterIntervalRef.current);
+    await recording.stop();
+    setLastRecordingUri(recording.uri);
     setRecording(null);
     setMeterLevel(0);
     setVoiceIdentity('Ready');
-    await Audio.setAudioModeAsync({ allowsRecordingIOS: false });
+    await setAudioModeAsync({ allowsRecording: false });
   };
 
   const saveLiveRecording = async () => {
@@ -236,18 +256,16 @@ export default function RoomEnvironmentScreen() {
   };
 
   const playRecording = async (rec: RecordingEvent) => {
-    if (sound) await sound.unloadAsync();
+    if (sound) sound.remove();
     if (!rec.audio_file_url) return;
-    const { sound: newSound } = await Audio.Sound.createAsync(
-      { uri: rec.audio_file_url },
-      { shouldPlay: true },
-      (status: any) => {
-        if (status.isLoaded) {
-          setPlaybackPosition(p => ({ ...p, [rec.id]: status.positionMillis / status.durationMillis }));
-          if (status.didJustFinish) setPlayingRecording(null);
-        }
+    const newSound = createAudioPlayer({ uri: rec.audio_file_url });
+    newSound.addListener('playbackStatusUpdate', (status) => {
+      if (status.isLoaded) {
+        setPlaybackPosition(p => ({ ...p, [rec.id]: status.currentTime / (status.duration || 1) }));
+        if (status.didJustFinish) setPlayingRecording(null);
       }
-    );
+    });
+    newSound.play();
     setSound(newSound);
     setPlayingRecording(rec.id);
   };

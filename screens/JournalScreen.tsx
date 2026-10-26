@@ -73,7 +73,7 @@ import CircularProgress from '../components/CircularProgress';
 import FluidBackground from '../components/FluidBackground';
 import { formatDuration, format12HourTime } from '../utils/dateFormatting';
 import Svg, { Path, Circle, Rect, Line, Text as SvgText, G, Defs, LinearGradient as SvgLinearGradient, Stop, Polyline } from 'react-native-svg';
-import { Audio } from 'expo-av';
+import { createAudioPlayer, setAudioModeAsync, type AudioPlayer } from 'expo-audio';
 import * as FileSystem from 'expo-file-system/legacy';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import NetInfo from '@react-native-community/netinfo';
@@ -107,7 +107,7 @@ export default function JournalScreen() {
   const [journalEntries, setJournalEntries] = useState<Array<{ id: string, entry_text: string, entry_date: string, created_at: string, mood?: string, tags?: string[] }>>([]);
   const [disruptions, setDisruptions] = useState<Array<{ id: string, event_type: string, timestamp: string, loudness_db: number, audio_file_url?: string, audio_offset_ms?: number, duration_seconds?: number }>>([]);
   const [playingAudioId, setPlayingAudioId] = useState<string | null>(null);
-  const [currentSound, setCurrentSound] = useState<Audio.Sound | null>(null);
+  const [currentSound, setCurrentSound] = useState<AudioPlayer | null>(null);
   const [showAllEntries, setShowAllEntries] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
 
@@ -503,15 +503,15 @@ export default function JournalScreen() {
     try {
       // If already playing this audio, pause it
       if (playingAudioId === disruption.id && currentSound) {
-        await currentSound.pauseAsync();
+        currentSound.pause();
         setPlayingAudioId(null);
         return;
       }
 
       // Stop any currently playing audio
       if (currentSound) {
-        await currentSound.stopAsync();
-        await currentSound.unloadAsync();
+        currentSound.pause();
+        currentSound.remove();
         setCurrentSound(null);
       }
 
@@ -538,12 +538,12 @@ export default function JournalScreen() {
       }
 
       // Configure audio mode for playback
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: false,
-        playsInSilentModeIOS: true,
-        staysActiveInBackground: false,
-        shouldDuckAndroid: true,
-        playThroughEarpieceAndroid: false,
+      await setAudioModeAsync({
+        allowsRecording: false,
+        playsInSilentMode: true,
+        shouldPlayInBackground: false,
+        interruptionMode: 'duckOthers',
+        shouldRouteThroughEarpiece: false,
       });
 
       // Calculate playback position and duration
@@ -553,39 +553,37 @@ export default function JournalScreen() {
       console.log(`🎵 Playing audio from ${startPosition}ms for ${eventDuration}ms`);
 
       // Load and play the audio
-      const { sound } = await Audio.Sound.createAsync(
-        { uri: disruption.audio_file_url },
-        {
-          shouldPlay: true,
-          positionMillis: startPosition, // Seek to event timestamp
-        },
-        (status) => {
-          // Handle playback status updates
-          if (status.isLoaded) {
-            // Stop playback after event duration
-            if (status.positionMillis >= startPosition + eventDuration) {
-              sound.stopAsync();
-              setPlayingAudioId(null);
-            }
-            // Handle natural finish
-            if (status.didJustFinish) {
-              setPlayingAudioId(null);
-            }
+      const sound = createAudioPlayer({ uri: disruption.audio_file_url });
+
+      sound.addListener('playbackStatusUpdate', (status) => {
+        // Handle playback status updates
+        if (status.isLoaded) {
+          // Stop playback after event duration
+          if (status.currentTime * 1000 >= startPosition + eventDuration) {
+            sound.pause();
+            setPlayingAudioId(null);
+          }
+          // Handle natural finish
+          if (status.didJustFinish) {
+            setPlayingAudioId(null);
           }
         }
-      );
+      });
+
+      // Seek to the event timestamp once loaded, then play
+      if (startPosition > 0) {
+        await sound.seekTo(startPosition / 1000);
+      }
+      sound.play();
 
       setCurrentSound(sound);
       setPlayingAudioId(disruption.id);
 
       // Auto-stop after event duration
       setTimeout(async () => {
-        if (sound) {
-          const status = await sound.getStatusAsync();
-          if (status.isLoaded && status.isPlaying) {
-            await sound.stopAsync();
-            setPlayingAudioId(null);
-          }
+        if (sound && sound.playing) {
+          sound.pause();
+          setPlayingAudioId(null);
         }
       }, eventDuration + 500); // Add 500ms buffer
     } catch (error) {
@@ -601,7 +599,7 @@ export default function JournalScreen() {
   useEffect(() => {
     return () => {
       if (currentSound) {
-        currentSound.unloadAsync();
+        currentSound.remove();
       }
     };
   }, []);
@@ -609,7 +607,8 @@ export default function JournalScreen() {
   // Stop audio when date or session changes
   useEffect(() => {
     if (currentSound) {
-      currentSound.stopAsync().then(() => currentSound.unloadAsync());
+      currentSound.pause();
+      currentSound.remove();
       setCurrentSound(null);
       setPlayingAudioId(null);
     }
@@ -619,7 +618,10 @@ export default function JournalScreen() {
   useEffect(() => {
     return () => {
       if (currentSound) {
-        currentSound.stopAsync().catch(() => {}).then(() => currentSound.unloadAsync().catch(() => {}));
+        try {
+          currentSound.pause();
+          currentSound.remove();
+        } catch {}
       }
     };
   }, [currentSound]);

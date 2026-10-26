@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, FlatList, Alert, Modal } from 'react-native';
-import { Audio } from 'expo-av';
 import { useAppTheme } from '../hooks/useAppTheme';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAudio } from '../contexts/AudioContext';
