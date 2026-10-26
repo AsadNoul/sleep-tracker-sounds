@@ -321,7 +321,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
                 sleep_goals: onboardingData.sleepGoals,
                 sleep_troubles: onboardingData.sleepTroubles,
                 sleep_pattern: onboardingData.sleepPattern,
-                average_sleep_hours: onboardingData.averageSleepHours,
+                average_sleep_hours: Math.round(onboardingData.averageSleepHours),
                 wake_up_feeling: onboardingData.wakeUpFeeling,
                 health_conditions: onboardingData.healthConditions,
                 preferred_bed_time: onboardingData.bedTime,
