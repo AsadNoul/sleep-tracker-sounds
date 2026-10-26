@@ -2,7 +2,7 @@
   "expo": {
     "name": "Sleep Architect",
     "slug": "sleep-tracker-app",
-    "version": "2.1.0",
+    "version": "2.1.1",
     "scheme": "com.sleeptracker.app",
     "orientation": "portrait",
     "icon": "./assets/app_logo.png",

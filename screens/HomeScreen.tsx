@@ -381,7 +381,7 @@ export default function HomeScreen() {
               onPress={() => setIsSidebarVisible(true)}
               {...a11y.button('Menu', 'Opens sidebar menu with tools and support options')}
             >
-              <MoreVertical size={22} color="#FFFFFF" />
+              <Menu size={22} color="#FFFFFF" />
             </TouchableOpacity>
             <View style={{ marginLeft: 16 }}>
               <Text style={themedStyles.greeting}>
@@ -407,10 +407,18 @@ export default function HomeScreen() {
             </View>
           </View>
           <View style={themedStyles.headerActions}>
+            {/* Bell / Notifications icon */}
+            <TouchableOpacity
+              onPress={() => navigation.navigate('Settings')}
+              style={themedStyles.headerIconButton}
+              activeOpacity={0.75}
+            >
+              <Bell size={22} color="#FFFFFF" />
+            </TouchableOpacity>
             {/* App Logo - clickable, navigates to Settings */}
             <TouchableOpacity
               onPress={() => navigation.navigate('Settings')}
-              style={{ marginRight: 12 }}
+              style={{ marginRight: 10 }}
               {...a11y.navigation('Settings', 'Opens app settings and preferences')}
               activeOpacity={0.75}
             >
@@ -420,12 +428,6 @@ export default function HomeScreen() {
                 resizeMode="contain"
               />
             </TouchableOpacity>
-            <View style={themedStyles.liveStatus}>
-              <View style={themedStyles.liveDot} />
-              <Text style={themedStyles.liveText}>
-                {displayMode === 'evening' ? 'Optimal Window' : 'Tracking On'}
-              </Text>
-            </View>
           </View>
         </View>
 
@@ -437,11 +439,6 @@ export default function HomeScreen() {
           onRequestClose={() => setIsSidebarVisible(false)}
         >
           <View style={themedStyles.sidebarOverlay}>
-            <TouchableOpacity
-              style={themedStyles.sidebarCloseArea}
-              activeOpacity={1}
-              onPress={() => setIsSidebarVisible(false)}
-            />
             <View style={themedStyles.sidebarContainer}>
               <LinearGradient
                 colors={['#1E1B4B', '#0F172A']}
@@ -553,6 +550,11 @@ export default function HomeScreen() {
                 <View style={{ height: insets.bottom + 40 }} />
               </ScrollView>
             </View>
+            <TouchableOpacity
+              style={themedStyles.sidebarCloseArea}
+              activeOpacity={1}
+              onPress={() => setIsSidebarVisible(false)}
+            />
           </View>
         </Modal>
 
@@ -746,6 +748,11 @@ export default function HomeScreen() {
               <Text style={themedStyles.vitalSubtext}>{currentStreak >= 7 ? '🔥 On fire!' : currentStreak >= 3 ? '✨ Building' : currentStreak > 0 ? '🌱 Started' : '💤 Track now'}</Text>
             </GlassView>
           </View>
+        </View>
+
+        {/* Today's Focus section header */}
+        <View style={[themedStyles.sectionHeader, { marginTop: 4 }]}>
+          <Text style={themedStyles.sectionTitle}>🌙 Today's Focus</Text>
         </View>
 
         {/* ── Mood Ring Card — glanceable last-night quality indicator ── */}
@@ -1074,6 +1081,17 @@ const styles = (theme: any, width: number) => StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.08)',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  headerIconButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
   },
   mainCardContainer: {
     marginBottom: 24,
