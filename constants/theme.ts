@@ -60,6 +60,15 @@ export const nightTheme = {
     navActiveBackground: '#24160B',
   },
 
+  // "Sleep Print" brand mark — the radial 72-bar burst used on Splash, Welcome,
+  // and Home (mini version). Bar color by stage: deep/light/rem/awake.
+  sleepPrintMark: {
+    deep: '#C2572B',
+    light: '#E89A55',
+    rem: '#FFCB8E',
+    awake: '#FFEBD2',
+  },
+
   // Sleep Quality Color System - single source of truth
   sleepQuality: {
     optimal: { color: '#10B981', label: 'Optimal', emoji: '🏆', gradient: ['#10B981', '#059669'], minScore: 90 },
@@ -220,6 +229,15 @@ export const dayTheme = {
 
     navBackground: '#FFFDF8',
     navActiveBackground: '#F6E2D3',
+  },
+
+  // "Sleep Print" brand mark — the radial 72-bar burst used on Splash, Welcome,
+  // and Home (mini version). Bar color by stage: deep/light/rem/awake.
+  sleepPrintMark: {
+    deep: '#1F1A14',
+    light: '#B8471C',
+    rem: '#4F6B4A',
+    awake: '#D9A441',
   },
 
   // Sleep Quality Color System - single source of truth

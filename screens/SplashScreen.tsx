@@ -1,13 +1,12 @@
 import React, { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Animated, Dimensions, Image } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
+import { View, Text, StyleSheet, Animated, Dimensions } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAuth } from '../contexts/AuthContext';
 import { useAppTheme } from '../hooks/useAppTheme';
+import SleepPrintMark from '../components/SleepPrintMark';
 
-const { width, height } = Dimensions.get('window');
+const { height } = Dimensions.get('window');
 
 type RootStackParamList = {
   Welcome: undefined;
@@ -26,20 +25,10 @@ export default function SplashScreen({ onFinish, splashDuration = 2000 }: Splash
   const { user, isLoading } = useAuth();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
-  const fadeAnim = React.useRef(new Animated.Value(0)).current;
-  const scaleAnim = React.useRef(new Animated.Value(0.9)).current;
-  const textAnim = React.useRef(new Animated.Value(15)).current;
-  const glowPulse = useRef(new Animated.Value(0.6)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(0.9)).current;
 
   useEffect(() => {
-    // Glow ring pulse animation
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(glowPulse, { toValue: 1, duration: 1800, useNativeDriver: true }),
-        Animated.timing(glowPulse, { toValue: 0.6, duration: 1800, useNativeDriver: true }),
-      ])
-    ).start();
-
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
@@ -50,12 +39,6 @@ export default function SplashScreen({ onFinish, splashDuration = 2000 }: Splash
         toValue: 1,
         friction: 8,
         tension: 80,
-        useNativeDriver: true,
-      }),
-      Animated.timing(textAnim, {
-        toValue: 0,
-        duration: 400,
-        delay: 150,
         useNativeDriver: true,
       }),
     ]).start();
@@ -76,148 +59,77 @@ export default function SplashScreen({ onFinish, splashDuration = 2000 }: Splash
   }, [user, isLoading, navigation, onFinish, splashDuration]);
 
   return (
-    <View style={styles(theme).container}>
-      <LinearGradient
-        colors={[theme.colors.background, theme.colors.backgroundSecondary || '#1B1D2A', theme.colors.background]}
-        style={styles(theme).gradient}
+    <View style={[styles(theme).container, { backgroundColor: theme.colors.background }]}>
+      <View
+        pointerEvents="none"
+        style={[
+          styles(theme).glow,
+          { top: height * 0.24, backgroundColor: theme.colors.accentLight },
+        ]}
+      />
+
+      <Animated.View
+        style={[
+          styles(theme).content,
+          {
+            opacity: fadeAnim,
+            transform: [{ scale: scaleAnim }],
+          },
+        ]}
       >
+        <SleepPrintMark size={140} colors={theme.sleepPrintMark} />
 
-        <Animated.View
-          style={[
-            styles(theme).content,
-            {
-              opacity: fadeAnim,
-              transform: [{ scale: scaleAnim }]
-            }
-          ]}
-        >
-          <View style={styles(theme).logoContainer}>
-            {/* Outer glow ring */}
-            <Animated.View style={[styles(theme).glowRingOuter, { opacity: glowPulse, transform: [{ scale: glowPulse }] }]} />
-            {/* Inner glow ring */}
-            <Animated.View style={[styles(theme).glowRingInner, { opacity: glowPulse }]} />
-            <View style={styles(theme).logoWrapper}>
-              <Image
-                source={require('../assets/app_logo.png')}
-                style={styles(theme).logoImage}
-                resizeMode="contain"
-              />
-            </View>
-
-            <Animated.View style={{ transform: [{ translateY: textAnim }], alignItems: 'center' }}>
-              <Text style={styles(theme).title}>Sleep Architect</Text>
-              <View style={styles(theme).subtitleContainer}>
-                <View style={styles(theme).line} />
-                <Text style={styles(theme).subtitle}>VIP SLEEP SUITE</Text>
-                <View style={styles(theme).line} />
-              </View>
-            </Animated.View>
-          </View>
-        </Animated.View>
-
-        <View style={styles(theme).footer}>
-          <Text style={styles(theme).footerText}>EST. 2025  VERSION 2.1.0</Text>
+        <View style={styles(theme).textBlock}>
+          <Text style={styles(theme).title}>Sleep Architect</Text>
+          <Text style={styles(theme).subtitle}>Every night leaves a print.</Text>
         </View>
-      </LinearGradient>
+      </Animated.View>
+
+      <Text style={styles(theme).footerText}>Warm colors only after sunset</Text>
     </View>
   );
 }
 
-const styles = (theme: any) => StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  gradient: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  content: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 1,
-  },
-  logoContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  glowRingOuter: {
-    position: 'absolute',
-    width: 280,
-    height: 280,
-    borderRadius: 140,
-    backgroundColor: 'transparent',
-    borderWidth: 1,
-    borderColor: 'rgba(139, 92, 246, 0.25)',
-    top: -40,
-    shadowColor: '#8B5CF6',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.6,
-    shadowRadius: 30,
-  },
-  glowRingInner: {
-    position: 'absolute',
-    width: 230,
-    height: 230,
-    borderRadius: 115,
-    backgroundColor: 'rgba(139, 92, 246, 0.07)',
-    borderWidth: 1,
-    borderColor: 'rgba(0, 255, 209, 0.2)',
-    top: -15,
-  },
-  logoWrapper: {
-    width: 200,
-    height: 200,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 40,
-    shadowColor: '#8B5CF6',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.6,
-    shadowRadius: 30,
-    elevation: 15,
-  },
-  logoImage: {
-    width: 180,
-    height: 180,
-    borderRadius: 40,
-  },
-  title: {
-    fontSize: 48,
-    fontWeight: '900',
-    color: '#FFFFFF',
-    letterSpacing: 2,
-    textAlign: 'center',
-    textShadowColor: 'rgba(139, 92, 246, 0.4)',
-    textShadowOffset: { width: 0, height: 4 },
-    textShadowRadius: 12,
-  },
-  subtitleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 15,
-  },
-  line: {
-    width: 40,
-    height: 1,
-    backgroundColor: 'rgba(201, 162, 39, 0.5)',
-  },
-  subtitle: {
-    fontSize: 13,
-    color: '#C9A227',
-    letterSpacing: 5,
-    fontWeight: '800',
-    opacity: 0.95,
-    marginHorizontal: 15,
-  },
-  footer: {
-    position: 'absolute',
-    bottom: 60,
-  },
-  footerText: {
-    color: 'rgba(255, 255, 255, 0.4)',
-    fontSize: 12,
-    letterSpacing: 3,
-    fontWeight: '600',
-  },
-});
+const styles = (theme: any) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      rowGap: 28,
+    },
+    glow: {
+      position: 'absolute',
+      left: 0,
+      right: 0,
+      height: 360,
+      borderRadius: 999,
+    },
+    content: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      rowGap: 28,
+    },
+    textBlock: {
+      alignItems: 'center',
+      rowGap: 8,
+    },
+    title: {
+      fontFamily: theme.typography.fontFamily.displaySemibold,
+      fontSize: 34,
+      letterSpacing: -0.4,
+      color: theme.colors.textPrimary,
+    },
+    subtitle: {
+      fontFamily: theme.typography.fontFamily.body,
+      fontSize: 15,
+      color: theme.colors.textSecondary,
+    },
+    footerText: {
+      position: 'absolute',
+      bottom: 48,
+      fontFamily: theme.typography.fontFamily.body,
+      fontSize: 13,
+      color: theme.colors.textTertiary,
+    },
+  });
