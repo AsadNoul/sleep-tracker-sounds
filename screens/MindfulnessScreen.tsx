@@ -56,6 +56,14 @@ import { useSafeBottomMargin } from '../hooks/useSafeBottomMargin';
 
 const { width } = Dimensions.get('window');
 
+// Canvas reference: Rlx-Breathe.dc.html / Rlx-Library.dc.html (+ D- day variants).
+// This screen covers more ground than the canvas (breathing coach, body scan,
+// PMR, visualization, meditation, yoga, CBT-i course, stories, kids, etc. — all
+// as one category-driven library), so the canvas's "Relax" library layout
+// (hero pick card + pill filter row + icon list rows) is the direct visual
+// match for the categories/sessions UI below, restyled onto the full dataset.
+// Everything under "ALL SESSIONS DATA" / nav / tracking logic is unchanged.
+
 type RootStackParamList = {
   SessionPlayer: { session: any };
   Subscription: undefined;
@@ -840,10 +848,10 @@ export default function MindfulnessScreen() {
 
   const getDifficultyColor = (difficulty: string) => {
     switch (difficulty) {
-      case 'Beginner': return '#34D399';
-      case 'Intermediate': return '#F59E0B';
-      case 'Advanced': return '#EF4444';
-      case 'Specialist': return '#8B5CF6';
+      case 'Beginner': return theme.colors.success;
+      case 'Intermediate': return theme.colors.warning;
+      case 'Advanced': return theme.colors.error;
+      case 'Specialist': return theme.colors.accent;
       default: return theme.colors.textSecondary;
     }
   };
@@ -967,7 +975,7 @@ export default function MindfulnessScreen() {
     && isStoriesLoading
     && displayedSessions.length === 0;
 
-  const themedStyles = getThemedStyles(theme, isDark);
+  const s = styles(theme);
   const storyStatusText = (() => {
     if (isStoriesLoading) return 'Updating stories...';
 
@@ -986,174 +994,170 @@ export default function MindfulnessScreen() {
 
   const storyStatusColor = (() => {
     if (isStoriesLoading) return theme.colors.textSecondary;
-    if (storiesSource === 'network' || storiesSource === 'cache') return '#10B981';
-    if (storiesSource === 'cache-stale') return '#F59E0B';
+    if (storiesSource === 'network' || storiesSource === 'cache') return theme.colors.success;
+    if (storiesSource === 'cache-stale') return theme.colors.warning;
     return theme.colors.textSecondary;
   })();
 
-  return (
-    <View style={[themedStyles.container, { backgroundColor: theme.colors.background }]}>
-      <LinearGradient
-        colors={isDark ? ['#1a1a2e', '#16213e'] : ['#f0f4ff', '#ffffff']}
-        style={StyleSheet.absoluteFill}
-      />
+  const recommendation = getDailyRecommendation();
 
+  return (
+    <View style={[s.container, { backgroundColor: theme.colors.background }]}>
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={[themedStyles.scrollContent, { paddingTop: insets.top + 16 }]}
+        contentContainerStyle={[s.scrollContent, { paddingTop: insets.top + 16 }]}
       >
         {/* ── HEADER ── */}
-        <View style={themedStyles.header}>
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <TouchableOpacity style={themedStyles.backButton} onPress={() => navigation.goBack()}>
-              <ChevronLeft size={24} color={theme.colors.textPrimary} />
+        <View style={s.header}>
+          <View style={s.headerLeft}>
+            <TouchableOpacity
+              style={[s.backButton, { backgroundColor: theme.colors.card, borderColor: theme.colors.cardBorder }]}
+              onPress={() => navigation.goBack()}
+            >
+              <ChevronLeft size={20} color={theme.colors.textPrimary} strokeWidth={2.2} />
             </TouchableOpacity>
-            <View style={{ marginLeft: 12 }}>
-              <Text style={[themedStyles.title, { color: theme.colors.textPrimary }]}>Mindfulness</Text>
-              <Text style={[themedStyles.subtitle, { color: theme.colors.textSecondary }]}>Find your inner peace</Text>
+            <View style={s.headerTitleBlock}>
+              <Text style={[s.title, { color: theme.colors.textPrimary }]}>Mindfulness</Text>
+              <Text style={[s.subtitle, { color: theme.colors.textSecondary }]}>Find your inner peace</Text>
             </View>
           </View>
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <View style={s.headerRight}>
             {mindfulnessStats.currentStreak > 0 && (
-              <View style={themedStyles.headerStreakPill}>
-                <Flame size={13} color="#F59E0B" />
-                <Text style={themedStyles.headerStreakText}>{mindfulnessStats.currentStreak}d</Text>
+              <View style={[s.headerStreakPill, { backgroundColor: theme.colors.accentLight, borderColor: theme.colors.accentBorder }]}>
+                <Flame size={13} color={theme.colors.warning} />
+                <Text style={[s.headerStreakText, { color: theme.colors.warning }]}>{mindfulnessStats.currentStreak}d</Text>
               </View>
             )}
             <TouchableOpacity
-              style={[themedStyles.statsButton, { backgroundColor: theme.colors.card, marginLeft: 8 }]}
+              style={[s.statsButton, { backgroundColor: theme.colors.card, borderColor: theme.colors.cardBorder }]}
               onPress={() => navigation.navigate('SleepAnalysis')}
             >
-              <BarChart2 size={20} color={theme.colors.accent} />
+              <BarChart2 size={18} color={theme.colors.accent} />
             </TouchableOpacity>
           </View>
         </View>
 
         {/* ── STATS ROW ── */}
-        <View style={[themedStyles.statsCard, { backgroundColor: theme.colors.card }]}>
-          <View style={themedStyles.statItem}>
-            <View style={themedStyles.statIconRow}>
-              <Sparkles size={14} color="#8B5CF6" style={{ marginRight: 4 }} />
-              <Text style={[themedStyles.statValue, { color: theme.colors.textPrimary }]}>
+        <View style={[s.statsCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.cardBorder }]}>
+          <View style={s.statItem}>
+            <View style={s.statIconRow}>
+              <Sparkles size={13} color={theme.colors.accent} />
+              <Text style={[s.statValue, { color: theme.colors.textPrimary }]}>
                 {mindfulnessStats.totalSessions}
               </Text>
             </View>
-            <Text style={[themedStyles.statLabel, { color: theme.colors.textSecondary }]}>Sessions</Text>
+            <Text style={[s.statLabel, { color: theme.colors.textTertiary }]}>Sessions</Text>
           </View>
-          <View style={[themedStyles.statDivider, { backgroundColor: theme.colors.cardBorder }]} />
-          <View style={themedStyles.statItem}>
-            <View style={themedStyles.statIconRow}>
-              <Clock size={14} color="#60A5FA" style={{ marginRight: 4 }} />
-              <Text style={[themedStyles.statValue, { color: theme.colors.textPrimary }]}>
+          <View style={[s.statDivider, { backgroundColor: theme.colors.cardBorder }]} />
+          <View style={s.statItem}>
+            <View style={s.statIconRow}>
+              <Clock size={13} color={theme.colors.accent} />
+              <Text style={[s.statValue, { color: theme.colors.textPrimary }]}>
                 {mindfulnessStats.totalMinutes}
               </Text>
             </View>
-            <Text style={[themedStyles.statLabel, { color: theme.colors.textSecondary }]}>Minutes</Text>
+            <Text style={[s.statLabel, { color: theme.colors.textTertiary }]}>Minutes</Text>
           </View>
-          <View style={[themedStyles.statDivider, { backgroundColor: theme.colors.cardBorder }]} />
-          <View style={themedStyles.statItem}>
-            <View style={themedStyles.statIconRow}>
-              <Flame size={16} color={mindfulnessStats.currentStreak >= 7 ? '#F59E0B' : mindfulnessStats.currentStreak >= 3 ? '#FB923C' : '#94A3B8'} style={{ marginRight: 4 }} />
-              <Text style={[themedStyles.statValue, { color: mindfulnessStats.currentStreak >= 7 ? '#F59E0B' : mindfulnessStats.currentStreak >= 3 ? '#FB923C' : theme.colors.textPrimary }]}>
+          <View style={[s.statDivider, { backgroundColor: theme.colors.cardBorder }]} />
+          <View style={s.statItem}>
+            <View style={s.statIconRow}>
+              <Flame size={14} color={mindfulnessStats.currentStreak >= 3 ? theme.colors.warning : theme.colors.textTertiary} />
+              <Text style={[s.statValue, { color: mindfulnessStats.currentStreak >= 3 ? theme.colors.warning : theme.colors.textPrimary }]}>
                 {mindfulnessStats.currentStreak}
               </Text>
             </View>
-            <Text style={[themedStyles.statLabel, { color: theme.colors.textSecondary }]}>Day Streak</Text>
+            <Text style={[s.statLabel, { color: theme.colors.textTertiary }]}>Day Streak</Text>
           </View>
         </View>
 
         {/* ── DAILY GOAL PROGRESS ── */}
-        <View style={[themedStyles.goalCard, { backgroundColor: theme.colors.card }]}>
-          <View style={themedStyles.goalHeader}>
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <Target size={16} color={theme.colors.accent} style={{ marginRight: 8 }} />
-              <Text style={[themedStyles.goalLabel, { color: theme.colors.textPrimary }]}>
+        <View style={[s.goalCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.cardBorder }]}>
+          <View style={s.goalHeader}>
+            <View style={s.goalHeaderLeft}>
+              <Target size={15} color={theme.colors.accent} />
+              <Text style={[s.goalLabel, { color: theme.colors.textPrimary }]}>
                 Daily Goal
               </Text>
             </View>
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <Text style={[themedStyles.goalProgress, { color: goalProgress >= 1 ? '#10B981' : theme.colors.accent }]}>
+            <View style={s.goalHeaderRight}>
+              <Text style={[s.goalProgress, { color: goalProgress >= 1 ? theme.colors.success : theme.colors.accent }]}>
                 {todayMinutes}/{dailyGoal} min
               </Text>
-              <Text style={[themedStyles.goalPct, { color: goalProgress >= 1 ? '#10B981' : theme.colors.textSecondary }]}>
+              <Text style={[s.goalPct, { color: goalProgress >= 1 ? theme.colors.success : theme.colors.textSecondary }]}>
                 {' '}· {Math.min(Math.round(goalProgress * 100), 100)}%
               </Text>
             </View>
           </View>
-          <View style={[themedStyles.goalTrack, { backgroundColor: theme.colors.cardBorder }]}>
+          <View style={[s.goalTrack, { backgroundColor: theme.colors.cardBorder }]}>
             <View
               style={[
-                themedStyles.goalFill,
+                s.goalFill,
                 {
-                  backgroundColor: goalProgress >= 1 ? '#10B981' : goalProgress >= 0.5 ? '#F59E0B' : theme.colors.accent,
+                  backgroundColor: goalProgress >= 1 ? theme.colors.success : theme.colors.accent,
                   width: `${Math.min(Math.max(goalProgress * 100, 0), 100).toFixed(1)}%` as any,
                 },
               ]}
             />
           </View>
           {goalProgress >= 1 && (
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8 }}>
-              <Trophy size={14} color='#F59E0B' style={{ marginRight: 6 }} />
-              <Text style={{ color: '#10B981', fontSize: 12, fontWeight: '700' }}>
-                Goal complete! Great work today. 🎉
+            <View style={s.goalCompleteRow}>
+              <Trophy size={14} color={theme.colors.warning} />
+              <Text style={[s.goalCompleteText, { color: theme.colors.success }]}>
+                Goal complete! Great work today.
               </Text>
             </View>
           )}
         </View>
 
-        {/* ── DAILY RECOMMENDATION ── */}
-        <TouchableOpacity style={themedStyles.recommendationCard} onPress={handleStartRecommendation}>
-          <Image
-            source={{ uri: getDailyRecommendation().image }}
-            style={themedStyles.recommendationImage}
-          />
-          <LinearGradient
-            colors={['transparent', 'rgba(0,0,0,0.85)']}
-            style={themedStyles.recommendationGradient}
-          >
-            <View style={themedStyles.recommendationContent}>
-              <View style={{ flex: 1 }}>
-                <Text style={themedStyles.recommendationTag}>RECOMMENDED FOR YOU</Text>
-                <Text style={themedStyles.recommendationTitle}>{getDailyRecommendation().title}</Text>
-                <View style={themedStyles.recommendationMeta}>
-                  <Clock size={13} color='rgba(255,255,255,0.85)' />
-                  <Text style={themedStyles.metaText}>{getDailyRecommendation().duration}</Text>
-                  <View style={themedStyles.metaDot} />
-                  <Sparkles size={13} color='rgba(255,255,255,0.85)' />
-                  <Text style={themedStyles.metaText}>{getDailyRecommendation().difficulty}</Text>
-                </View>
+        {/* ── TONIGHT'S PICK (canvas: Rlx-Library hero card) ── */}
+        <TouchableOpacity
+          style={[s.pickCard, { backgroundColor: theme.colors.backgroundSecondary, borderColor: theme.colors.accentBorder }]}
+          onPress={handleStartRecommendation}
+          activeOpacity={0.9}
+        >
+          <View pointerEvents="none" style={[s.pickGlow, { backgroundColor: theme.colors.accentLight }]} />
+          <View style={s.pickImageRow}>
+            <Image source={{ uri: recommendation.image }} style={s.pickImage} />
+            <View style={s.pickTextCol}>
+              <Text style={[s.pickEyebrow, { color: theme.colors.textTertiary }]}>TONIGHT'S PICK</Text>
+              <Text style={[s.pickTitle, { color: theme.colors.textPrimary }]} numberOfLines={1}>
+                {recommendation.title}
+              </Text>
+              <View style={s.pickMetaRow}>
+                <Clock size={12} color={theme.colors.textSecondary} />
+                <Text style={[s.pickMetaText, { color: theme.colors.textSecondary }]}>{recommendation.duration}</Text>
+                <View style={[s.pickMetaDot, { backgroundColor: theme.colors.textTertiary }]} />
+                <Text style={[s.pickMetaText, { color: theme.colors.textSecondary }]}>{recommendation.difficulty}</Text>
               </View>
-              <LinearGradient
-                colors={['#8B5CF6', '#6366F1']}
-                style={themedStyles.playButton}
-              >
-                <Play size={20} color='#fff' fill='#fff' />
-              </LinearGradient>
             </View>
-          </LinearGradient>
+          </View>
+          <View style={[s.pickStartButton, { backgroundColor: theme.colors.ctaBackground }]}>
+            <Play size={14} color={theme.colors.ctaText} fill={theme.colors.ctaText} />
+            <Text style={[s.pickStartText, { color: theme.colors.ctaText }]}>Start</Text>
+          </View>
         </TouchableOpacity>
 
         {/* ── FAVOURITES TOGGLE ── */}
-        <View style={themedStyles.favRow}>
+        <View style={s.favRow}>
           <TouchableOpacity
             style={[
-              themedStyles.favToggle,
-              { backgroundColor: showFavourites ? 'rgba(244,114,182,0.15)' : theme.colors.card,
-                borderWidth: 1,
-                borderColor: showFavourites ? '#F472B6' : 'transparent' },
+              s.favToggle,
+              {
+                backgroundColor: showFavourites ? theme.colors.selectedBackground : theme.colors.card,
+                borderColor: showFavourites ? theme.colors.accent : theme.colors.cardBorder,
+              },
             ]}
             onPress={() => setShowFavourites(v => !v)}
           >
             <Heart
-              size={16}
-              color={showFavourites ? '#F472B6' : theme.colors.textSecondary}
-              fill={showFavourites ? '#F472B6' : 'none'}
-              style={themedStyles.favToggleIcon}
+              size={15}
+              color={showFavourites ? theme.colors.accent : theme.colors.textSecondary}
+              fill={showFavourites ? theme.colors.accent : 'none'}
             />
             <Text
               style={[
-                themedStyles.favToggleText,
-                { color: showFavourites ? '#F472B6' : theme.colors.textSecondary },
+                s.favToggleText,
+                { color: showFavourites ? theme.colors.accent : theme.colors.textSecondary },
               ]}
             >
               {showFavourites ? `Favourites (${favouriteSessions.length})` : 'My Favourites'}
@@ -1161,13 +1165,13 @@ export default function MindfulnessScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* ── CATEGORIES ── */}
+        {/* ── CATEGORIES — canvas: Rlx-Library pill filter row ── */}
         {!showFavourites && (
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
-            style={themedStyles.categoriesContainer}
-            contentContainerStyle={themedStyles.categoriesContent}
+            style={s.categoriesContainer}
+            contentContainerStyle={s.categoriesContent}
           >
             {CATEGORIES.map(cat => {
               const Icon = cat.icon;
@@ -1177,31 +1181,26 @@ export default function MindfulnessScreen() {
                 <TouchableOpacity
                   key={cat.id}
                   style={[
-                    themedStyles.categoryChip,
+                    s.categoryChip,
                     {
-                      backgroundColor: isSelected ? cat.color + 'DD' : theme.colors.card,
-                      borderColor: isSelected ? cat.color : 'transparent',
+                      backgroundColor: isSelected ? theme.colors.ctaBackground : theme.colors.card,
+                      borderColor: isSelected ? theme.colors.ctaBackground : theme.colors.cardBorder,
                       opacity: locked ? 0.7 : 1,
-                      shadowColor: isSelected ? cat.color : 'transparent',
-                      shadowOffset: { width: 0, height: 4 },
-                      shadowOpacity: isSelected ? 0.45 : 0,
-                      shadowRadius: 8,
-                      elevation: isSelected ? 6 : 0,
                     },
                   ]}
                   onPress={() => handleCategorySelect(cat.id)}
                 >
-                  <Icon size={15} color={isSelected ? '#fff' : theme.colors.textSecondary} />
+                  <Icon size={14} color={isSelected ? theme.colors.ctaText : theme.colors.textSecondary} />
                   <Text
                     style={[
-                      themedStyles.categoryChipText,
-                      { color: isSelected ? '#fff' : theme.colors.textSecondary, marginLeft: 6 },
+                      s.categoryChipText,
+                      { color: isSelected ? theme.colors.ctaText : theme.colors.textSecondary },
                     ]}
                   >
                     {cat.name}
                   </Text>
                   {locked && (
-                    <Lock size={10} color={isSelected ? '#fff' : cat.color} style={{ marginLeft: 2 }} />
+                    <Lock size={10} color={isSelected ? theme.colors.ctaText : theme.colors.premium} />
                   )}
                 </TouchableOpacity>
               );
@@ -1210,68 +1209,43 @@ export default function MindfulnessScreen() {
         )}
 
         {!showFavourites && selectedCategory === 'stories' && (
-          <View style={themedStyles.storyStatusRow}>
-            <Text style={[themedStyles.storyStatusText, { color: storyStatusColor }]}> 
+          <View style={s.storyStatusRow}>
+            <Text style={[s.storyStatusText, { color: storyStatusColor }]}>
               {storyStatusText}
             </Text>
           </View>
         )}
 
-        {/* ── SESSIONS GRID ── */}
+        {/* ── SESSIONS LIST — canvas: Rlx-Library icon-row list ── */}
         {isStoryGridLoading ? (
-          <View style={themedStyles.sessionsGrid}>
+          <View style={[s.sessionsListCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.cardBorder }]}>
             {Array.from({ length: 4 }).map((_, index) => (
               <View
-                key={`story-loading-card-${index}`}
-                style={[themedStyles.sessionCard, { backgroundColor: theme.colors.card }]}
+                key={`story-loading-row-${index}`}
+                style={[s.sessionRow, index < 3 && { borderBottomWidth: 1, borderBottomColor: theme.colors.cardBorder }]}
               >
-                <View
-                  style={[
-                    themedStyles.sessionImage,
-                    themedStyles.loadingBlock,
-                    { backgroundColor: theme.colors.cardBorder },
-                  ]}
-                />
-                <View style={themedStyles.sessionInfo}>
-                  <View
-                    style={[
-                      themedStyles.loadingLinePrimary,
-                      { backgroundColor: theme.colors.cardBorder },
-                    ]}
-                  />
-                  <View style={themedStyles.loadingMetaRow}>
-                    <View
-                      style={[
-                        themedStyles.loadingLineSecondary,
-                        { backgroundColor: theme.colors.cardBorder },
-                      ]}
-                    />
-                    <View
-                      style={[
-                        themedStyles.loadingPill,
-                        { backgroundColor: theme.colors.cardBorder },
-                      ]}
-                    />
-                  </View>
+                <View style={[s.sessionRowIcon, s.loadingBlock, { backgroundColor: theme.colors.cardBorder }]} />
+                <View style={s.sessionRowTextCol}>
+                  <View style={[s.loadingLinePrimary, { backgroundColor: theme.colors.cardBorder }]} />
+                  <View style={[s.loadingLineSecondary, { backgroundColor: theme.colors.cardBorder }]} />
                 </View>
+                <View style={[s.loadingPill, { backgroundColor: theme.colors.cardBorder }]} />
               </View>
             ))}
           </View>
         ) : displayedSessions.length === 0 ? (
-          <View style={themedStyles.emptyFav}>
-            <LinearGradient
-              colors={['rgba(139,92,246,0.12)', 'rgba(99,102,241,0.06)']}
-              style={themedStyles.emptyFavCard}
-            >
-              <Text style={themedStyles.emptyFavEmoji}>
+          <View style={s.emptyFav}>
+            <View style={[s.emptyFavCard, { backgroundColor: theme.colors.backgroundSecondary, borderColor: theme.colors.cardBorder }]}>
+              <View pointerEvents="none" style={[s.pickGlow, { backgroundColor: theme.colors.accentLight }]} />
+              <Text style={s.emptyFavEmoji}>
                 {showFavourites ? '🤍' : selectedCategory === 'stories' ? '📖' : '🧘'}
               </Text>
-              <Text style={[themedStyles.emptyFavTitle, { color: theme.colors.textPrimary }]}>
+              <Text style={[s.emptyFavTitle, { color: theme.colors.textPrimary }]}>
                 {showFavourites ? 'No favourites yet' : selectedCategory === 'stories' ? 'No stories found' : 'Nothing here yet'}
               </Text>
-              <Text style={[themedStyles.emptyFavText, { color: theme.colors.textSecondary }]}>
+              <Text style={[s.emptyFavText, { color: theme.colors.textSecondary }]}>
                 {showFavourites
-                  ? 'Tap the ♡ on any session to save it here for quick access.'
+                  ? 'Tap the heart on any session to save it here for quick access.'
                   : selectedCategory === 'stories'
                     ? isStoriesLoading
                       ? 'Loading public stories...'
@@ -1280,105 +1254,92 @@ export default function MindfulnessScreen() {
               </Text>
               {!showFavourites && selectedCategory === 'stories' && !isStoriesLoading && (
                 <TouchableOpacity
-                  style={[themedStyles.beginButton, { marginTop: 16, overflow: 'hidden', paddingHorizontal: 24 }]}
+                  style={[s.beginButton, { backgroundColor: theme.colors.ctaBackground, marginTop: 16, paddingHorizontal: 24, alignSelf: 'center' }]}
                   onPress={loadPublicStories}
                 >
-                  <LinearGradient
-                    colors={['#8B5CF6', '#6366F1']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0 }}
-                    style={StyleSheet.absoluteFill}
-                  />
-                  <Text style={themedStyles.beginButtonText}>Retry Loading Stories</Text>
+                  <Text style={[s.beginButtonText, { color: theme.colors.ctaText }]}>Retry Loading Stories</Text>
                 </TouchableOpacity>
               )}
-            </LinearGradient>
+            </View>
           </View>
         ) : (
-          <View style={themedStyles.sessionsGrid}>
-            {displayedSessions.map(session => {
+          <View style={[s.sessionsListCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.cardBorder }]}>
+            {displayedSessions.map((session, index) => {
               const isFav = favourites.has(session.id);
               const locked = session.premium && !hasPremium;
+              const isLast = index === displayedSessions.length - 1;
               return (
                 <TouchableOpacity
                   key={session.id}
-                  style={[themedStyles.sessionCard, { backgroundColor: theme.colors.card, marginBottom: 14 }]}
+                  style={[s.sessionRow, !isLast && { borderBottomWidth: 1, borderBottomColor: theme.colors.cardBorder }]}
                   onPress={() => handleSessionPress(session)}
-                  activeOpacity={0.85}
+                  activeOpacity={0.8}
                 >
-                  <View style={themedStyles.sessionImageWrap}>
+                  <View style={s.sessionRowThumbWrap}>
                     {failedImages.has(session.id) ? (
-                      <View style={[themedStyles.sessionImage, { backgroundColor: '#1E1B4B' }]} />
+                      <View style={[s.sessionRowThumb, { backgroundColor: theme.colors.backgroundTertiary }]} />
                     ) : (
                       <Image
                         source={{ uri: session.image }}
-                        style={themedStyles.sessionImage}
+                        style={s.sessionRowThumb}
                         onError={() => setFailedImages(prev => new Set([...prev, session.id]))}
                       />
                     )}
-                    {/* Gradient overlay at bottom of image */}
-                    <LinearGradient
-                      colors={['transparent', 'rgba(0,0,0,0.55)']}
-                      style={themedStyles.sessionImageOverlay}
-                      pointerEvents="none"
-                    />
                     {locked && (
-                      <View style={themedStyles.lockOverlay}>
-                        <Lock size={20} color='#fff' />
-                      </View>
-                    )}
-                    {/* Favourite button */}
-                    <TouchableOpacity
-                      style={[themedStyles.favBtn, isFav && { backgroundColor: 'rgba(244,114,182,0.25)' }]}
-                      onPress={(event) => {
-                        event.stopPropagation();
-                        toggleFavourite(session.id);
-                      }}
-                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                    >
-                      <Heart
-                        size={14}
-                        color={isFav ? '#F472B6' : '#fff'}
-                        fill={isFav ? '#F472B6' : 'none'}
-                      />
-                    </TouchableOpacity>
-                    {session.premium && (
-                      <View style={themedStyles.premiumBadge}>
-                        <Star size={10} color='#fff' fill='#fff' />
+                      <View style={s.sessionRowLockOverlay}>
+                        <Lock size={13} color={theme.colors.ctaText} />
                       </View>
                     )}
                   </View>
-                  <View style={themedStyles.sessionInfo}>
-                    <Text
-                      style={[themedStyles.sessionTitle, { color: theme.colors.textPrimary }]}
-                      numberOfLines={1}
-                    >
+                  <View style={s.sessionRowTextCol}>
+                    <Text style={[s.sessionRowTitle, { color: theme.colors.textPrimary }]} numberOfLines={1}>
                       {session.title}
                     </Text>
-                    <View style={themedStyles.sessionMeta}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                        <Clock size={10} color={theme.colors.textSecondary} style={{ marginRight: 3 }} />
-                        <Text style={[themedStyles.sessionDuration, { color: theme.colors.textSecondary }]}>
-                          {session.duration}
-                        </Text>
-                      </View>
-                      <View
-                        style={[
-                          themedStyles.difficultyBadge,
-                          { backgroundColor: getDifficultyColor(session.difficulty) + '22' },
-                        ]}
+                    <View style={s.sessionRowSubRow}>
+                      <Text style={[s.sessionRowSub, { color: theme.colors.textTertiary }]} numberOfLines={1}>
+                        {session.duration}
+                      </Text>
+                      <View style={[s.sessionRowSubDot, { backgroundColor: theme.colors.textTertiary }]} />
+                      <Text
+                        style={[s.sessionRowSub, { color: getDifficultyColor(session.difficulty) }]}
+                        numberOfLines={1}
                       >
-                        <Text
-                          style={[
-                            themedStyles.difficultyText,
-                            { color: getDifficultyColor(session.difficulty) },
-                          ]}
-                        >
-                          {session.difficulty === 'Beginner' ? '🌱 ' : session.difficulty === 'Intermediate' ? '⚡ ' : session.difficulty === 'Advanced' ? '🔥 ' : session.difficulty === 'Specialist' ? '🧠 ' : ''}{session.difficulty}
-                        </Text>
-                      </View>
+                        {session.difficulty}
+                      </Text>
+                      {session.premium && (
+                        <>
+                          <View style={[s.sessionRowSubDot, { backgroundColor: theme.colors.textTertiary }]} />
+                          <Star size={9} color={theme.colors.premium} fill={theme.colors.premium} />
+                        </>
+                      )}
                     </View>
                   </View>
+                  <TouchableOpacity
+                    style={[
+                      s.sessionRowFavBtn,
+                      isFav && { backgroundColor: theme.colors.selectedBackground },
+                    ]}
+                    onPress={(event) => {
+                      event.stopPropagation();
+                      toggleFavourite(session.id);
+                    }}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Heart
+                      size={15}
+                      color={isFav ? theme.colors.accent : theme.colors.textTertiary}
+                      fill={isFav ? theme.colors.accent : 'none'}
+                    />
+                  </TouchableOpacity>
+                  {locked ? (
+                    <View style={[s.sessionRowUnlockBtn, { backgroundColor: theme.colors.premiumBadgeBackground }]}>
+                      <Text style={[s.sessionRowUnlockText, { color: theme.colors.premiumBadgeText }]}>Unlock</Text>
+                    </View>
+                  ) : (
+                    <View style={[s.sessionRowPlayBtn, { borderColor: theme.colors.accent }]}>
+                      <Play size={13} color={theme.colors.accent} fill={theme.colors.accent} />
+                    </View>
+                  )}
                 </TouchableOpacity>
               );
             })}
@@ -1391,7 +1352,7 @@ export default function MindfulnessScreen() {
       {/* ── MINI PLAYER ── */}
       {isPlaying && (
         <TouchableOpacity
-          style={[themedStyles.miniPlayer, { bottom: bottomMargin + 12 }]}
+          style={[s.miniPlayer, { bottom: bottomMargin + 12, borderColor: theme.colors.accentBorder }]}
           onPress={() => {
             if (activeSessionRef.current) {
               setSelectedSession(activeSessionRef.current);
@@ -1399,35 +1360,34 @@ export default function MindfulnessScreen() {
             }
           }}
         >
-          <BlurView intensity={90} tint='dark' style={StyleSheet.absoluteFill} />
-          <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(139,92,246,0.14)' }]} />
-          {/* Purple left accent strip */}
-          <View style={themedStyles.miniPlayerAccent} />
-          <View style={themedStyles.miniPlayerContent}>
+          <BlurView intensity={90} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+          <View style={[StyleSheet.absoluteFill, { backgroundColor: theme.colors.accentLight }]} />
+          <View style={[s.miniPlayerAccent, { backgroundColor: theme.colors.accent }]} />
+          <View style={s.miniPlayerContent}>
             <Image
               source={{
                 uri:
                   activeSessionRef.current?.image ||
                   'https://images.unsplash.com/photo-1506126613408-eca07ce68773?w=100',
               }}
-              style={themedStyles.miniArtwork}
+              style={s.miniArtwork}
             />
-            <View style={themedStyles.miniInfo}>
+            <View style={s.miniInfo}>
               <Text
-                style={[themedStyles.miniTitle, { color: '#FFFFFF' }]}
+                style={[s.miniTitle, { color: theme.colors.textPrimary }]}
                 numberOfLines={1}
               >
                 {activeSessionRef.current?.title || 'Playing'}
               </Text>
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <View style={themedStyles.miniLiveDot} />
-                <Text style={[themedStyles.miniSubtitle, { color: 'rgba(255,255,255,0.65)' }]}>
+              <View style={s.miniLiveRow}>
+                <View style={[s.miniLiveDot, { backgroundColor: theme.colors.success }]} />
+                <Text style={[s.miniSubtitle, { color: theme.colors.textSecondary }]}>
                   Now Playing
                 </Text>
               </View>
             </View>
             <TouchableOpacity
-              style={[themedStyles.miniStopBtn, { backgroundColor: theme.colors.accent + '22' }]}
+              style={[s.miniStopBtn, { backgroundColor: theme.colors.accentLight }]}
               onPress={() => stopSound()}
             >
               <Pause size={18} color={theme.colors.accent} fill={theme.colors.accent} />
@@ -1443,58 +1403,58 @@ export default function MindfulnessScreen() {
         animationType='slide'
         onRequestClose={() => setShowSessionModal(false)}
       >
-        <View style={themedStyles.modalContainer}>
-          <BlurView intensity={100} tint={isDark ? 'dark' : 'light'} style={themedStyles.modalBlur}>
-            <View style={[themedStyles.modalContent, { backgroundColor: theme.colors.card }]}>
+        <View style={s.modalContainer}>
+          <BlurView intensity={100} tint={isDark ? 'dark' : 'light'} style={s.modalBlur}>
+            <View style={[s.modalContent, { backgroundColor: theme.colors.card }]}>
               <TouchableOpacity
-                style={themedStyles.closeButton}
+                style={[s.closeButton, { backgroundColor: theme.colors.backgroundTertiary }]}
                 onPress={() => setShowSessionModal(false)}
               >
-                <X size={22} color={theme.colors.textPrimary} />
+                <X size={20} color={theme.colors.textPrimary} />
               </TouchableOpacity>
 
               {selectedSession && (
                 <>
                   {failedImages.has(selectedSession.id) ? (
-                    <View style={[themedStyles.modalImage, { backgroundColor: '#1E1B4B' }]} />
+                    <View style={[s.modalImage, { backgroundColor: theme.colors.backgroundTertiary }]} />
                   ) : (
                     <Image
                       source={{ uri: selectedSession.image }}
-                      style={themedStyles.modalImage}
+                      style={s.modalImage}
                       onError={() => setFailedImages(prev => new Set([...prev, selectedSession.id]))}
                     />
                   )}
-                  <View style={themedStyles.modalBody}>
-                    <Text style={[themedStyles.modalTitle, { color: theme.colors.textPrimary }]}>
+                  <View style={s.modalBody}>
+                    <Text style={[s.modalTitle, { color: theme.colors.textPrimary }]}>
                       {selectedSession.title}
                     </Text>
-                    <View style={themedStyles.modalMetaRow}>
-                      <View style={themedStyles.modalMetaItem}>
-                        <Clock size={15} color={theme.colors.textSecondary} style={themedStyles.modalMetaIcon} />
-                        <Text style={[themedStyles.modalMetaText, { color: theme.colors.textSecondary }]}>
+                    <View style={s.modalMetaRow}>
+                      <View style={s.modalMetaItem}>
+                        <Clock size={15} color={theme.colors.textSecondary} />
+                        <Text style={[s.modalMetaText, { color: theme.colors.textSecondary }]}>
                           {selectedSession.duration}
                         </Text>
                       </View>
-                      <View style={themedStyles.modalMetaItem}>
-                        <Sparkles size={15} color={theme.colors.textSecondary} style={themedStyles.modalMetaIcon} />
-                        <Text style={[themedStyles.modalMetaText, { color: theme.colors.textSecondary }]}>
+                      <View style={s.modalMetaItem}>
+                        <Sparkles size={15} color={theme.colors.textSecondary} />
+                        <Text style={[s.modalMetaText, { color: theme.colors.textSecondary }]}>
                           {selectedSession.difficulty}
                         </Text>
                       </View>
                     </View>
-                    <Text style={[themedStyles.modalDescription, { color: theme.colors.textSecondary }]}>
+                    <Text style={[s.modalDescription, { color: theme.colors.textSecondary }]}>
                       {selectedSession.description}
                     </Text>
 
                     {/* Tags */}
                     {selectedSession.tags && selectedSession.tags.length > 0 && (
-                      <View style={themedStyles.tagsRow}>
+                      <View style={s.tagsRow}>
                         {selectedSession.tags.map(tag => (
                           <View
                             key={tag}
-                            style={[themedStyles.tag, { backgroundColor: theme.colors.accent + '20' }]}
+                            style={[s.tag, { backgroundColor: theme.colors.accentLight }]}
                           >
-                            <Text style={[themedStyles.tagText, { color: theme.colors.accent }]}>
+                            <Text style={[s.tagText, { color: theme.colors.accent }]}>
                               #{tag}
                             </Text>
                           </View>
@@ -1503,18 +1463,12 @@ export default function MindfulnessScreen() {
                     )}
 
                     <TouchableOpacity
-                      style={themedStyles.beginButton}
+                      style={[s.beginButton, { backgroundColor: theme.colors.ctaBackground }]}
                       onPress={handleBeginSession}
                       activeOpacity={0.88}
                     >
-                      <LinearGradient
-                        colors={['#8B5CF6', '#6366F1']}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 0 }}
-                        style={StyleSheet.absoluteFill}
-                      />
-                      <Play size={18} color='#fff' fill='#fff' style={themedStyles.beginButtonIcon} />
-                      <Text style={themedStyles.beginButtonText}>Begin Session</Text>
+                      <Play size={18} color={theme.colors.ctaText} fill={theme.colors.ctaText} />
+                      <Text style={[s.beginButtonText, { color: theme.colors.ctaText }]}>Begin Session</Text>
                     </TouchableOpacity>
                   </View>
                 </>
@@ -1524,22 +1478,22 @@ export default function MindfulnessScreen() {
         </View>
       </Modal>
 
-      {/* ── BREATHING COACH MODAL ── */}
+      {/* ── BREATHING COACH MODAL — canvas: Rlx-Breathe.dc.html chrome ── */}
       <Modal
         visible={showBreathingCoach}
         transparent
         animationType='fade'
         onRequestClose={() => setShowBreathingCoach(false)}
       >
-        <View style={themedStyles.breathingContainer}>
+        <View style={[s.breathingContainer, { backgroundColor: theme.colors.background }]}>
           <TouchableOpacity
-            style={themedStyles.breathingClose}
+            style={[s.breathingClose, { backgroundColor: theme.colors.card, borderColor: theme.colors.cardBorder }]}
             onPress={() => {
               setShowBreathingCoach(false);
               setPendingBreathingSession(null);
             }}
           >
-            <X size={28} color='#fff' />
+            <X size={24} color={theme.colors.textPrimary} />
           </TouchableOpacity>
           <BreathingCoach
             pattern={breathingPattern}
@@ -1549,7 +1503,7 @@ export default function MindfulnessScreen() {
               }
               setShowBreathingCoach(false);
               setPendingBreathingSession(null);
-              Alert.alert('Well done! 🎉', 'You completed your breathing session.');
+              Alert.alert('Well done!', 'You completed your breathing session.');
             }}
           />
         </View>
@@ -1559,10 +1513,12 @@ export default function MindfulnessScreen() {
 }
 
 // ─── STYLES ───────────────────────────────────────────────────────────────────
+// Theme-driven throughout — no hardcoded hex values. Matches the canvas's
+// Fraunces (display) + DM Sans (body) split, card radii, and warm accent
+// treatment from Rlx-Breathe / Rlx-Library. rowGap/columnGap/margins used in
+// place of bare `gap:` per project convention.
 
-function getThemedStyles(_theme: any, _isDark: boolean) {
-  const cardW = (width - 20 * 2 - 12) / 2;
-
+function styles(theme: any) {
   return StyleSheet.create({
     container: { flex: 1 },
     scrollContent: { paddingHorizontal: 20 },
@@ -1573,39 +1529,48 @@ function getThemedStyles(_theme: any, _isDark: boolean) {
       alignItems: 'center',
       marginBottom: 20,
     },
+    headerLeft: { flexDirection: 'row', alignItems: 'center' },
+    headerRight: { flexDirection: 'row', alignItems: 'center' },
     backButton: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      borderWidth: 1,
       justifyContent: 'center',
       alignItems: 'center',
-      backgroundColor: 'rgba(255,255,255,0.1)',
     },
-    title: { fontSize: 26, fontWeight: '800' },
-    subtitle: { fontSize: 14, marginTop: 2 },
+    headerTitleBlock: { marginLeft: 12 },
+    title: {
+      fontFamily: theme.typography.fontFamily.displaySemibold,
+      fontSize: 24,
+      letterSpacing: -0.2,
+    },
+    subtitle: {
+      fontFamily: theme.typography.fontFamily.body,
+      fontSize: 13,
+      marginTop: 2,
+    },
     statsButton: {
       width: 44,
       height: 44,
       borderRadius: 22,
+      borderWidth: 1,
       justifyContent: 'center',
       alignItems: 'center',
+      marginLeft: 8,
     },
 
-    // Header
     headerStreakPill: {
       flexDirection: 'row',
       alignItems: 'center',
-      backgroundColor: 'rgba(245,158,11,0.15)',
       borderRadius: 14,
       paddingHorizontal: 10,
       paddingVertical: 5,
       borderWidth: 1,
-      borderColor: 'rgba(245,158,11,0.3)',
     },
     headerStreakText: {
-      color: '#F59E0B',
+      fontFamily: theme.typography.fontFamily.bodyBold,
       fontSize: 12,
-      fontWeight: '700',
       marginLeft: 4,
     },
 
@@ -1613,21 +1578,23 @@ function getThemedStyles(_theme: any, _isDark: boolean) {
     statsCard: {
       flexDirection: 'row',
       padding: 18,
-      borderRadius: 20,
+      borderRadius: theme.borderRadius.card,
+      borderWidth: 1,
       marginBottom: 14,
       alignItems: 'center',
       justifyContent: 'space-around',
     },
     statItem: { alignItems: 'center' },
-    statIconRow: { flexDirection: 'row', alignItems: 'center' },
-    statValue: { fontSize: 20, fontWeight: '800' },
-    statLabel: { fontSize: 11, marginTop: 3 },
+    statIconRow: { flexDirection: 'row', alignItems: 'center', columnGap: 4 },
+    statValue: { fontFamily: theme.typography.fontFamily.bodyBold, fontSize: 19 },
+    statLabel: { fontFamily: theme.typography.fontFamily.body, fontSize: 11, marginTop: 3 },
     statDivider: { width: 1, height: 28 },
 
     // Goal
     goalCard: {
       padding: 16,
-      borderRadius: 18,
+      borderRadius: theme.borderRadius.card,
+      borderWidth: 1,
       marginBottom: 20,
     },
     goalHeader: {
@@ -1636,9 +1603,11 @@ function getThemedStyles(_theme: any, _isDark: boolean) {
       alignItems: 'center',
       marginBottom: 10,
     },
-    goalLabel: { fontSize: 14, fontWeight: '700' },
-    goalProgress: { fontSize: 13, fontWeight: '700' },
-    goalPct: { fontSize: 12, fontWeight: '600' },
+    goalHeaderLeft: { flexDirection: 'row', alignItems: 'center', columnGap: 8 },
+    goalHeaderRight: { flexDirection: 'row', alignItems: 'center' },
+    goalLabel: { fontFamily: theme.typography.fontFamily.bodyBold, fontSize: 14 },
+    goalProgress: { fontFamily: theme.typography.fontFamily.bodyBold, fontSize: 13 },
+    goalPct: { fontFamily: theme.typography.fontFamily.bodyMedium, fontSize: 12 },
     goalTrack: {
       height: 8,
       borderRadius: 4,
@@ -1649,69 +1618,52 @@ function getThemedStyles(_theme: any, _isDark: boolean) {
       borderRadius: 4,
       minWidth: 8,
     },
+    goalCompleteRow: { flexDirection: 'row', alignItems: 'center', marginTop: 8, columnGap: 6 },
+    goalCompleteText: { fontFamily: theme.typography.fontFamily.bodyBold, fontSize: 12 },
 
-    // Recommendation
-    recommendationCard: {
-      height: 190,
-      borderRadius: 24,
+    // Tonight's pick (canvas hero card)
+    pickCard: {
+      position: 'relative',
       overflow: 'hidden',
+      borderRadius: theme.borderRadius.card,
+      borderWidth: 1,
+      padding: 16,
       marginBottom: 20,
+      rowGap: 14,
     },
-    recommendationImage: { width: '100%', height: '100%' },
-    recommendationGradient: {
+    pickGlow: {
       position: 'absolute',
-      bottom: 0,
-      left: 0,
-      right: 0,
-      height: 110,
-      justifyContent: 'flex-end',
-      paddingHorizontal: 18,
-      paddingBottom: 18,
+      right: -50,
+      top: -60,
+      width: 200,
+      height: 200,
+      borderRadius: 100,
     },
-    recommendationContent: {
+    pickImageRow: { flexDirection: 'row', alignItems: 'center', columnGap: 14 },
+    pickImage: { width: 64, height: 64, borderRadius: 16 },
+    pickTextCol: { flex: 1, rowGap: 3 },
+    pickEyebrow: {
+      fontFamily: theme.typography.fontFamily.bodyBold,
+      fontSize: 11,
+      letterSpacing: 1,
+    },
+    pickTitle: {
+      fontFamily: theme.typography.fontFamily.displaySemibold,
+      fontSize: 19,
+    },
+    pickMetaRow: { flexDirection: 'row', alignItems: 'center', columnGap: 6 },
+    pickMetaText: { fontFamily: theme.typography.fontFamily.body, fontSize: 12 },
+    pickMetaDot: { width: 3, height: 3, borderRadius: 1.5 },
+    pickStartButton: {
+      alignSelf: 'flex-start',
       flexDirection: 'row',
-      alignItems: 'flex-end',
-      justifyContent: 'space-between',
-    },
-    recommendationTag: {
-      color: 'rgba(255,255,255,0.7)',
-      fontSize: 9,
-      fontWeight: '800',
-      letterSpacing: 1.2,
-      marginBottom: 4,
-    },
-    recommendationTitle: {
-      color: '#fff',
-      fontSize: 18,
-      fontWeight: '800',
-      marginBottom: 6,
-    },
-    recommendationMeta: { flexDirection: 'row', alignItems: 'center' },
-    metaText: {
-      color: 'rgba(255,255,255,0.85)',
-      fontSize: 12,
-      marginLeft: 4,
-    },
-    metaDot: {
-      width: 3,
-      height: 3,
-      borderRadius: 1.5,
-      backgroundColor: 'rgba(255,255,255,0.5)',
-      marginHorizontal: 8,
-    },
-    playButton: {
-      width: 48,
-      height: 48,
-      borderRadius: 24,
-      justifyContent: 'center',
       alignItems: 'center',
-      overflow: 'hidden',
-      shadowColor: '#8B5CF6',
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.5,
-      shadowRadius: 8,
-      elevation: 8,
+      columnGap: 8,
+      height: 44,
+      paddingHorizontal: 20,
+      borderRadius: 16,
     },
+    pickStartText: { fontFamily: theme.typography.fontFamily.bodyBold, fontSize: 14 },
 
     // Favourites toggle
     favRow: { marginBottom: 16 },
@@ -1720,110 +1672,100 @@ function getThemedStyles(_theme: any, _isDark: boolean) {
       alignItems: 'center',
       alignSelf: 'flex-start',
       paddingHorizontal: 14,
-      paddingVertical: 8,
+      paddingVertical: 9,
       borderRadius: 20,
+      borderWidth: 1,
+      columnGap: 8,
     },
-    favToggleIcon: { marginRight: 8 },
-    favToggleText: { fontSize: 13, fontWeight: '600' },
+    favToggleText: { fontFamily: theme.typography.fontFamily.bodySemibold, fontSize: 13 },
 
-    // Categories
+    // Categories (canvas pill filter row)
     categoriesContainer: { marginBottom: 20, marginHorizontal: -20 },
     categoriesContent: { paddingHorizontal: 20, flexDirection: 'row', alignItems: 'center' },
     categoryChip: {
       flexDirection: 'row',
       alignItems: 'center',
       paddingHorizontal: 14,
-      paddingVertical: 9,
+      height: 40,
       borderRadius: 20,
-      borderWidth: 1.5,
-      marginRight: 10,
+      borderWidth: 1,
+      marginRight: 8,
+      columnGap: 6,
     },
-    categoryChipText: { fontSize: 13, fontWeight: '600' },
+    categoryChipText: { fontFamily: theme.typography.fontFamily.bodySemibold, fontSize: 13 },
     storyStatusRow: { marginTop: -8, marginBottom: 14 },
-    storyStatusText: { fontSize: 12, fontWeight: '500' },
+    storyStatusText: { fontFamily: theme.typography.fontFamily.bodyMedium, fontSize: 12 },
 
-    // Sessions grid — two explicit column rows
-    sessionsGrid: {
+    // Sessions list (canvas: icon-row list card)
+    sessionsListCard: {
+      borderRadius: theme.borderRadius.card,
+      borderWidth: 1,
+      paddingHorizontal: 14,
+    },
+    sessionRow: {
+      minHeight: 76,
       flexDirection: 'row',
-      flexWrap: 'wrap',
-      justifyContent: 'space-between',
+      alignItems: 'center',
+      columnGap: 12,
+      paddingVertical: 12,
     },
-    sessionCardWrapper: {
-      marginBottom: 12,
-    },
-    sessionCard: {
-      width: cardW,
-      borderRadius: 18,
-      overflow: 'hidden',
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.12,
-      shadowRadius: 6,
-      elevation: 4,
-    },
-    sessionImageWrap: { position: 'relative' },
-    sessionImage: { width: '100%', height: 110 },
-    sessionImageOverlay: {
-      position: 'absolute',
-      bottom: 0,
-      left: 0,
-      right: 0,
-      height: 48,
-    },
-    loadingBlock: { opacity: 0.55 },
-    loadingLinePrimary: { height: 12, borderRadius: 6, marginBottom: 10, width: '82%', opacity: 0.6 },
-    loadingMetaRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-    loadingLineSecondary: { height: 10, borderRadius: 5, width: 54, opacity: 0.5 },
-    loadingPill: { height: 16, borderRadius: 8, width: 64, opacity: 0.5 },
-    lockOverlay: {
+    sessionRowThumbWrap: { position: 'relative' },
+    sessionRowThumb: { width: 50, height: 50, borderRadius: 14 },
+    sessionRowLockOverlay: {
       ...StyleSheet.absoluteFillObject,
-      backgroundColor: 'rgba(0,0,0,0.5)',
+      borderRadius: 14,
+      backgroundColor: 'rgba(0,0,0,0.45)',
       justifyContent: 'center',
       alignItems: 'center',
     },
-    favBtn: {
-      position: 'absolute',
-      top: 8,
-      left: 8,
-      width: 26,
-      height: 26,
-      borderRadius: 13,
-      backgroundColor: 'rgba(0,0,0,0.35)',
+    sessionRowTextCol: { flex: 1, rowGap: 3 },
+    sessionRowTitle: { fontFamily: theme.typography.fontFamily.bodyBold, fontSize: 15 },
+    sessionRowSubRow: { flexDirection: 'row', alignItems: 'center', columnGap: 6 },
+    sessionRowSub: { fontFamily: theme.typography.fontFamily.body, fontSize: 12 },
+    sessionRowSubDot: { width: 3, height: 3, borderRadius: 1.5 },
+    sessionRowFavBtn: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
       justifyContent: 'center',
       alignItems: 'center',
     },
-    premiumBadge: {
-      position: 'absolute',
-      top: 8,
-      right: 8,
-      width: 22,
-      height: 22,
-      borderRadius: 11,
-      backgroundColor: '#F59E0B',
+    sessionRowPlayBtn: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      borderWidth: 1.5,
       justifyContent: 'center',
       alignItems: 'center',
     },
-    sessionInfo: { padding: 10 },
-    sessionTitle: { fontSize: 13, fontWeight: '700', marginBottom: 6 },
-    sessionMeta: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-    sessionDuration: { fontSize: 11 },
-    difficultyBadge: { paddingHorizontal: 7, paddingVertical: 3, borderRadius: 7 },
-    difficultyText: { fontSize: 9, fontWeight: '700' },
+    sessionRowUnlockBtn: {
+      height: 32,
+      paddingHorizontal: 12,
+      borderRadius: 16,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    sessionRowUnlockText: { fontFamily: theme.typography.fontFamily.bodyBold, fontSize: 12 },
 
-    emptyFav: { alignItems: 'center', paddingVertical: 40 },
+    loadingBlock: { opacity: 0.55 },
+    loadingLinePrimary: { height: 13, borderRadius: 6, width: '70%', opacity: 0.6 },
+    loadingLineSecondary: { height: 10, borderRadius: 5, width: 90, opacity: 0.5, marginTop: 8 },
+    loadingPill: { height: 32, borderRadius: 16, width: 36, opacity: 0.5 },
+
+    emptyFav: { alignItems: 'center', paddingVertical: 10 },
     emptyFavCard: {
+      position: 'relative',
+      overflow: 'hidden',
       alignItems: 'center',
       paddingVertical: 36,
       paddingHorizontal: 24,
-      borderRadius: 24,
+      borderRadius: theme.borderRadius.card,
       width: '100%',
       borderWidth: 1,
-      borderColor: 'rgba(139,92,246,0.2)',
     },
-    emptyFavEmoji: { fontSize: 48, marginBottom: 14 },
-    emptyFavTitle: { fontSize: 17, fontWeight: '800', marginBottom: 8 },
-    emptyFavIcon: { marginBottom: 14 },
-    emptyFavText: { fontSize: 14, textAlign: 'center', lineHeight: 22 },
+    emptyFavEmoji: { fontSize: 44, marginBottom: 14 },
+    emptyFavTitle: { fontFamily: theme.typography.fontFamily.displaySemibold, fontSize: 18, marginBottom: 8 },
+    emptyFavText: { fontFamily: theme.typography.fontFamily.body, fontSize: 14, textAlign: 'center', lineHeight: 21 },
 
     // Modal
     modalContainer: { flex: 1, justifyContent: 'flex-end' },
@@ -1842,34 +1784,31 @@ function getThemedStyles(_theme: any, _isDark: boolean) {
       width: 36,
       height: 36,
       borderRadius: 18,
-      backgroundColor: 'rgba(0,0,0,0.15)',
       justifyContent: 'center',
       alignItems: 'center',
     },
     modalImage: { width: '100%', height: 230 },
     modalBody: { padding: 22 },
-    modalTitle: { fontSize: 22, fontWeight: '800', marginBottom: 10 },
-    modalMetaRow: { flexDirection: 'row', marginBottom: 14 },
-    modalMetaItem: { flexDirection: 'row', alignItems: 'center', marginRight: 20 },
-    modalMetaIcon: { marginRight: 6 },
-    modalMetaText: { fontSize: 13 },
-    modalDescription: { fontSize: 15, lineHeight: 23, marginBottom: 16 },
+    modalTitle: { fontFamily: theme.typography.fontFamily.displaySemibold, fontSize: 22, marginBottom: 10 },
+    modalMetaRow: { flexDirection: 'row', marginBottom: 14, columnGap: 20 },
+    modalMetaItem: { flexDirection: 'row', alignItems: 'center', columnGap: 6 },
+    modalMetaText: { fontFamily: theme.typography.fontFamily.body, fontSize: 13 },
+    modalDescription: { fontFamily: theme.typography.fontFamily.body, fontSize: 15, lineHeight: 23, marginBottom: 16 },
     tagsRow: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: 20 },
     tag: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10, marginRight: 8, marginBottom: 6 },
-    tagText: { fontSize: 11, fontWeight: '600' },
+    tagText: { fontFamily: theme.typography.fontFamily.bodySemibold, fontSize: 11 },
     beginButton: {
       flexDirection: 'row',
-      height: 54,
-      borderRadius: 27,
+      height: 56,
+      borderRadius: 20,
       justifyContent: 'center',
       alignItems: 'center',
-      overflow: 'hidden',
+      columnGap: 10,
     },
-    beginButtonIcon: { marginRight: 10 },
-    beginButtonText: { color: '#fff', fontSize: 17, fontWeight: '800' },
+    beginButtonText: { fontFamily: theme.typography.fontFamily.bodyBold, fontSize: 17 },
 
     // Breathing
-    breathingContainer: { flex: 1, backgroundColor: 'rgba(0,0,0,0.96)' },
+    breathingContainer: { flex: 1 },
     breathingClose: {
       position: 'absolute',
       top: 56,
@@ -1878,7 +1817,7 @@ function getThemedStyles(_theme: any, _isDark: boolean) {
       width: 44,
       height: 44,
       borderRadius: 22,
-      backgroundColor: 'rgba(255,255,255,0.15)',
+      borderWidth: 1,
       justifyContent: 'center',
       alignItems: 'center',
     },
@@ -1891,13 +1830,7 @@ function getThemedStyles(_theme: any, _isDark: boolean) {
       height: 70,
       borderRadius: 18,
       overflow: 'hidden',
-      shadowColor: '#8B5CF6',
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.25,
-      shadowRadius: 12,
-      elevation: 12,
       borderWidth: 1,
-      borderColor: 'rgba(139,92,246,0.3)',
     },
     miniPlayerAccent: {
       position: 'absolute',
@@ -1905,7 +1838,6 @@ function getThemedStyles(_theme: any, _isDark: boolean) {
       top: 0,
       bottom: 0,
       width: 4,
-      backgroundColor: '#8B5CF6',
       zIndex: 2,
     },
     miniPlayerContent: {
@@ -1914,17 +1846,17 @@ function getThemedStyles(_theme: any, _isDark: boolean) {
       alignItems: 'center',
       paddingLeft: 18,
       paddingRight: 12,
+      columnGap: 12,
     },
-    miniArtwork: { width: 46, height: 46, borderRadius: 10, marginRight: 12 },
+    miniArtwork: { width: 46, height: 46, borderRadius: 10 },
     miniInfo: { flex: 1 },
-    miniTitle: { fontSize: 14, fontWeight: '700' },
-    miniSubtitle: { fontSize: 11, marginTop: 2 },
+    miniTitle: { fontFamily: theme.typography.fontFamily.bodyBold, fontSize: 14 },
+    miniLiveRow: { flexDirection: 'row', alignItems: 'center', marginTop: 2, columnGap: 5 },
+    miniSubtitle: { fontFamily: theme.typography.fontFamily.body, fontSize: 11 },
     miniLiveDot: {
       width: 6,
       height: 6,
       borderRadius: 3,
-      backgroundColor: '#10B981',
-      marginRight: 5,
     },
     miniStopBtn: {
       width: 40,
