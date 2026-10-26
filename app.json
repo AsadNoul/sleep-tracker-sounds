@@ -7,12 +7,6 @@
     "orientation": "portrait",
     "icon": "./assets/app_logo.png",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
-    "splash": {
-      "image": "./assets/app_logo.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#0B0B15"
-    },
     "runtimeVersion": "1.0.0",
     "ios": {
       "supportsTablet": true,
@@ -98,7 +92,6 @@
       "expo-web-browser",
       "expo-notifications",
       "expo-file-system",
-      "expo-av",
       [
         "expo-location",
         {
@@ -113,6 +106,22 @@
             "targetSdkVersion": 36,
             "buildToolsVersion": "36.0.0"
           }
+        }
+      ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Allow Sleep Architect to access your microphone to detect snoring and sleep sounds.",
+          "enableBackgroundPlayback": true
+        }
+      ],
+      "expo-asset",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/app_logo.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#0B0B15"
         }
       ]
     ],

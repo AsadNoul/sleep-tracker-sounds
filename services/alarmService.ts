@@ -1,18 +1,18 @@
-import { Audio } from 'expo-av';
+import { createAudioPlayer, setAudioModeAsync, type AudioPlayer } from 'expo-audio';
 import * as Notifications from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 class AlarmService {
-  private sound: Audio.Sound | null = null;
+  private sound: AudioPlayer | null = null;
   private alarmCheckInterval: NodeJS.Timeout | null = null;
   private autoStopTimeout: NodeJS.Timeout | null = null;
 
   async initialize() {
     // Set audio mode for alarm
-    await Audio.setAudioModeAsync({
-      playsInSilentModeIOS: true,
-      staysActiveInBackground: true,
-      shouldDuckAndroid: false,
+    await setAudioModeAsync({
+      playsInSilentMode: true,
+      shouldPlayInBackground: true,
+      interruptionMode: 'doNotMix',
     });
 
     // Start checking for alarms every minute
@@ -84,23 +84,19 @@ class AlarmService {
     try {
       // Stop any existing alarm
       if (this.sound) {
-        await this.sound.stopAsync();
-        await this.sound.unloadAsync();
+        this.sound.pause();
+        this.sound.remove();
       }
 
       // If a soundUri is provided, use it. Otherwise use the default beep.
       const source = soundUri ? { uri: soundUri } : { uri: 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA' };
 
-      const { sound } = await Audio.Sound.createAsync(
-        source,
-        {
-          shouldPlay: true,
-          isLooping: true,
-          volume: 1.0,
-          rate: 1.0,
-          shouldCorrectPitch: false
-        }
-      );
+      const sound = createAudioPlayer(source);
+      sound.loop = true;
+      sound.volume = 1.0;
+      sound.shouldCorrectPitch = false;
+      sound.setPlaybackRate(1.0);
+      sound.play();
 
       this.sound = sound;
 
@@ -122,8 +118,8 @@ class AlarmService {
 
     if (this.sound) {
       try {
-        await this.sound.stopAsync();
-        await this.sound.unloadAsync();
+        this.sound.pause();
+        this.sound.remove();
         this.sound = null;
       } catch (error) {
         console.error('Error stopping alarm:', error);
