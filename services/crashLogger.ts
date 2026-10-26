@@ -9,6 +9,20 @@ import * as Device from 'expo-device';
 import * as Application from 'expo-application';
 import Constants from 'expo-constants';
 
+// Same Expo Go detection used elsewhere (contexts/AuthContext.tsx's
+// isExpoGo()). Crash telemetry (email + the crash_reports table, which
+// requires a privileged insert policy not granted to every test device) is
+// for real production builds — in Expo Go it only produces noisy, broken
+// network/RLS errors in the console with no one to actually receive the
+// report, so skip the network/DB calls entirely there.
+function isRunningInExpoGo(): boolean {
+  const anyConstants = Constants as any;
+  return (
+    anyConstants?.executionEnvironment === 'storeClient' ||
+    anyConstants?.appOwnership === 'expo'
+  );
+}
+
 interface CrashReport {
   error: string;
   errorStack?: string;
@@ -53,6 +67,16 @@ class CrashLogger {
     userInfo?: { userId?: string; email?: string }
   ): Promise<void> {
     try {
+      console.error('💥 CRASH DETECTED:', error instanceof Error ? error.message : String(error));
+
+      if (isRunningInExpoGo()) {
+        // Logged above for local visibility; skip email + DB entirely so
+        // testing in Expo Go doesn't produce unreachable-network and RLS
+        // error spam for a report nobody will read.
+        console.log('ℹ️ Crash telemetry skipped (running in Expo Go, dev testing only)');
+        return;
+      }
+
       // Prevent spam - max 5 reports per session
       if (this.reportCount >= this.maxReportsPerSession) {
         console.warn('⚠️ Max crash reports reached for this session');
@@ -71,8 +95,6 @@ class CrashLogger {
         timestamp: new Date().toISOString(),
         severity,
       };
-
-      console.error('💥 CRASH DETECTED:', report.error);
 
       // Send to Supabase Edge Function (which will email you)
       await this.sendToSupabase(report);
