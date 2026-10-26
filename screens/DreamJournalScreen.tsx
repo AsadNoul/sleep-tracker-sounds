@@ -12,13 +12,10 @@ import {
   Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
 import {
   ChevronLeft,
   Plus,
   Moon,
-  Cloud,
   Zap,
   Smile,
   Meh,
@@ -26,7 +23,8 @@ import {
   Calendar,
   Save,
   Trash2,
-  Sparkles
+  Sparkles,
+  X,
 } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useAppTheme } from '../hooks/useAppTheme';
@@ -155,218 +153,213 @@ export default function DreamJournalScreen() {
     ]);
   };
 
+  const moodColor = (m: 'happy' | 'neutral' | 'scary') => {
+    if (m === 'happy') return theme.colors.success;
+    if (m === 'scary') return theme.colors.danger;
+    return theme.colors.warning;
+  };
+
   return (
     <View style={styles(theme).container}>
-      <LinearGradient
-        colors={[theme.colors.background, theme.colors.backgroundSecondary]}
-        style={styles(theme).gradient}
-      >
-        {/* Header */}
-        <View style={[styles(theme).header, { paddingTop: insets.top + 10 }]}>
-          <TouchableOpacity
-            style={styles(theme).backButton}
-            onPress={() => navigation.goBack()}
-          >
-            <ChevronLeft size={24} color={theme.colors.textPrimary} />
-          </TouchableOpacity>
-          <Text style={styles(theme).headerTitle}>Dream Journal</Text>
-          <TouchableOpacity
-            style={styles(theme).addButton}
-            onPress={() => setIsAdding(!isAdding)}
-          >
-            {isAdding ? <Trash2 size={24} color={theme.colors.danger} /> : <Plus size={24} color={theme.colors.accent} />}
-          </TouchableOpacity>
-        </View>
-
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={{ flex: 1 }}
+      {/* Header */}
+      <View style={[styles(theme).header, { paddingTop: insets.top + 10 }]}>
+        <TouchableOpacity
+          style={styles(theme).headerActionFab}
+          onPress={() => navigation.goBack()}
         >
-          <ScrollView
-            style={styles(theme).content}
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={styles(theme).scrollContent}
-          >
-            {isAdding ? (
-              <BlurView intensity={30} tint="dark" style={styles(theme).addCard}>
-                <Text style={styles(theme).cardTitle}>Record New Dream</Text>
+          <ChevronLeft size={22} color={theme.colors.textPrimary} strokeWidth={2.2} />
+        </TouchableOpacity>
+        <View style={styles(theme).headerTitleBlock}>
+          <Text style={styles(theme).headerLargeTitle}>Dream journal</Text>
+          <Text style={styles(theme).headerSubtitleText}>
+            {dreams.length > 0 ? `${dreams.length} ${dreams.length === 1 ? 'entry' : 'entries'} recorded` : 'Your dream library'}
+          </Text>
+        </View>
+        <TouchableOpacity
+          style={styles(theme).headerActionFab}
+          onPress={() => setIsAdding(!isAdding)}
+        >
+          {isAdding ? (
+            <X size={22} color={theme.colors.textPrimary} strokeWidth={2.2} />
+          ) : (
+            <Plus size={22} color={theme.colors.accent} strokeWidth={2.2} />
+          )}
+        </TouchableOpacity>
+      </View>
 
-                <TextInput
-                  style={styles(theme).input}
-                  placeholder="Dream Title"
-                  placeholderTextColor="rgba(255,255,255,0.4)"
-                  value={newDream.title}
-                  onChangeText={(text) => setNewDream({ ...newDream, title: text })}
-                />
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={{ flex: 1 }}
+      >
+        <ScrollView
+          style={styles(theme).content}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles(theme).scrollContent}
+        >
+          {isAdding ? (
+            <View style={styles(theme).addCard}>
+              <Text style={styles(theme).cardTitle}>Record new dream</Text>
 
-                <TextInput
-                  style={[styles(theme).input, styles(theme).textArea]}
-                  placeholder="What happened in your dream?"
-                  placeholderTextColor="rgba(255,255,255,0.4)"
-                  multiline
-                  numberOfLines={6}
-                  value={newDream.content}
-                  onChangeText={(text) => setNewDream({ ...newDream, content: text })}
-                />
+              <Text style={styles(theme).inputLabel}>Title</Text>
+              <TextInput
+                style={styles(theme).input}
+                placeholder="Dream title"
+                placeholderTextColor={theme.colors.textTertiary}
+                value={newDream.title}
+                onChangeText={(text) => setNewDream({ ...newDream, title: text })}
+              />
 
-                <Text style={styles(theme).label}>How did it feel?</Text>
-                <View style={styles(theme).moodContainer}>
-                  {(['happy', 'neutral', 'scary'] as const).map((m) => (
-                    <TouchableOpacity
-                      key={m}
-                      style={[
-                        styles(theme).moodButton,
-                        newDream.mood === m && styles(theme).moodButtonActive
-                      ]}
-                      onPress={() => setNewDream({ ...newDream, mood: m })}
-                    >
-                      {m === 'happy' && <Smile size={24} color={newDream.mood === m ? theme.colors.background : '#4ECDC4'} />}
-                      {m === 'neutral' && <Meh size={24} color={newDream.mood === m ? theme.colors.background : '#FFE66D'} />}
-                      {m === 'scary' && <Frown size={24} color={newDream.mood === m ? theme.colors.background : '#FF6B6B'} />}
-                      <Text style={[styles(theme).moodText, newDream.mood === m && { color: theme.colors.background }]}>
-                        {m.charAt(0).toUpperCase() + m.slice(1)}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
+              <Text style={styles(theme).inputLabel}>What happened?</Text>
+              <TextInput
+                style={[styles(theme).input, styles(theme).textArea]}
+                placeholder="Describe your dream..."
+                placeholderTextColor={theme.colors.textTertiary}
+                multiline
+                numberOfLines={6}
+                value={newDream.content}
+                onChangeText={(text) => setNewDream({ ...newDream, content: text })}
+              />
 
-                <TouchableOpacity
-                  style={styles(theme).lucidToggle}
-                  onPress={() => setNewDream({ ...newDream, isLucid: !newDream.isLucid })}
-                >
-                  <Zap size={20} color={newDream.isLucid ? theme.colors.accent : 'rgba(255,255,255,0.4)'} />
-                  <Text style={[styles(theme).lucidText, newDream.isLucid && { color: theme.colors.accent }]}>
-                    Lucid Dream
-                  </Text>
-                  <View style={[styles(theme).toggle, newDream.isLucid && styles(theme).toggleActive]}>
-                    <View style={[styles(theme).toggleKnob, newDream.isLucid && styles(theme).toggleKnobActive]} />
-                  </View>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles(theme).saveButton}
-                  onPress={handleSaveDream}
-                >
-                  <LinearGradient
-                    colors={[theme.colors.accent, theme.colors.highlight]}
-                    style={styles(theme).saveGradient}
+              <Text style={styles(theme).inputLabel}>How did it feel?</Text>
+              <View style={styles(theme).moodContainer}>
+                {(['happy', 'neutral', 'scary'] as const).map((m) => (
+                  <TouchableOpacity
+                    key={m}
+                    style={[
+                      styles(theme).moodButton,
+                      newDream.mood === m && styles(theme).moodButtonActive
+                    ]}
+                    onPress={() => setNewDream({ ...newDream, mood: m })}
                   >
-                    <Save size={20} color={theme.colors.background} />
-                    <Text style={styles(theme).saveText}>Save Entry</Text>
-                  </LinearGradient>
-                </TouchableOpacity>
-              </BlurView>
-            ) : (
-              <>
-                <View style={styles(theme).statsContainer}>
-                  <BlurView intensity={20} tint="dark" style={styles(theme).statBox}>
-                    <Moon size={20} color={theme.colors.accent} />
-                    <Text style={styles(theme).statValue}>{dreams.length}</Text>
-                    <Text style={styles(theme).statLabel}>Dreams</Text>
-                  </BlurView>
-                  <BlurView intensity={20} tint="dark" style={styles(theme).statBox}>
-                    <Zap size={20} color={theme.colors.highlight} />
-                    <Text style={styles(theme).statValue}>{dreams.filter(d => d.isLucid).length}</Text>
-                    <Text style={styles(theme).statLabel}>Lucid</Text>
-                  </BlurView>
-                  <BlurView intensity={20} tint="dark" style={styles(theme).statBox}>
-                    <Sparkles size={20} color={theme.colors.premium} />
-                    <Text style={styles(theme).statValue}>85%</Text>
-                    <Text style={styles(theme).statLabel}>Recall</Text>
-                  </BlurView>
-                </View>
-
-                {dreams.length > 0 && (
-                  <BlurView intensity={20} tint="dark" style={styles(theme).insightCard}>
-                    <View style={styles(theme).insightHeader}>
-                      <Sparkles size={18} color={theme.colors.accent} />
-                      <Text style={[styles(theme).insightTitle, { color: theme.colors.textPrimary }]}>Latest Insights</Text>
-                    </View>
-                    <Text style={[styles(theme).insightText, { color: theme.colors.textSecondary }]}>
-                      {dreams[0]?.insight || "Recording more dreams will help unlock deeper analysis."}
+                    {m === 'happy' && <Smile size={22} color={newDream.mood === m ? theme.colors.accent : theme.colors.textTertiary} strokeWidth={2.2} />}
+                    {m === 'neutral' && <Meh size={22} color={newDream.mood === m ? theme.colors.accent : theme.colors.textTertiary} strokeWidth={2.2} />}
+                    {m === 'scary' && <Frown size={22} color={newDream.mood === m ? theme.colors.accent : theme.colors.textTertiary} strokeWidth={2.2} />}
+                    <Text style={[styles(theme).moodText, newDream.mood === m && styles(theme).moodTextActive]}>
+                      {m.charAt(0).toUpperCase() + m.slice(1)}
                     </Text>
-                    {dreams[0]?.keywords && dreams[0].keywords.length > 0 && (
-                      <View style={styles(theme).keywordCloud}>
-                        {dreams[0].keywords.map(kw => (
-                          <View key={kw} style={styles(theme).keywordBadge}>
-                            <Text style={styles(theme).keywordText}>#{kw}</Text>
-                          </View>
-                        ))}
-                      </View>
-                    )}
-                  </BlurView>
-                )}
+                  </TouchableOpacity>
+                ))}
+              </View>
 
-                {dreams.map((dream) =>
-                  Platform.OS === 'ios' ? (
-                    <BlurView key={dream.id} intensity={20} tint="dark" style={styles(theme).dreamCard}>
-                      <View style={styles(theme).dreamHeader}>
-                        <View style={styles(theme).dateContainer}>
-                          <Calendar size={14} color={theme.colors.textSecondary} />
-                          <Text style={styles(theme).dreamDate}>{dream.date}</Text>
+              <TouchableOpacity
+                style={styles(theme).lucidToggle}
+                onPress={() => setNewDream({ ...newDream, isLucid: !newDream.isLucid })}
+                activeOpacity={0.85}
+              >
+                <View style={styles(theme).lucidIconWrap}>
+                  <Zap size={18} color={newDream.isLucid ? theme.colors.accent : theme.colors.textTertiary} strokeWidth={2.2} />
+                </View>
+                <Text style={[styles(theme).lucidText, newDream.isLucid && { color: theme.colors.textPrimary }]}>
+                  Lucid dream
+                </Text>
+                <View style={[styles(theme).toggle, newDream.isLucid && styles(theme).toggleActive]}>
+                  <View style={[styles(theme).toggleKnob, newDream.isLucid && styles(theme).toggleKnobActive]} />
+                </View>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles(theme).saveButton}
+                onPress={handleSaveDream}
+                activeOpacity={0.9}
+              >
+                <Save size={18} color={theme.colors.ctaText} strokeWidth={2.2} />
+                <Text style={styles(theme).saveText}>Save entry</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <>
+              <View style={styles(theme).statsContainer}>
+                <View style={styles(theme).statBox}>
+                  <View style={styles(theme).statIconWrapper}>
+                    <Moon size={16} color={theme.colors.accent} strokeWidth={2.2} />
+                  </View>
+                  <Text style={styles(theme).statValue}>{dreams.length}</Text>
+                  <Text style={styles(theme).statLabel}>Dreams</Text>
+                </View>
+                <View style={styles(theme).statBox}>
+                  <View style={styles(theme).statIconWrapper}>
+                    <Zap size={16} color={theme.colors.accent} strokeWidth={2.2} />
+                  </View>
+                  <Text style={styles(theme).statValue}>{dreams.filter(d => d.isLucid).length}</Text>
+                  <Text style={styles(theme).statLabel}>Lucid</Text>
+                </View>
+                <View style={styles(theme).statBox}>
+                  <View style={styles(theme).statIconWrapper}>
+                    <Sparkles size={16} color={theme.colors.accent} strokeWidth={2.2} />
+                  </View>
+                  <Text style={styles(theme).statValue}>85%</Text>
+                  <Text style={styles(theme).statLabel}>Recall</Text>
+                </View>
+              </View>
+
+              {dreams.length > 0 && (
+                <View style={styles(theme).insightCard}>
+                  <View style={styles(theme).insightHeader}>
+                    <Sparkles size={16} color={theme.colors.accent} strokeWidth={2.2} />
+                    <Text style={styles(theme).insightTitle}>Latest insight</Text>
+                  </View>
+                  <Text style={styles(theme).insightText}>
+                    {dreams[0]?.insight || "Recording more dreams will help unlock deeper analysis."}
+                  </Text>
+                  {dreams[0]?.keywords && dreams[0].keywords.length > 0 && (
+                    <View style={styles(theme).keywordCloud}>
+                      {dreams[0].keywords.map(kw => (
+                        <View key={kw} style={styles(theme).keywordBadge}>
+                          <Text style={styles(theme).keywordText}>#{kw}</Text>
                         </View>
-                        {dream.isLucid && (
-                          <View style={styles(theme).lucidBadge}>
-                            <Zap size={12} color={theme.colors.background} fill={theme.colors.background} />
-                            <Text style={styles(theme).lucidBadgeText}>LUCID</Text>
-                          </View>
-                        )}
-                      </View>
-
-                      <Text style={styles(theme).dreamTitle}>{dream.title}</Text>
-                      <Text style={styles(theme).dreamContent} numberOfLines={3}>{dream.content}</Text>
-
-                      <View style={styles(theme).dreamFooter}>
-                        <View style={styles(theme).moodBadge}>
-                          {dream.mood === 'happy' && <Smile size={16} color="#4ECDC4" />}
-                          {dream.mood === 'neutral' && <Meh size={16} color="#FFE66D" />}
-                          {dream.mood === 'scary' && <Frown size={16} color="#FF6B6B" />}
-                          <Text style={styles(theme).moodBadgeText}>{dream.mood}</Text>
-                        </View>
-                        <TouchableOpacity onPress={() => deleteDream(dream.id)}>
-                          <Trash2 size={18} color="rgba(255,255,255,0.3)" />
-                        </TouchableOpacity>
-                      </View>
-                    </BlurView>
-                  ) : (
-                    <View key={dream.id} style={styles(theme).dreamCard}>
-                      <View style={styles(theme).dreamHeader}>
-                        <View style={styles(theme).dateContainer}>
-                          <Calendar size={14} color={theme.colors.textSecondary} />
-                          <Text style={styles(theme).dreamDate}>{dream.date}</Text>
-                        </View>
-                        {dream.isLucid && (
-                          <View style={styles(theme).lucidBadge}>
-                            <Zap size={12} color={theme.colors.background} fill={theme.colors.background} />
-                            <Text style={styles(theme).lucidBadgeText}>LUCID</Text>
-                          </View>
-                        )}
-                      </View>
-
-                      <Text style={styles(theme).dreamTitle}>{dream.title}</Text>
-                      <Text style={styles(theme).dreamContent} numberOfLines={3}>{dream.content}</Text>
-
-                      <View style={styles(theme).dreamFooter}>
-                        <View style={styles(theme).moodBadge}>
-                          {dream.mood === 'happy' && <Smile size={16} color="#4ECDC4" />}
-                          {dream.mood === 'neutral' && <Meh size={16} color="#FFE66D" />}
-                          {dream.mood === 'scary' && <Frown size={16} color="#FF6B6B" />}
-                          <Text style={styles(theme).moodBadgeText}>{dream.mood}</Text>
-                        </View>
-                        <TouchableOpacity onPress={() => deleteDream(dream.id)}>
-                          <Trash2 size={18} color="rgba(255,255,255,0.3)" />
-                        </TouchableOpacity>
-                      </View>
+                      ))}
                     </View>
-                  )
-                )}
-              </>
-            )}
-            <View style={styles(theme).bottomSpacing} />
-          </ScrollView>
-        </KeyboardAvoidingView>
-      </LinearGradient>
-    </View >
+                  )}
+                </View>
+              )}
+
+              {dreams.length === 0 ? (
+                <View style={styles(theme).emptyCard}>
+                  <Moon size={44} color={theme.colors.textTertiary} style={{ opacity: 0.6 }} />
+                  <Text style={styles(theme).emptyTitle}>No dreams yet</Text>
+                  <Text style={styles(theme).emptyText}>
+                    Tap the + button to record your first dream
+                  </Text>
+                </View>
+              ) : (
+                dreams.map((dream) => (
+                  <View key={dream.id} style={styles(theme).dreamCard}>
+                    <View style={styles(theme).dreamHeader}>
+                      <View style={styles(theme).dateContainer}>
+                        <Calendar size={13} color={theme.colors.textTertiary} strokeWidth={2.2} />
+                        <Text style={styles(theme).dreamDate}>{dream.date}</Text>
+                      </View>
+                      {dream.isLucid && (
+                        <View style={styles(theme).lucidBadge}>
+                          <Zap size={11} color={theme.colors.ctaText} strokeWidth={2.4} fill={theme.colors.ctaText} />
+                          <Text style={styles(theme).lucidBadgeText}>LUCID</Text>
+                        </View>
+                      )}
+                    </View>
+
+                    <Text style={styles(theme).dreamTitle}>{dream.title}</Text>
+                    <Text style={styles(theme).dreamContent} numberOfLines={3}>{dream.content}</Text>
+
+                    <View style={styles(theme).dreamFooter}>
+                      <View style={styles(theme).moodBadge}>
+                        {dream.mood === 'happy' && <Smile size={14} color={moodColor(dream.mood)} strokeWidth={2.2} />}
+                        {dream.mood === 'neutral' && <Meh size={14} color={moodColor(dream.mood)} strokeWidth={2.2} />}
+                        {dream.mood === 'scary' && <Frown size={14} color={moodColor(dream.mood)} strokeWidth={2.2} />}
+                        <Text style={styles(theme).moodBadgeText}>{dream.mood}</Text>
+                      </View>
+                      <TouchableOpacity onPress={() => deleteDream(dream.id)} style={styles(theme).deleteButton}>
+                        <Trash2 size={16} color={theme.colors.textTertiary} strokeWidth={2.2} />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ))
+              )}
+            </>
+          )}
+          <View style={styles(theme).bottomSpacing} />
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </View>
   );
 }
 
@@ -375,148 +368,176 @@ const styles = (theme: any) => StyleSheet.create({
     flex: 1,
     backgroundColor: theme.colors.background,
   },
-  gradient: {
-    flex: 1,
-  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    columnGap: 14,
     paddingHorizontal: 20,
-    paddingBottom: 20,
+    paddingBottom: 16,
   },
-  backButton: {
-    width: 40,
-    height: 40,
+  headerActionFab: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: theme.colors.card,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: theme.colors.cardBorder,
   },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: '700',
+  headerTitleBlock: {
+    flex: 1,
+  },
+  headerLargeTitle: {
+    fontFamily: theme.typography.fontFamily.displaySemibold,
+    fontSize: 22,
     color: theme.colors.textPrimary,
+    letterSpacing: -0.3,
   },
-  addButton: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    borderRadius: 12,
+  headerSubtitleText: {
+    fontFamily: theme.typography.fontFamily.body,
+    fontSize: 13,
+    color: theme.colors.textTertiary,
+    marginTop: 2,
   },
   content: {
     flex: 1,
   },
   scrollContent: {
     paddingHorizontal: 20,
+    paddingTop: 4,
   },
   statsContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 24,
-    rowGap: 12, columnGap: 12,
+    marginBottom: 20,
+    columnGap: 12,
   },
   statBox: {
     flex: 1,
     padding: 16,
-    borderRadius: 20,
+    borderRadius: theme.borderRadius.card,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.05)',
-    overflow: 'hidden',
+    borderColor: theme.colors.cardBorder,
+    backgroundColor: theme.colors.card,
+  },
+  statIconWrapper: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: theme.colors.accentLight,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 10,
   },
   statValue: {
-    fontSize: 20,
-    fontWeight: '700',
+    fontFamily: theme.typography.fontFamily.displaySemibold,
+    fontSize: 19,
     color: theme.colors.textPrimary,
-    marginTop: 8,
   },
   statLabel: {
+    fontFamily: theme.typography.fontFamily.body,
     fontSize: 12,
-    color: theme.colors.textSecondary,
+    color: theme.colors.textTertiary,
     marginTop: 2,
   },
   addCard: {
-    borderRadius: 24,
-    padding: 24,
+    borderRadius: theme.borderRadius.card,
+    padding: 20,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
-    overflow: 'hidden',
+    borderColor: theme.colors.cardBorder,
+    backgroundColor: theme.colors.card,
     marginBottom: 20,
   },
   cardTitle: {
-    fontSize: 20,
-    fontWeight: '700',
+    fontFamily: theme.typography.fontFamily.displaySemibold,
+    fontSize: 18,
     color: theme.colors.textPrimary,
-    marginBottom: 20,
+    marginBottom: 18,
+  },
+  inputLabel: {
+    fontFamily: theme.typography.fontFamily.bodySemibold,
+    fontSize: 13,
+    color: theme.colors.textSecondary,
+    marginBottom: 10,
   },
   input: {
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    borderRadius: 12,
+    backgroundColor: theme.colors.backgroundSecondary,
+    borderRadius: theme.borderRadius.lg,
     padding: 16,
     color: theme.colors.textPrimary,
-    fontSize: 16,
-    marginBottom: 16,
+    fontFamily: theme.typography.fontFamily.body,
+    fontSize: 15,
+    marginBottom: 18,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
+    borderColor: theme.colors.cardBorder,
   },
   textArea: {
     height: 120,
     textAlignVertical: 'top',
-  },
-  label: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: theme.colors.textPrimary,
-    marginBottom: 12,
+    lineHeight: 21,
   },
   moodContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 24,
-    rowGap: 10, columnGap: 10,
+    marginBottom: 20,
+    columnGap: 10,
   },
   moodButton: {
     flex: 1,
-    paddingVertical: 12,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.05)',
+    paddingVertical: 14,
+    borderRadius: theme.borderRadius.lg,
+    backgroundColor: theme.colors.backgroundSecondary,
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
+    borderWidth: 1.5,
+    borderColor: theme.colors.cardBorder,
   },
   moodButtonActive: {
-    backgroundColor: theme.colors.accent,
+    backgroundColor: theme.colors.selectedBackground,
     borderColor: theme.colors.accent,
   },
   moodText: {
+    fontFamily: theme.typography.fontFamily.bodyMedium,
     fontSize: 12,
-    color: theme.colors.textSecondary,
+    color: theme.colors.textTertiary,
     marginTop: 6,
-    fontWeight: '600',
+  },
+  moodTextActive: {
+    color: theme.colors.accent,
+    fontFamily: theme.typography.fontFamily.bodySemibold,
   },
   lucidToggle: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 24,
+    backgroundColor: theme.colors.backgroundSecondary,
+    padding: 14,
+    borderRadius: theme.borderRadius.lg,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: theme.colors.cardBorder,
+    columnGap: 12,
+  },
+  lucidIconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: theme.colors.accentLight,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   lucidText: {
     flex: 1,
-    fontSize: 16,
-    color: theme.colors.textPrimary,
-    marginLeft: 12,
+    fontFamily: theme.typography.fontFamily.bodyMedium,
+    fontSize: 15,
+    color: theme.colors.textSecondary,
   },
   toggle: {
     width: 44,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    padding: 2,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: theme.colors.disabled,
+    padding: 3,
   },
   toggleActive: {
     backgroundColor: theme.colors.accent,
@@ -525,49 +546,70 @@ const styles = (theme: any) => StyleSheet.create({
     width: 20,
     height: 20,
     borderRadius: 10,
-    backgroundColor: '#FFF',
+    backgroundColor: theme.colors.ctaText,
   },
   toggleKnobActive: {
-    transform: [{ translateX: 20 }],
+    transform: [{ translateX: 18 }],
   },
   saveButton: {
-    borderRadius: 16,
-    overflow: 'hidden',
-  },
-  saveGradient: {
+    height: 54,
+    borderRadius: theme.borderRadius.lg,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 16,
-    rowGap: 10, columnGap: 10,
+    backgroundColor: theme.colors.ctaBackground,
+    columnGap: 10,
   },
   saveText: {
+    fontFamily: theme.typography.fontFamily.bodyBold,
     fontSize: 16,
-    fontWeight: '700',
-    color: theme.colors.background,
+    color: theme.colors.ctaText,
+  },
+  emptyCard: {
+    borderRadius: theme.borderRadius.card,
+    padding: 40,
+    alignItems: 'center',
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: theme.colors.cardBorder,
+    backgroundColor: theme.colors.card,
+    rowGap: 8,
+  },
+  emptyTitle: {
+    fontFamily: theme.typography.fontFamily.displaySemibold,
+    fontSize: 18,
+    color: theme.colors.textPrimary,
+    marginTop: 8,
+  },
+  emptyText: {
+    fontFamily: theme.typography.fontFamily.body,
+    fontSize: 14,
+    color: theme.colors.textTertiary,
+    textAlign: 'center',
   },
   dreamCard: {
-    borderRadius: 20,
-    padding: 20,
-    marginBottom: 16,
+    borderRadius: theme.borderRadius.card,
+    padding: 18,
+    marginBottom: 14,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.05)',
-    overflow: 'hidden',
+    borderColor: theme.colors.cardBorder,
+    backgroundColor: theme.colors.card,
   },
   dreamHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 10,
   },
   dateContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    rowGap: 6, columnGap: 6,
+    columnGap: 6,
   },
   dreamDate: {
-    fontSize: 13,
-    color: theme.colors.textSecondary,
+    fontFamily: theme.typography.fontFamily.bodyMedium,
+    fontSize: 12,
+    color: theme.colors.textTertiary,
   },
   lucidBadge: {
     flexDirection: 'row',
@@ -575,64 +617,72 @@ const styles = (theme: any) => StyleSheet.create({
     backgroundColor: theme.colors.accent,
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 6,
-    rowGap: 4, columnGap: 4,
+    borderRadius: theme.borderRadius.sm,
+    columnGap: 4,
   },
   lucidBadgeText: {
+    fontFamily: theme.typography.fontFamily.bodyBold,
     fontSize: 10,
-    fontWeight: '800',
-    color: theme.colors.background,
+    color: theme.colors.ctaText,
+    letterSpacing: 0.3,
+  },
+  dreamTitle: {
+    fontFamily: theme.typography.fontFamily.displaySemibold,
+    fontSize: 17,
+    color: theme.colors.textPrimary,
+    marginBottom: 6,
   },
   dreamContent: {
+    fontFamily: theme.typography.fontFamily.body,
     fontSize: 14,
     lineHeight: 20,
     color: theme.colors.textSecondary,
-    marginBottom: 16,
+    marginBottom: 14,
   },
   insightCard: {
-    padding: 20,
-    borderRadius: 20,
-    marginBottom: 24,
+    padding: 18,
+    borderRadius: theme.borderRadius.card,
+    marginBottom: 20,
     borderWidth: 1,
-    borderColor: theme.colors.accent + '30',
-    overflow: 'hidden',
+    borderColor: theme.colors.accentBorder,
+    backgroundColor: theme.colors.accentLight,
   },
   insightHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    rowGap: 8, columnGap: 8,
+    columnGap: 8,
     marginBottom: 10,
   },
   insightTitle: {
-    fontSize: 16,
-    fontWeight: '700',
+    fontFamily: theme.typography.fontFamily.bodySemibold,
+    fontSize: 15,
+    color: theme.colors.textPrimary,
   },
   insightText: {
+    fontFamily: theme.typography.fontFamily.body,
     fontSize: 14,
     lineHeight: 20,
+    color: theme.colors.textSecondary,
     marginBottom: 12,
   },
   keywordCloud: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    rowGap: 8, columnGap: 8,
+    rowGap: 8,
+    columnGap: 8,
   },
   keywordBadge: {
-    backgroundColor: theme.colors.accent + '20',
+    backgroundColor: theme.colors.card,
     paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 8,
+    paddingVertical: 5,
+    borderRadius: theme.borderRadius.md,
+    borderWidth: 1,
+    borderColor: theme.colors.accentBorder,
   },
   keywordText: {
+    fontFamily: theme.typography.fontFamily.bodyMedium,
     fontSize: 12,
-    fontWeight: '600',
     color: theme.colors.accent,
-  },
-  dreamTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: theme.colors.textPrimary,
-    marginBottom: 8,
   },
   dreamFooter: {
     flexDirection: 'row',
@@ -642,17 +692,26 @@ const styles = (theme: any) => StyleSheet.create({
   moodBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.05)',
+    backgroundColor: theme.colors.backgroundSecondary,
     paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 8,
-    rowGap: 6, columnGap: 6,
+    paddingVertical: 6,
+    borderRadius: theme.borderRadius.md,
+    borderWidth: 1,
+    borderColor: theme.colors.cardBorder,
+    columnGap: 6,
   },
   moodBadgeText: {
+    fontFamily: theme.typography.fontFamily.bodyMedium,
     fontSize: 12,
-    fontWeight: '600',
     color: theme.colors.textSecondary,
     textTransform: 'capitalize',
+  },
+  deleteButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   bottomSpacing: {
     height: 100,

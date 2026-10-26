@@ -8,14 +8,11 @@ import {
   Alert,
   Switch,
   TextInput,
-  Platform,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { useAppTheme } from '../hooks/useAppTheme';
-import { ChevronLeft, Plus, Trash2, Bell, Clock, Music } from 'lucide-react-native';
+import { ChevronLeft, Plus, Trash2, Bell, Clock, Music, X, Check } from 'lucide-react-native';
 import alarmService from '../services/alarmService';
 import { useRoute } from '@react-navigation/native';
 
@@ -90,197 +87,127 @@ export default function AlarmsScreen() {
 
   return (
     <View style={styles(theme).container}>
-      <LinearGradient
-        colors={[theme.colors.background, theme.colors.backgroundSecondary]}
-        style={styles(theme).gradient}
-      >
-        {/* Header */}
-        <View style={[styles(theme).header, { paddingTop: insets.top + 10 }]}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles(theme).backButton}>
-            <ChevronLeft size={24} color={theme.colors.textPrimary} />
-          </TouchableOpacity>
-          <Text style={styles(theme).headerTitle}>Alarms</Text>
-          <TouchableOpacity onPress={() => setShowAddAlarm(true)} style={styles(theme).addButton}>
-            <Plus size={24} color={theme.colors.accent} />
-          </TouchableOpacity>
+      {/* Header */}
+      <View style={[styles(theme).header, { paddingTop: insets.top + 10 }]}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles(theme).headerActionFab}>
+          <ChevronLeft size={22} color={theme.colors.textPrimary} strokeWidth={2.2} />
+        </TouchableOpacity>
+        <View style={styles(theme).headerTitleBlock}>
+          <Text style={styles(theme).headerLargeTitle}>Alarms</Text>
+          <Text style={styles(theme).headerSubtitleText}>
+            {alarms.length > 0 ? `${alarms.length} ${alarms.length === 1 ? 'alarm' : 'alarms'} set` : 'Wake up on your terms'}
+          </Text>
         </View>
-
-        <ScrollView style={styles(theme).content} showsVerticalScrollIndicator={false}>
-          {/* Add Alarm Form */}
-          {showAddAlarm && (
-            Platform.OS === 'ios' ? (
-              <BlurView intensity={20} tint="dark" style={styles(theme).addAlarmCard}>
-                <Text style={styles(theme).addAlarmTitle}>New Alarm</Text>
-
-                <View style={styles(theme).inputGroup}>
-                  <Text style={styles(theme).inputLabel}>Time (HH:MM)</Text>
-                  <TextInput
-                    style={styles(theme).input}
-                    value={newAlarmTime}
-                    onChangeText={setNewAlarmTime}
-                    placeholder="07:00"
-                    placeholderTextColor={theme.colors.textSecondary}
-                    keyboardType="numbers-and-punctuation"
-                  />
-                </View>
-
-                <View style={styles(theme).inputGroup}>
-                  <Text style={styles(theme).inputLabel}>Name</Text>
-                  <TextInput
-                    style={styles(theme).input}
-                    value={newAlarmName}
-                    onChangeText={setNewAlarmName}
-                    placeholder="Morning Alarm"
-                    placeholderTextColor={theme.colors.textSecondary}
-                  />
-                </View>
-
-                {newAlarmSoundName && (
-                  <View style={styles(theme).inputGroup}>
-                    <Text style={styles(theme).inputLabel}>Selected Sound</Text>
-                    <View style={styles(theme).soundBadge}>
-                      <Music size={16} color={theme.colors.accent} />
-                      <Text style={styles(theme).soundBadgeText}>{newAlarmSoundName}</Text>
-                    </View>
-                  </View>
-                )}
-
-                <View style={styles(theme).buttonRow}>
-                  <TouchableOpacity
-                    style={styles(theme).cancelButton}
-                    onPress={() => setShowAddAlarm(false)}
-                  >
-                    <Text style={styles(theme).cancelButtonText}>Cancel</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles(theme).saveButton} onPress={handleAddAlarm}>
-                    <Text style={styles(theme).saveButtonText}>Add Alarm</Text>
-                  </TouchableOpacity>
-                </View>
-              </BlurView>
-            ) : (
-              <View style={styles(theme).addAlarmCard}>
-                <Text style={styles(theme).addAlarmTitle}>New Alarm</Text>
-
-                <View style={styles(theme).inputGroup}>
-                  <Text style={styles(theme).inputLabel}>Time (HH:MM)</Text>
-                  <TextInput
-                    style={styles(theme).input}
-                    value={newAlarmTime}
-                    onChangeText={setNewAlarmTime}
-                    placeholder="07:00"
-                    placeholderTextColor={theme.colors.textSecondary}
-                    keyboardType="numbers-and-punctuation"
-                  />
-                </View>
-
-                <View style={styles(theme).inputGroup}>
-                  <Text style={styles(theme).inputLabel}>Name</Text>
-                  <TextInput
-                    style={styles(theme).input}
-                    value={newAlarmName}
-                    onChangeText={setNewAlarmName}
-                    placeholder="Morning Alarm"
-                    placeholderTextColor={theme.colors.textSecondary}
-                  />
-                </View>
-
-                <View style={styles(theme).buttonRow}>
-                  <TouchableOpacity
-                    style={styles(theme).cancelButton}
-                    onPress={() => setShowAddAlarm(false)}
-                  >
-                    <Text style={styles(theme).cancelButtonText}>Cancel</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles(theme).saveButton} onPress={handleAddAlarm}>
-                    <Text style={styles(theme).saveButtonText}>Add Alarm</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            )
-          )}
-
-          {/* Alarms List */}
-          {alarms.length === 0 && !showAddAlarm ? (
-            Platform.OS === 'ios' ? (
-              <BlurView intensity={20} tint="dark" style={styles(theme).emptyCard}>
-                <Bell size={48} color={theme.colors.textSecondary} />
-                <Text style={styles(theme).emptyTitle}>No Alarms Set</Text>
-                <Text style={styles(theme).emptyText}>
-                  Tap the + button to create your first alarm
-                </Text>
-              </BlurView>
-            ) : (
-              <View style={styles(theme).emptyCard}>
-                <Bell size={48} color={theme.colors.textSecondary} />
-                <Text style={styles(theme).emptyTitle}>No Alarms Set</Text>
-                <Text style={styles(theme).emptyText}>
-                  Tap the + button to create your first alarm
-                </Text>
-              </View>
-            )
+        <TouchableOpacity onPress={() => setShowAddAlarm(!showAddAlarm)} style={styles(theme).headerActionFab}>
+          {showAddAlarm ? (
+            <X size={22} color={theme.colors.textPrimary} strokeWidth={2.2} />
           ) : (
-            alarms.map((alarm) => (
-              Platform.OS === 'ios' ? (
-                <BlurView key={alarm.id} intensity={20} tint="dark" style={styles(theme).alarmCard}>
-                  <View style={styles(theme).alarmInfo}>
-                    <View style={styles(theme).alarmIconContainer}>
-                      <Clock size={24} color={theme.colors.accent} />
-                    </View>
-                    <View style={styles(theme).alarmDetails}>
-                      <Text style={styles(theme).alarmTime}>{alarm.time}</Text>
-                      <Text style={styles(theme).alarmName}>{alarm.name}</Text>
-                    </View>
-                  </View>
-
-                  <View style={styles(theme).alarmActions}>
-                    <Switch
-                      value={alarm.enabled}
-                      onValueChange={(enabled) => handleToggleAlarm(alarm.id, enabled)}
-                      trackColor={{ false: '#444', true: theme.colors.accent }}
-                      thumbColor={alarm.enabled ? '#FFF' : '#999'}
-                    />
-                    <TouchableOpacity
-                      onPress={() => handleDeleteAlarm(alarm.id)}
-                      style={styles(theme).deleteButton}
-                    >
-                      <Trash2 size={20} color="#FF6B9D" />
-                    </TouchableOpacity>
-                  </View>
-                </BlurView>
-              ) : (
-                <View key={alarm.id} style={styles(theme).alarmCard}>
-                  <View style={styles(theme).alarmInfo}>
-                    <View style={styles(theme).alarmIconContainer}>
-                      <Clock size={24} color={theme.colors.accent} />
-                    </View>
-                    <View style={styles(theme).alarmDetails}>
-                      <Text style={styles(theme).alarmTime}>{alarm.time}</Text>
-                      <Text style={styles(theme).alarmName}>{alarm.name}</Text>
-                    </View>
-                  </View>
-
-                  <View style={styles(theme).alarmActions}>
-                    <Switch
-                      value={alarm.enabled}
-                      onValueChange={(enabled) => handleToggleAlarm(alarm.id, enabled)}
-                      trackColor={{ false: '#444', true: theme.colors.accent }}
-                      thumbColor={alarm.enabled ? '#FFF' : '#999'}
-                    />
-                    <TouchableOpacity
-                      onPress={() => handleDeleteAlarm(alarm.id)}
-                      style={styles(theme).deleteButton}
-                    >
-                      <Trash2 size={20} color="#FF6B9D" />
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              )
-            ))
+            <Plus size={22} color={theme.colors.accent} strokeWidth={2.2} />
           )}
+        </TouchableOpacity>
+      </View>
 
-          <View style={{ height: 100 }} />
-        </ScrollView>
-      </LinearGradient>
+      <ScrollView
+        style={styles(theme).content}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles(theme).scrollContent}
+      >
+        {/* Add Alarm Form */}
+        {showAddAlarm && (
+          <View style={styles(theme).addAlarmCard}>
+            <Text style={styles(theme).addAlarmTitle}>New alarm</Text>
+
+            <View style={styles(theme).inputGroup}>
+              <Text style={styles(theme).inputLabel}>Time (HH:MM)</Text>
+              <TextInput
+                style={styles(theme).input}
+                value={newAlarmTime}
+                onChangeText={setNewAlarmTime}
+                placeholder="07:00"
+                placeholderTextColor={theme.colors.textTertiary}
+                keyboardType="numbers-and-punctuation"
+              />
+            </View>
+
+            <View style={styles(theme).inputGroup}>
+              <Text style={styles(theme).inputLabel}>Name</Text>
+              <TextInput
+                style={styles(theme).input}
+                value={newAlarmName}
+                onChangeText={setNewAlarmName}
+                placeholder="Morning Alarm"
+                placeholderTextColor={theme.colors.textTertiary}
+              />
+            </View>
+
+            {newAlarmSoundName && (
+              <View style={styles(theme).inputGroup}>
+                <Text style={styles(theme).inputLabel}>Selected sound</Text>
+                <View style={styles(theme).soundBadge}>
+                  <Music size={16} color={theme.colors.accent} strokeWidth={2.2} />
+                  <Text style={styles(theme).soundBadgeText}>{newAlarmSoundName}</Text>
+                </View>
+              </View>
+            )}
+
+            <View style={styles(theme).buttonRow}>
+              <TouchableOpacity
+                style={styles(theme).cancelButton}
+                onPress={() => setShowAddAlarm(false)}
+                activeOpacity={0.85}
+              >
+                <Text style={styles(theme).cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles(theme).saveButton} onPress={handleAddAlarm} activeOpacity={0.9}>
+                <Check size={18} color={theme.colors.ctaText} strokeWidth={2.4} />
+                <Text style={styles(theme).saveButtonText}>Add alarm</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {/* Alarms List */}
+        {alarms.length === 0 && !showAddAlarm ? (
+          <View style={styles(theme).emptyCard}>
+            <Bell size={44} color={theme.colors.textTertiary} style={{ opacity: 0.6 }} />
+            <Text style={styles(theme).emptyTitle}>No alarms set</Text>
+            <Text style={styles(theme).emptyText}>
+              Tap the + button to create your first alarm
+            </Text>
+          </View>
+        ) : (
+          alarms.map((alarm) => (
+            <View key={alarm.id} style={styles(theme).alarmCard}>
+              <View style={styles(theme).alarmInfo}>
+                <View style={styles(theme).alarmIconContainer}>
+                  <Clock size={22} color={theme.colors.accent} strokeWidth={2.2} />
+                </View>
+                <View style={styles(theme).alarmDetails}>
+                  <Text style={styles(theme).alarmTime}>{alarm.time}</Text>
+                  <Text style={styles(theme).alarmName}>{alarm.name}</Text>
+                </View>
+              </View>
+
+              <View style={styles(theme).alarmActions}>
+                <Switch
+                  value={alarm.enabled}
+                  onValueChange={(enabled) => handleToggleAlarm(alarm.id, enabled)}
+                  trackColor={{ false: theme.colors.disabled, true: theme.colors.accent }}
+                  thumbColor={theme.colors.ctaText}
+                />
+                <TouchableOpacity
+                  onPress={() => handleDeleteAlarm(alarm.id)}
+                  style={styles(theme).deleteButton}
+                >
+                  <Trash2 size={18} color={theme.colors.danger} strokeWidth={2.2} />
+                </TouchableOpacity>
+              </View>
+            </View>
+          ))
+        )}
+
+        <View style={styles(theme).bottomSpacing} />
+      </ScrollView>
     </View>
   );
 }
@@ -291,151 +218,177 @@ const styles = (theme: any) =>
       flex: 1,
       backgroundColor: theme.colors.background,
     },
-    gradient: {
-      flex: 1,
-    },
     header: {
       flexDirection: 'row',
       alignItems: 'center',
-      justifyContent: 'space-between',
+      columnGap: 14,
       paddingHorizontal: 20,
-      paddingBottom: 20,
+      paddingBottom: 16,
     },
-    backButton: {
-      padding: 8,
+    headerActionFab: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      backgroundColor: theme.colors.card,
+      justifyContent: 'center',
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: theme.colors.cardBorder,
     },
-    headerTitle: {
-      fontSize: 24,
-      fontWeight: '700',
+    headerTitleBlock: {
+      flex: 1,
+    },
+    headerLargeTitle: {
+      fontFamily: theme.typography.fontFamily.displaySemibold,
+      fontSize: 22,
       color: theme.colors.textPrimary,
+      letterSpacing: -0.3,
     },
-    addButton: {
-      padding: 8,
+    headerSubtitleText: {
+      fontFamily: theme.typography.fontFamily.body,
+      fontSize: 13,
+      color: theme.colors.textTertiary,
+      marginTop: 2,
     },
     content: {
       flex: 1,
+    },
+    scrollContent: {
       paddingHorizontal: 20,
+      paddingTop: 4,
     },
     addAlarmCard: {
-      backgroundColor: 'rgba(27, 29, 42, 0.7)',
-      borderRadius: 16,
+      borderRadius: theme.borderRadius.card,
       padding: 20,
       marginBottom: 20,
-      borderWidth: 0,
+      borderWidth: 1,
+      borderColor: theme.colors.cardBorder,
+      backgroundColor: theme.colors.card,
     },
     addAlarmTitle: {
+      fontFamily: theme.typography.fontFamily.displaySemibold,
       fontSize: 18,
-      fontWeight: '600',
       color: theme.colors.textPrimary,
-      marginBottom: 16,
+      marginBottom: 18,
     },
     inputGroup: {
       marginBottom: 16,
     },
     inputLabel: {
-      fontSize: 14,
-      fontWeight: '500',
+      fontFamily: theme.typography.fontFamily.bodySemibold,
+      fontSize: 13,
       color: theme.colors.textSecondary,
-      marginBottom: 8,
+      marginBottom: 10,
     },
     input: {
-      backgroundColor: 'rgba(255, 255, 255, 0.05)',
-      borderRadius: 12,
+      backgroundColor: theme.colors.backgroundSecondary,
+      borderRadius: theme.borderRadius.lg,
       padding: 14,
       color: theme.colors.textPrimary,
+      fontFamily: theme.typography.fontFamily.body,
       fontSize: 16,
-      borderWidth: 0,
+      borderWidth: 1,
+      borderColor: theme.colors.cardBorder,
     },
     buttonRow: {
       flexDirection: 'row',
-      rowGap: 12, columnGap: 12,
+      columnGap: 12,
       marginTop: 8,
     },
     cancelButton: {
       flex: 1,
-      backgroundColor: 'rgba(255, 255, 255, 0.05)',
-      borderRadius: 12,
+      backgroundColor: theme.colors.backgroundSecondary,
+      borderRadius: theme.borderRadius.lg,
       padding: 14,
       alignItems: 'center',
+      borderWidth: 1,
+      borderColor: theme.colors.cardBorder,
     },
     cancelButtonText: {
+      fontFamily: theme.typography.fontFamily.bodySemibold,
       color: theme.colors.textSecondary,
       fontSize: 16,
-      fontWeight: '600',
     },
     saveButton: {
       flex: 1,
-      backgroundColor: theme.colors.accent,
-      borderRadius: 12,
+      flexDirection: 'row',
+      backgroundColor: theme.colors.ctaBackground,
+      borderRadius: theme.borderRadius.lg,
       padding: 14,
       alignItems: 'center',
+      justifyContent: 'center',
+      columnGap: 8,
     },
     saveButtonText: {
-      color: '#000',
+      fontFamily: theme.typography.fontFamily.bodyBold,
+      color: theme.colors.ctaText,
       fontSize: 16,
-      fontWeight: '700',
     },
     emptyCard: {
-      backgroundColor: 'rgba(27, 29, 42, 0.7)',
-      borderRadius: 16,
+      borderRadius: theme.borderRadius.card,
       padding: 40,
       alignItems: 'center',
-      marginTop: 20,
-      borderWidth: 0,
+      marginTop: 12,
+      borderWidth: 1,
+      borderColor: theme.colors.cardBorder,
+      backgroundColor: theme.colors.card,
+      rowGap: 8,
     },
     emptyTitle: {
-      fontSize: 20,
-      fontWeight: '700',
+      fontFamily: theme.typography.fontFamily.displaySemibold,
+      fontSize: 18,
       color: theme.colors.textPrimary,
-      marginTop: 16,
-      marginBottom: 8,
+      marginTop: 8,
     },
     emptyText: {
+      fontFamily: theme.typography.fontFamily.body,
       fontSize: 14,
-      color: theme.colors.textSecondary,
+      color: theme.colors.textTertiary,
       textAlign: 'center',
     },
     alarmCard: {
-      backgroundColor: 'rgba(27, 29, 42, 0.7)',
-      borderRadius: 16,
+      backgroundColor: theme.colors.card,
+      borderRadius: theme.borderRadius.card,
       padding: 16,
       marginBottom: 12,
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
-      borderWidth: 0,
+      borderWidth: 1,
+      borderColor: theme.colors.cardBorder,
     },
     alarmInfo: {
       flexDirection: 'row',
       alignItems: 'center',
       flex: 1,
+      columnGap: 12,
     },
     alarmIconContainer: {
       width: 48,
       height: 48,
-      borderRadius: 12,
-      backgroundColor: 'rgba(139, 92, 246, 0.1)',
+      borderRadius: 16,
+      backgroundColor: theme.colors.accentLight,
       alignItems: 'center',
       justifyContent: 'center',
-      marginRight: 12,
     },
     alarmDetails: {
       flex: 1,
     },
     alarmTime: {
-      fontSize: 24,
-      fontWeight: '700',
+      fontFamily: theme.typography.fontFamily.displaySemibold,
+      fontSize: 22,
       color: theme.colors.textPrimary,
       marginBottom: 2,
     },
     alarmName: {
+      fontFamily: theme.typography.fontFamily.body,
       fontSize: 14,
-      color: theme.colors.textSecondary,
+      color: theme.colors.textTertiary,
     },
     alarmActions: {
       flexDirection: 'row',
       alignItems: 'center',
-      rowGap: 12, columnGap: 12,
+      columnGap: 10,
     },
     deleteButton: {
       padding: 8,
@@ -443,13 +396,19 @@ const styles = (theme: any) =>
     soundBadge: {
       flexDirection: 'row',
       alignItems: 'center',
-      backgroundColor: 'rgba(255, 255, 255, 0.05)',
-      borderRadius: 8,
+      backgroundColor: theme.colors.backgroundSecondary,
+      borderRadius: theme.borderRadius.md,
       padding: 10,
-      rowGap: 8, columnGap: 8,
+      borderWidth: 1,
+      borderColor: theme.colors.cardBorder,
+      columnGap: 8,
     },
     soundBadgeText: {
+      fontFamily: theme.typography.fontFamily.bodyMedium,
       color: theme.colors.textPrimary,
       fontSize: 14,
+    },
+    bottomSpacing: {
+      height: 100,
     },
   });
