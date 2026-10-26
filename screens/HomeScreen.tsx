@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -10,10 +10,10 @@ import {
   Image,
   StatusBar,
   RefreshControl,
+  Modal,
+  TextInput,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
 import { useNavigation } from '@react-navigation/native';
 import { a11y } from '../utils/accessibility';
 import {
@@ -22,21 +22,16 @@ import {
   TrendingUp,
   Bell,
   Search,
-  Play,
-  Calendar,
+  Waves,
+  Trophy,
   Star,
   Zap,
   Activity,
   Layout,
   X,
   ChevronRight,
-  Trophy,
-  Sparkles,
   Thermometer,
-  Droplets,
-  Sun,
   Coffee,
-  Menu,
   CheckCircle2,
   Book,
   Gauge,
@@ -44,55 +39,50 @@ import {
   Headphones,
   Lightbulb,
   HelpCircle,
-  Send,
-  MessageSquare,
-  MoreVertical
 } from 'lucide-react-native';
 
-import CircularProgress from '../components/CircularProgress';
-import AnimatedScoreRing from '../components/AnimatedScoreRing';
-import AnimatedPressable from '../components/AnimatedPressable';
-import MoodRingCard from '../components/MoodRingCard';
-import LoadingSpinner from '../components/LoadingSpinner';
-import { SkeletonCard, SkeletonStatCard, ShimmerCard, ShimmerStatCard } from '../components/SkeletonLoader';
+import SleepPrintMark from '../components/SleepPrintMark';
 import { useAppTheme } from '../hooks/useAppTheme';
 import { useSafeBottomMargin } from '../hooks/useSafeBottomMargin';
 import { useSleep } from '../contexts/SleepContext';
-import { generateSmartInsights, SmartInsight } from '../utils/smartInsights';
 import { getSleepQualityColor, getSleepScoreColor } from '../utils/sleepQualityColors';
 import { useAuth } from '../contexts/AuthContext';
 import { formatDuration, format12HourTime } from '../utils/dateFormatting';
-import { Modal, TextInput } from 'react-native';
 import alarmService from '../services/alarmService';
 import { isPremiumActive } from '../utils/subscriptionHelpers';
 import PushNotificationPrompt from '../components/PushNotificationPrompt';
 
-const isIOS = Platform.OS === 'ios';
-
-const GlassView = ({ style, children, intensity = 20, tint = "dark" }: { style?: any; children: React.ReactNode; intensity?: number; tint?: 'dark' | 'light' | 'default' }) => {
-  if (Platform.OS === 'android') {
-    return (
-      <View style={[style, { backgroundColor: 'rgba(17, 25, 40, 0.7)' }]}>
-        {children}
-      </View>
-    );
-  }
-  return (
-    <BlurView intensity={intensity} tint={tint} style={style}>
-      {children}
-    </BlurView>
-  );
-};
+// ============================================================================
+// Sleep Architect — Home (redesign/ui-ux-v3)
+// ============================================================================
+// Rebuilt to match the design canvas's `Night-Home.dc.html` / `Day-Home.dc.html`
+// (the "app" / "dayapp" pages — the approved final structure, not the
+// `explore` page's early A/B/C options). Canvas layout matched directly:
+//   - Greeting header (date + Fraunces "Good evening/afternoon, name") +
+//     round avatar button
+//   - "Sleep Mode / Day View" pill with warm-colors countdown copy
+//   - Bedtime hero: giant Fraunces time + "in Xh Ym" countdown
+//   - Full-width accent "Start Sleep" CTA
+//   - "Last night" card: mini SleepPrintMark + score + duration/wake-ups
+//   - 3 quick-action tiles (Sounds / Breathe / Routine)
+// Bottom tab nav is untouched per instructions (App.tsx owns it).
+//
+// Sections below that have NO canvas equivalent (vitals grid, Control
+// Center quick actions, Sleep Improvement weekly dashboard, daily tip,
+// achievements) are kept — same data, same navigation — but restyled with
+// the same card system as the canvas: theme.colors.card/cardBorder,
+// theme.borderRadius.card, Fraunces for big numbers, DM Sans for body.
+// ============================================================================
 
 export default function HomeScreen() {
   const navigation = useNavigation<any>();
-  const { theme, isDark } = useAppTheme();
+  const { theme, isNight } = useAppTheme();
   const { user } = useAuth();
   const { getSleepStats, isLoading, sleepHistory, isTracking, getCurrentStreak, getGoodNightStreak, getSleepDebt, getReadinessScore, getSmartBedtime, loadSleepHistory } = useSleep();
   const insets = useSafeAreaInsets();
   const bottomMargin = useSafeBottomMargin();
-  const { width, height } = useWindowDimensions();
-  const themedStyles = useMemo(() => styles(theme, width), [theme, width]);
+  const { width } = useWindowDimensions();
+  const s = useMemo(() => styles(theme), [theme]);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [nextAlarm, setNextAlarm] = useState<any>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -104,7 +94,6 @@ export default function HomeScreen() {
   const goodNightStreak = useMemo(() => getGoodNightStreak(), [sleepHistory]);
   const sleepDebt = useMemo(() => getSleepDebt(), [sleepHistory]);
   const readinessScore = useMemo(() => getReadinessScore(), [sleepHistory]);
-  const smartInsights = useMemo(() => generateSmartInsights(sleepHistory), [sleepHistory]);
 
   const sleepTips = useMemo(() => ([
     'Try the 4-7-8 breathing technique to calm your nervous system before bed.',
@@ -143,9 +132,8 @@ export default function HomeScreen() {
     const avgBedtimeMs = thisWeek.length > 0
       ? thisWeek.reduce((sum, s) => {
         const st = new Date(s.startTime);
-        // Normalize to minutes from midnight (handle past-midnight)
         let mins = st.getHours() * 60 + st.getMinutes();
-        if (mins < 360) mins += 1440; // treat 0-6 AM as "late night" (add 24h)
+        if (mins < 360) mins += 1440;
         return sum + mins;
       }, 0) / thisWeek.length
       : 0;
@@ -157,7 +145,6 @@ export default function HomeScreen() {
       ? avgQuality - lastWeekAvgQuality
       : 0;
 
-    // Format bedtime
     let bedtimeStr = '--:--';
     if (avgBedtimeMs > 0) {
       let totalMins = Math.round(avgBedtimeMs);
@@ -169,12 +156,10 @@ export default function HomeScreen() {
       bedtimeStr = `${h12}:${m.toString().padStart(2, '0')} ${ampm} `;
     }
 
-    // Format duration
     const durationH = Math.floor(avgDuration / 60);
     const durationM = avgDuration % 60;
     const durationStr = avgDuration > 0 ? `${durationH}h ${durationM.toString().padStart(2, '0')} m` : '0h 00m';
 
-    // Daily chart data (last 7 days, score 0-100)
     const chartData: number[] = [];
     for (let i = 6; i >= 0; i--) {
       const dayStart = new Date(now);
@@ -196,16 +181,6 @@ export default function HomeScreen() {
 
     return { avgDuration: durationStr, avgQuality, bedtime: bedtimeStr, qualityChange, chartData, sessionCount: thisWeek.length };
   }, [sleepHistory]);
-
-  // Compute real readiness sparkline from recent sleep scores
-  const readinessSparkData = useMemo(() => {
-    const recentSessions = sleepHistory.slice(0, 7).reverse();
-    if (recentSessions.length === 0) return [0, 0, 0, 0, 0, 0, readinessScore];
-    const data = recentSessions.map(s => s.sleepScore || s.quality * 10);
-    // Pad to 7 points if needed
-    while (data.length < 7) data.unshift(0);
-    return data.slice(-7);
-  }, [sleepHistory, readinessScore]);
 
   // Search functionality - filter navigable screens/features
   const searchResults = useMemo(() => {
@@ -244,23 +219,18 @@ export default function HomeScreen() {
   }, [currentTime]);
 
   const sleepScore = useMemo(() => {
-    // Always check actual session data first before falling back to stats
     const lastSession = sleepHistory[0];
 
     if (lastSession) {
       const sessionTime = lastSession.endTime || lastSession.startTime;
       const hoursSinceSession = (new Date().getTime() - new Date(sessionTime).getTime()) / (1000 * 60 * 60);
 
-      // Only hide score if session is older than 24 hours
       if (hoursSinceSession > 24) {
         return 0;
       }
-
-      // Return the score (use null-check not falsy-check so score of 0 is valid)
       if (lastSession.sleepScore != null) return lastSession.sleepScore;
     }
 
-    // Fallback to average stats if no recent session
     if (sleepStats.totalSessions === 0) return 0;
     const qualityScore = sleepStats.averageQuality * 10;
     const idealDuration = 480;
@@ -269,44 +239,41 @@ export default function HomeScreen() {
   }, [sleepStats, sleepHistory]);
 
   const scoreQuality = useMemo(() => {
-    // If currently tracking, show in-progress state
     if (isTracking) {
-      return { color: '#F59E0B', label: 'Tracking...', emoji: '⏱️' };
+      return { color: theme.colors.warning, label: 'Tracking...', emoji: '⏱️' };
     }
     return getSleepScoreColor(displayMode === 'daytime' ? readinessScore : sleepScore);
-  }, [sleepScore, readinessScore, displayMode, isTracking]);
+  }, [sleepScore, readinessScore, displayMode, isTracking, theme]);
+
   const lastNightQuality = useMemo(
     () => getSleepQualityColor(sleepStats.lastNightQuality),
     [sleepStats.lastNightQuality]
   );
 
-  // Stage breakdown for hero card (deep / REM / light percentages from last session)
-  const lastNightStageBreakdown = useMemo(() => {
+  const lastNightWakeups = useMemo(() => {
     const lastSession = sleepHistory[0];
-    if (!lastSession || !lastSession.sleepStages || lastSession.sleepStages.length === 0) {
-      return null;
-    }
-    const totalMs = lastSession.sleepStages.reduce((sum: number, s: any) => sum + (s.endTime - s.startTime), 0);
-    if (totalMs === 0) return null;
-    const deep = lastSession.sleepStages.filter((s: any) => s.stage === 'deep').reduce((sum: number, s: any) => sum + (s.endTime - s.startTime), 0);
-    const rem = lastSession.sleepStages.filter((s: any) => s.stage === 'rem').reduce((sum: number, s: any) => sum + (s.endTime - s.startTime), 0);
-    const light = lastSession.sleepStages.filter((s: any) => s.stage === 'light').reduce((sum: number, s: any) => sum + (s.endTime - s.startTime), 0);
-    return {
-      deep: Math.round((deep / totalMs) * 100),
-      rem: Math.round((rem / totalMs) * 100),
-      light: Math.round((light / totalMs) * 100),
-    };
+    if (!lastSession || !lastSession.sleepStages) return 0;
+    return lastSession.sleepStages.filter((seg: any) => seg.stage === 'awake').length;
   }, [sleepHistory]);
 
-  // Dynamic Background Colors
-  const bgColors = useMemo((): [string, string, ...string[]] => {
-    switch (displayMode) {
-      case 'morning': return ['#0F172A', '#1E1B4B', '#312E81']; // Transition from night to morning
-      case 'daytime': return ['#0F172A', '#1E293B', '#334155']; // Clean slate daytime
-      case 'evening': return ['#0F0F1E', '#1E1B4B', '#2E1065']; // Deep midnight/purple
-      default: return ['#0F0F1E', '#1B1B2F'];
-    }
-  }, [displayMode]);
+  // Smart bedtime for tonight's countdown — same `getSmartBedtime` the app
+  // already used for its recommendation logic, now surfaced as the hero.
+  const tonightBedtime = useMemo(() => {
+    const wake = new Date();
+    wake.setHours(7, 0, 0, 0);
+    if (wake.getTime() < Date.now()) wake.setDate(wake.getDate() + 1);
+    return getSmartBedtime(wake);
+  }, [getSmartBedtime, currentTime]);
+
+  const countdownToBedtime = useMemo(() => {
+    const diffMs = tonightBedtime.getTime() - currentTime.getTime();
+    if (diffMs <= 0) return null;
+    const totalMinutes = Math.floor(diffMs / 60000);
+    const h = Math.floor(totalMinutes / 60);
+    const m = totalMinutes % 60;
+    if (h <= 0) return `in ${m}m`;
+    return `in ${h}h ${m}m`;
+  }, [tonightBedtime, currentTime]);
 
   // Load next alarm
   useEffect(() => {
@@ -320,7 +287,6 @@ export default function HomeScreen() {
     loadNextAlarm();
   }, []);
 
-  // Pull to refresh handler
   const onRefresh = async () => {
     setRefreshing(true);
     await loadSleepHistory();
@@ -332,695 +298,557 @@ export default function HomeScreen() {
     setRefreshing(false);
   };
 
-  // No changes needed here, just removing the duplicates that were here previously
+  const greeting = displayMode === 'morning' ? 'Good morning' : displayMode === 'daytime' ? 'Good afternoon' : 'Good evening';
+  const userFirstName = user?.email?.split('@')[0] || 'Dreamer';
+  const isVip = isPremiumActive(user?.subscription_status, user?.subscription_end_date, user?.role, user?.email) &&
+    user?.role !== 'admin' && user?.email !== 'admin@naulx.com';
 
   if (isLoading) {
     return (
-      <View style={themedStyles.container}>
-        <StatusBar barStyle="light-content" />
-        <View style={[themedStyles.scrollContent, { paddingTop: insets.top + 10 }]}>
-          <View style={themedStyles.header}>
-            <ShimmerStatCard style={{ width: '48%' }} />
-            <ShimmerStatCard style={{ width: '48%' }} />
-          </View>
-          <ShimmerCard style={{ marginTop: 20 }} />
-          <ShimmerCard style={{ marginTop: 16 }} />
-          <ShimmerCard style={{ marginTop: 16 }} />
+      <View style={[s.container, { backgroundColor: theme.colors.background }]}>
+        <StatusBar barStyle={isNight ? 'light-content' : 'dark-content'} />
+        <View style={[s.scrollContent, { paddingTop: insets.top + 20 }]}>
+          <View style={s.loadingBlock} />
         </View>
       </View>
     );
   }
 
   return (
-    <View style={themedStyles.container}>
-      <LinearGradient colors={bgColors} style={StyleSheet.absoluteFillObject} />
-      <StatusBar barStyle="light-content" />
+    <View style={[s.container, { backgroundColor: theme.colors.background }]}>
+      <StatusBar barStyle={isNight ? 'light-content' : 'dark-content'} />
 
       <ScrollView
-        style={themedStyles.scrollView}
+        style={s.scrollView}
         contentContainerStyle={[
-          themedStyles.scrollContent,
-          { paddingTop: insets.top + 10, paddingBottom: bottomMargin }
+          s.scrollContent,
+          { paddingTop: insets.top + 12, paddingBottom: bottomMargin + 24 }
         ]}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor="#8B5CF6"
-            colors={['#8B5CF6']}
-            progressBackgroundColor="rgba(27, 29, 42, 0.9)"
+            tintColor={theme.colors.accent}
+            colors={[theme.colors.accent]}
+            progressBackgroundColor={theme.colors.card}
           />
         }
       >
-        {/* Header */}
-        <View style={themedStyles.header}>
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <TouchableOpacity
-              style={themedStyles.curvedMenuButton}
-              onPress={() => setIsSidebarVisible(true)}
-              {...a11y.button('Menu', 'Opens sidebar menu with tools and support options')}
-            >
-              <Menu size={22} color="#FFFFFF" />
-            </TouchableOpacity>
-            <View style={{ marginLeft: 16 }}>
-              <Text style={themedStyles.greeting}>
-                {displayMode === 'morning' ? 'Good Morning' :
-                  displayMode === 'daytime' ? 'Good Afternoon' : 'Good Evening'},
+        {/* Header — date + Fraunces greeting + round avatar (canvas: Night-Home / Day-Home) */}
+        <View style={s.header}>
+          <View style={{ flex: 1 }}>
+            <Text style={s.dateText}>
+              {currentTime.toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long' })}
+            </Text>
+            <View style={s.greetingRow}>
+              <Text style={s.greeting} numberOfLines={1}>
+                {greeting}, {userFirstName}
               </Text>
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <Text style={themedStyles.userName}>{user?.email?.split('@')[0] || 'Dreamer'}</Text>
-                {isPremiumActive(user?.subscription_status, user?.subscription_end_date, user?.role, user?.email) &&
-                  user?.role !== 'admin' &&
-                  user?.email !== 'admin@naulx.com' && (
-                    <LinearGradient
-                      colors={['#FFD700', '#FDB931', '#FFD700']}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                      style={themedStyles.vipBadge}
-                    >
-                      <Star size={10} color="#000" fill="#000" />
-                      <Text style={themedStyles.vipBadgeText}>VIP</Text>
-                    </LinearGradient>
-                  )}
-              </View>
-            </View>
-          </View>
-          <View style={themedStyles.headerActions}>
-            {/* Bell / Notifications icon */}
-            <TouchableOpacity
-              onPress={() => navigation.navigate('Settings')}
-              style={themedStyles.headerIconButton}
-              activeOpacity={0.75}
-            >
-              <Bell size={22} color="#FFFFFF" />
-            </TouchableOpacity>
-            {/* App Logo - clickable, navigates to Settings */}
-            <TouchableOpacity
-              onPress={() => navigation.navigate('Settings')}
-              style={{ marginRight: 10 }}
-              {...a11y.navigation('Settings', 'Opens app settings and preferences')}
-              activeOpacity={0.75}
-            >
-              <Image
-                source={require('../assets/app_logo.png')}
-                style={{ width: 34, height: 34, borderRadius: 8 }}
-                resizeMode="contain"
-              />
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Sidebar/Menu Modal */}
-        <Modal
-          visible={isSidebarVisible}
-          animationType="fade"
-          transparent={true}
-          onRequestClose={() => setIsSidebarVisible(false)}
-        >
-          <View style={themedStyles.sidebarOverlay}>
-            <View style={themedStyles.sidebarContainer}>
-              <LinearGradient
-                colors={['#1E1B4B', '#0F172A']}
-                style={StyleSheet.absoluteFillObject}
-              />
-              <View style={[themedStyles.sidebarHeader, { paddingTop: insets.top + 20 }]}>
-                <Text style={themedStyles.sidebarTitle}>Tools & Support</Text>
-                <TouchableOpacity onPress={() => {
-                  setIsSidebarVisible(false);
-                  setSearchQuery('');
-                }}>
-                  <X size={24} color="#A0AEC0" />
-                </TouchableOpacity>
-              </View>
-
-              <View style={themedStyles.sidebarSearchContainer}>
-                <View style={themedStyles.sidebarSearchInputWrapper}>
-                  <Search size={18} color="#94A3B8" />
-                  <TextInput
-                    style={themedStyles.sidebarSearchInput}
-                    placeholder="Search tools, sounds..."
-                    placeholderTextColor="#64748B"
-                    value={searchQuery}
-                    onChangeText={setSearchQuery}
-                  />
-                  {searchQuery.length > 0 && (
-                    <TouchableOpacity onPress={() => setSearchQuery('')}>
-                      <X size={16} color="#94A3B8" />
-                    </TouchableOpacity>
-                  )}
-                </View>
-              </View>
-
-              <ScrollView style={themedStyles.sidebarContent} showsVerticalScrollIndicator={false}>
-                {searchQuery.length > 0 ? (
-                  <View style={{ marginBottom: 20 }}>
-                    <Text style={themedStyles.sidebarSectionTitle}>Search Results</Text>
-                    {searchResults.length > 0 ? (
-                      searchResults.map((item, index) => (
-                        <TouchableOpacity
-                          key={index}
-                          style={themedStyles.sidebarItem}
-                          onPress={() => {
-                            setIsSidebarVisible(false);
-                            setSearchQuery('');
-                            navigation.navigate(item.screen);
-                          }}
-                        >
-                          <View style={themedStyles.sidebarIconContainer}>
-                            <Zap size={20} color={theme.colors.accent} />
-                          </View>
-                          <Text style={themedStyles.sidebarItemText}>{item.label}</Text>
-                          <ChevronRight size={16} color="#475569" />
-                        </TouchableOpacity>
-                      ))
-                    ) : (
-                      <Text style={themedStyles.sidebarNoResults}>No matches found</Text>
-                    )}
-                    <View style={themedStyles.sidebarDivider} />
-                  </View>
-                ) : null}
-
-                <Text style={themedStyles.sidebarSectionTitle}>Wellness & Analysis</Text>
-                {[
-                  { label: 'Bedtime Routine', icon: <CheckCircle2 size={22} color="#9D4EDD" />, screen: 'BedtimeRoutine' },
-                  { label: 'Dream Journal', icon: <Book size={22} color="#FF9B7A" />, screen: 'DreamJournal' },
-                  { label: 'Room Environment', icon: <Gauge size={22} color="#10B981" />, screen: 'RoomEnvironment' },
-                  { label: 'Sleep Stages', icon: <Activity size={22} color="#3B82F6" />, screen: 'SleepStages' },
-                  { label: 'Snore Detection', icon: <Volume2 size={22} color="#F59E0B" />, screen: 'SnoreDetection' },
-                  { label: 'Sleep Interruptions', icon: <Clock size={22} color="#EF4444" />, screen: 'SleepInterruptions' },
-                  { label: 'Relaxation Library', icon: <Headphones size={22} color="#A855F7" />, screen: 'RelaxationLibrary' },
-                  { label: 'Caffeine Calculator', icon: <Coffee size={22} color="#8B4513" />, screen: 'CaffeineCalculator' },
-                ].map((item, index) => (
-                  <TouchableOpacity
-                    key={index}
-                    style={themedStyles.sidebarItem}
-                    onPress={() => {
-                      setIsSidebarVisible(false);
-                      navigation.navigate(item.screen);
-                    }}
-                  >
-                    <View style={themedStyles.sidebarIconContainer}>{item.icon}</View>
-                    <Text style={themedStyles.sidebarItemText}>{item.label}</Text>
-                    <ChevronRight size={16} color="#475569" />
-                  </TouchableOpacity>
-                ))}
-
-                <View style={themedStyles.sidebarDivider} />
-
-                <Text style={themedStyles.sidebarSectionTitle}>Support & Feedback</Text>
-                {[
-                  { label: 'Request a Feature', icon: <Lightbulb size={22} color="#FBBF24" />, screen: 'FeatureRequest' },
-                  { label: 'Help & Support', icon: <HelpCircle size={22} color="#32CD32" />, screen: 'HelpSupport' },
-                ].map((item, index) => (
-                  <TouchableOpacity
-                    key={index}
-                    style={themedStyles.sidebarItem}
-                    onPress={() => {
-                      setIsSidebarVisible(false);
-                      navigation.navigate(item.screen);
-                    }}
-                  >
-                    <View style={themedStyles.sidebarIconContainer}>{item.icon}</View>
-                    <Text style={themedStyles.sidebarItemText}>{item.label}</Text>
-                    <ChevronRight size={16} color="#475569" />
-                  </TouchableOpacity>
-                ))}
-
-                <View style={{ height: insets.bottom + 40 }} />
-              </ScrollView>
-            </View>
-            <TouchableOpacity
-              style={themedStyles.sidebarCloseArea}
-              activeOpacity={1}
-              onPress={() => setIsSidebarVisible(false)}
-            />
-          </View>
-        </Modal>
-
-
-        {/* Hero Section - Dynamic Based on Mode */}
-        <TouchableOpacity
-          activeOpacity={0.9}
-          onPress={() => navigation.navigate(displayMode === 'morning' ? 'SleepAnalysis' : 'SleepSession')}
-          style={themedStyles.mainCardContainer}
-        >
-          <GlassView intensity={30} tint="dark" style={themedStyles.mainCardBlur}>
-            <LinearGradient
-              colors={
-                displayMode === 'morning' ? ['rgba(16, 185, 129, 0.2)', 'rgba(5, 150, 105, 0.1)'] :
-                  displayMode === 'daytime' ? ['rgba(245, 158, 11, 0.2)', 'rgba(217, 119, 6, 0.1)'] :
-                    ['rgba(139, 92, 246, 0.2)', 'rgba(99, 102, 241, 0.1)']
-              }
-              style={themedStyles.mainCard}
-            >
-              <View style={themedStyles.cardHeader}>
-                <View style={themedStyles.statusBadge}>
-                  <Text style={themedStyles.statusText}>
-                    {isTracking ? '🌙 Sleep in Progress' : (sleepScore > 0 ? 'Last Night Summary' : 'Ready to Track')}
-                  </Text>
-                </View>
-                <Text style={themedStyles.currentDate}>
-                  {currentTime.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
-                </Text>
-              </View>
-
-              <View style={themedStyles.scoreContainer}>
-                {/* Animated score ring — counts up on load, gradient shifts red→orange→green */}
-                <AnimatedScoreRing
-                  score={isTracking ? 0 : (displayMode === 'daytime' ? readinessScore : sleepScore)}
-                  size={Math.max(142, Math.min(width * 0.45, 182))}
-                  strokeWidth={13}
-                  color={displayMode === 'morning' ? lastNightQuality.color : undefined}
-                  label={isTracking ? 'TRACKING' : (sleepScore === 0 ? 'NO DATA' : (displayMode === 'daytime' ? 'READINESS' : 'SLEEP SCORE'))}
-                  sublabel={
-                    isTracking ? 'In Progress'
-                      : sleepScore === 0 ? 'Start tracking'
-                        : displayMode === 'daytime'
-                          ? (readinessScore >= 85 ? '👑 Peak' : '⚡ Good')
-                          : undefined
-                  }
-                  sublabelColor={scoreQuality.color}
-                  isTracking={isTracking}
-                  delay={400}
-                />
-              </View>
-
-              <View style={themedStyles.statsRow}>
-                <View style={themedStyles.statItem}>
-                  <View style={themedStyles.statIconContainer}>
-                    <Clock size={20} color={lastNightQuality.color} />
-                  </View>
-                  <Text style={[themedStyles.statValue, { color: lastNightQuality.color }]}>
-                    {formatDuration(sleepStats.lastNightDuration)}
-                  </Text>
-                  <Text style={themedStyles.statLabel}>Duration</Text>
-                </View>
-                <View style={themedStyles.statDivider} />
-                <View style={themedStyles.statItem}>
-                  <View style={themedStyles.statIconContainer}>
-                    <Zap size={20} color="#F59E0B" />
-                  </View>
-                  <Text style={themedStyles.statValue}>{Math.round(sleepStats.averageQuality * 10)}%</Text>
-                  <Text style={themedStyles.statLabel}>Efficiency</Text>
-                </View>
-                <View style={themedStyles.statDivider} />
-                <View style={themedStyles.statItem}>
-                  <View style={themedStyles.statIconContainer}>
-                    <Trophy size={20} color="#8B5CF6" />
-                  </View>
-                  <Text style={themedStyles.statValue}>{currentStreak}</Text>
-                  <Text style={themedStyles.statLabel}>Streak</Text>
-                </View>
-              </View>
-
-              {/* Sleep Stage Breakdown — only when we have real stage data */}
-              {!isTracking && lastNightStageBreakdown && (
-                <View style={themedStyles.stageBreakdownContainer}>
-                  <View style={themedStyles.stageBarRow}>
-                    <View style={[themedStyles.stageBarSegment, { flex: lastNightStageBreakdown.deep, backgroundColor: '#6366F1' }]} />
-                    <View style={[themedStyles.stageBarSegment, { flex: lastNightStageBreakdown.rem, backgroundColor: '#8B5CF6' }]} />
-                    <View style={[themedStyles.stageBarSegment, { flex: lastNightStageBreakdown.light, backgroundColor: 'rgba(139,92,246,0.3)' }]} />
-                  </View>
-                  <View style={themedStyles.stageLegendRow}>
-                    <View style={themedStyles.stageLegendItem}>
-                      <View style={[themedStyles.stageLegendDot, { backgroundColor: '#6366F1' }]} />
-                      <Text style={themedStyles.stageLegendText}>Deep {lastNightStageBreakdown.deep}%</Text>
-                    </View>
-                    <View style={themedStyles.stageLegendItem}>
-                      <View style={[themedStyles.stageLegendDot, { backgroundColor: '#8B5CF6' }]} />
-                      <Text style={themedStyles.stageLegendText}>REM {lastNightStageBreakdown.rem}%</Text>
-                    </View>
-                    <View style={themedStyles.stageLegendItem}>
-                      <View style={[themedStyles.stageLegendDot, { backgroundColor: 'rgba(139,92,246,0.5)' }]} />
-                      <Text style={themedStyles.stageLegendText}>Light {lastNightStageBreakdown.light}%</Text>
-                    </View>
-                  </View>
+              {isVip && (
+                <View style={s.vipBadge}>
+                  <Star size={10} color={theme.colors.premiumBadgeText} fill={theme.colors.premiumBadgeText} />
+                  <Text style={s.vipBadgeText}>VIP</Text>
                 </View>
               )}
+            </View>
+          </View>
+          <TouchableOpacity
+            style={s.avatarButton}
+            onPress={() => navigation.navigate('Settings')}
+            {...a11y.navigation('Settings', 'Opens app settings and preferences')}
+            activeOpacity={0.8}
+          >
+            <Image
+              source={require('../assets/app_logo.png')}
+              style={s.avatarImage}
+              resizeMode="cover"
+            />
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => setIsSidebarVisible(true)}
+            style={s.bellButton}
+            {...a11y.button('Menu', 'Opens sidebar menu with tools and support options')}
+            activeOpacity={0.8}
+          >
+            <Bell size={20} color={theme.colors.textPrimary} />
+          </TouchableOpacity>
+        </View>
 
-              <TouchableOpacity
-                style={themedStyles.startSessionButton}
-                onPress={() => navigation.navigate('SleepSession')}
-              >
-                <LinearGradient
-                  colors={
-                    isTracking ? ['#EF4444', '#DC2626'] : (sleepScore > 0 ? ['#10B981', '#059669'] : ['#8B5CF6', '#6366F1'])
-                  }
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={themedStyles.buttonGradient}
-                />
-                <View style={themedStyles.buttonContent}>
-                  <View style={themedStyles.buttonContentIcon}>
-                    {isTracking ? <Moon size={18} color="#FFFFFF" /> : (sleepScore > 0 ? <TrendingUp size={18} color="#FFFFFF" /> : <Play size={18} color="#FFFFFF" fill="#FFFFFF" />)}
-                  </View>
-                  <Text style={themedStyles.startSessionText}>
-                    {isTracking ? 'End Sleep' : (sleepScore > 0 ? 'View Analysis' : 'Start Sleep')}
-                  </Text>
-                </View>
-              </TouchableOpacity>
-            </LinearGradient>
-          </GlassView>
+        {/* Mode pill — "Sleep Mode · warm colors until 6:04 AM" / "Day View · Sleep Mode starts ..." */}
+        <View style={s.modePill}>
+          {isNight ? (
+            <Moon size={15} color={theme.colors.accent} strokeWidth={2.2} />
+          ) : (
+            <Thermometer size={15} color={theme.colors.accent} strokeWidth={2.2} />
+          )}
+          <Text style={s.modePillText}>
+            <Text style={s.modePillBold}>{isNight ? 'Sleep Mode' : 'Day View'}</Text>
+            {isNight ? ' · warm colors on' : ' · full insights on'}
+          </Text>
+        </View>
+
+        {/* Bedtime hero — giant Fraunces time + countdown (canvas hero block) */}
+        <View style={s.heroBlock}>
+          <View pointerEvents="none" style={s.heroGlow} />
+          <Text style={s.heroLabel}>
+            {isTracking ? "TONIGHT'S SLEEP" : 'TONIGHT\'S BEDTIME'}
+          </Text>
+          <View style={s.heroTimeRow}>
+            <Text style={s.heroTime}>
+              {isTracking ? format12HourTime(tonightBedtime).split(' ')[0] : format12HourTime(tonightBedtime).split(' ')[0]}
+            </Text>
+            <Text style={s.heroAmPm}>{format12HourTime(tonightBedtime).split(' ')[1]}</Text>
+          </View>
+          <Text style={s.heroSubtext}>
+            {isTracking
+              ? 'Sleep in progress'
+              : countdownToBedtime
+                ? `${countdownToBedtime} · wake at 7:00 AM`
+                : 'wake at 7:00 AM'}
+          </Text>
+        </View>
+
+        {/* Start Sleep / End Sleep / View Analysis CTA */}
+        <TouchableOpacity
+          style={[s.ctaButton, isTracking && s.ctaButtonTracking]}
+          onPress={() => navigation.navigate('SleepSession')}
+          activeOpacity={0.9}
+        >
+          {isTracking ? (
+            <Moon size={20} color={theme.colors.ctaText} strokeWidth={2.4} />
+          ) : (
+            <Waves size={20} color={theme.colors.ctaText} strokeWidth={2.4} />
+          )}
+          <Text style={s.ctaButtonText}>
+            {isTracking ? 'End Sleep' : sleepScore > 0 ? 'Start Sleep' : 'Start Sleep'}
+          </Text>
         </TouchableOpacity>
 
-        {/* Vital Widgets Grid (2x2) */}
-        <View style={themedStyles.vitalsGrid}>
-          {/* Row 1 */}
-          <View style={themedStyles.vitalsRow}>
-            {/* Readiness Widget */}
-            <GlassView intensity={20} tint="dark" style={[themedStyles.vitalWidgetGrid, { marginRight: 12 }]}>
-              <View style={themedStyles.vitalIconRow}>
-                <Zap size={16} color="#10B981" />
-                <Text style={themedStyles.vitalLabel}>Readiness</Text>
+        {/* Last night summary card — mini SleepPrintMark + score (canvas's "Last night" row) */}
+        <TouchableOpacity
+          style={s.lastNightCard}
+          onPress={() => navigation.navigate('SleepAnalysis')}
+          activeOpacity={0.85}
+        >
+          <View style={s.lastNightMark}>
+            {sleepScore > 0 ? (
+              <SleepPrintMark size={72} colors={theme.sleepPrintMark} />
+            ) : (
+              <View style={s.lastNightMarkEmpty}>
+                <Moon size={24} color={theme.colors.textTertiary} />
               </View>
-              <Text style={[themedStyles.vitalValue, { color: readinessScore >= 80 ? '#10B981' : readinessScore >= 60 ? '#F59E0B' : '#EF4444' }]}>{readinessScore}%</Text>
-              {/* Color-coded progress bar */}
-              <View style={themedStyles.readinessBarTrack}>
-                <View style={[themedStyles.readinessBarFill, {
-                  width: `${readinessScore}%` as any,
-                  backgroundColor: readinessScore >= 80 ? '#10B981' : readinessScore >= 60 ? '#F59E0B' : '#EF4444',
-                }]} />
-              </View>
-              <View style={themedStyles.sparkLineContainer}>
-                {readinessSparkData.map((v, i) => (
-                  <View key={i} style={[themedStyles.sparkBar, { height: Math.max(2, (v / 100) * 16), backgroundColor: v >= 80 ? '#10B981' : v > 0 ? 'rgba(16, 185, 129, 0.3)' : 'rgba(16, 185, 129, 0.1)' }]} />
-                ))}
-              </View>
-            </GlassView>
+            )}
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={s.lastNightLabel}>Last night</Text>
+            <Text style={s.lastNightValue}>
+              {sleepScore > 0 ? `${sleepScore} · ${lastNightQuality.label || 'Logged'}` : 'No data yet'}
+            </Text>
+            <Text style={s.lastNightSubtext}>
+              {sleepScore > 0
+                ? `${formatDuration(sleepStats.lastNightDuration)} asleep · ${lastNightWakeups} wake-up${lastNightWakeups === 1 ? '' : 's'}`
+                : 'Track a session to see your Sleep Print'}
+            </Text>
+          </View>
+          <ChevronRight size={20} color={theme.colors.textTertiary} />
+        </TouchableOpacity>
 
-            {/* Sleep Debt Widget */}
-            <GlassView intensity={20} tint="dark" style={themedStyles.vitalWidgetGrid}>
-              <View style={themedStyles.vitalIconRow}>
-                <Activity size={16} color={sleepDebt > 0 ? '#EF4444' : '#10B981'} />
-                <Text style={themedStyles.vitalLabel}>Sleep Debt</Text>
+        {/* 3 quick-action tiles — Sounds / Breathe / Routine (canvas grid) */}
+        <View style={s.tileGrid}>
+          <TouchableOpacity
+            style={s.tile}
+            onPress={() => navigation.navigate('Sounds')}
+            activeOpacity={0.85}
+          >
+            <View style={s.tileIcon}>
+              <Volume2 size={20} color={theme.colors.accent} strokeWidth={2} />
+            </View>
+            <View>
+              <Text style={s.tileTitle}>Sounds</Text>
+              <Text style={s.tileSubtext}>Sleep music</Text>
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={s.tile}
+            onPress={() => navigation.navigate('BedtimeRoutine')}
+            activeOpacity={0.85}
+          >
+            <View style={s.tileIcon}>
+              <Waves size={20} color={theme.colors.accent} strokeWidth={2} />
+            </View>
+            <View>
+              <Text style={s.tileTitle}>Breathe</Text>
+              <Text style={s.tileSubtext}>4-7-8 · 5 min</Text>
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={s.tile}
+            onPress={() => navigation.navigate('BedtimeRoutine')}
+            activeOpacity={0.85}
+          >
+            <View style={s.tileIcon}>
+              <CheckCircle2 size={20} color={theme.colors.accent} strokeWidth={2} />
+            </View>
+            <View>
+              <Text style={s.tileTitle}>Routine</Text>
+              <Text style={s.tileSubtext}>3 steps</Text>
+            </View>
+          </TouchableOpacity>
+        </View>
+
+        {/* ───────────────────────────────────────────────────────────────
+            Sections below have no canvas Home equivalent — restyled in the
+            same design system (theme.colors.card/cardBorder, borderRadius.card,
+            Fraunces headings, DM Sans body) rather than removed.
+           ─────────────────────────────────────────────────────────────── */}
+
+        {/* Vitals row — Readiness / Sleep Debt / Next Alarm / Streak */}
+        <Text style={s.sectionTitle}>Today's vitals</Text>
+        <View style={s.vitalsGrid}>
+          <View style={s.vitalsRow}>
+            <View style={[s.vitalCard, { marginRight: 12 }]}>
+              <View style={s.vitalIconRow}>
+                <Zap size={14} color={theme.colors.success} strokeWidth={2.2} />
+                <Text style={s.vitalLabel}>Readiness</Text>
               </View>
-              <Text style={[themedStyles.vitalValue, { color: sleepDebt > 0 ? '#EF4444' : '#10B981' }]}>
-                {sleepDebt > 0 ? '-' : '+'}{Math.abs(sleepDebt)}h
-              </Text>
-              <Text style={themedStyles.vitalSubtext}>{sleepDebt > 0 ? 'Recovery needed' : 'Well rested'}</Text>
-            </GlassView>
+              <Text style={s.vitalValue}>{readinessScore}%</Text>
+              <View style={s.vitalBarTrack}>
+                <View style={[s.vitalBarFill, { width: `${readinessScore}%` as any, backgroundColor: theme.colors.success }]} />
+              </View>
+            </View>
+
+            <View style={s.vitalCard}>
+              <View style={s.vitalIconRow}>
+                <Activity size={14} color={sleepDebt > 0 ? theme.colors.error : theme.colors.success} strokeWidth={2.2} />
+                <Text style={s.vitalLabel}>Sleep Debt</Text>
+              </View>
+              <Text style={s.vitalValue}>{sleepDebt > 0 ? '-' : '+'}{Math.abs(sleepDebt)}h</Text>
+              <Text style={s.vitalSubtext}>{sleepDebt > 0 ? 'Recovery needed' : 'Well rested'}</Text>
+            </View>
           </View>
 
-          {/* Row 2 */}
-          <View style={themedStyles.vitalsRow}>
-            {/* Next Alarm Widget */}
+          <View style={s.vitalsRow}>
             <TouchableOpacity
-              activeOpacity={0.8}
+              style={[s.vitalCard, { marginRight: 12 }]}
               onPress={() => navigation.navigate('Alarms')}
-              style={[themedStyles.vitalWidgetGrid, { marginRight: 12 }]}
+              activeOpacity={0.85}
             >
-              <View style={themedStyles.vitalIconRow}>
-                <Bell size={16} color="#8B5CF6" />
-                <Text style={themedStyles.vitalLabel}>Next Alarm</Text>
+              <View style={s.vitalIconRow}>
+                <Bell size={14} color={theme.colors.accent} strokeWidth={2.2} />
+                <Text style={s.vitalLabel}>Next Alarm</Text>
               </View>
-              <Text style={themedStyles.vitalValue}>{nextAlarm ? nextAlarm.time : '--:--'}</Text>
-              <Text style={themedStyles.vitalSubtext}>{nextAlarm ? (nextAlarm.name || 'Wake up') : 'Not set'}</Text>
+              <Text style={s.vitalValue}>{nextAlarm ? nextAlarm.time : '--:--'}</Text>
+              <Text style={s.vitalSubtext}>{nextAlarm ? (nextAlarm.name || 'Wake up') : 'Not set'}</Text>
             </TouchableOpacity>
 
-            {/* Streak Widget */}
-            <GlassView intensity={20} tint="dark" style={themedStyles.vitalWidgetGrid}>
-              <View style={themedStyles.vitalIconRow}>
-                <Trophy size={16} color="#F59E0B" />
-                <Text style={themedStyles.vitalLabel}>Streak</Text>
+            <View style={s.vitalCard}>
+              <View style={s.vitalIconRow}>
+                <Trophy size={14} color={theme.colors.warning} strokeWidth={2.2} />
+                <Text style={s.vitalLabel}>Streak</Text>
               </View>
-              <Text style={themedStyles.vitalValue}>{currentStreak} Days</Text>
-              <Text style={themedStyles.vitalSubtext}>{currentStreak >= 7 ? '🔥 On fire!' : currentStreak >= 3 ? '✨ Building' : currentStreak > 0 ? '🌱 Started' : '💤 Track now'}</Text>
-            </GlassView>
+              <Text style={s.vitalValue}>{currentStreak} Days</Text>
+              <Text style={s.vitalSubtext}>{currentStreak >= 7 ? 'On fire' : currentStreak >= 3 ? 'Building' : currentStreak > 0 ? 'Started' : 'Track now'}</Text>
+            </View>
           </View>
         </View>
 
-        {/* Today's Focus section header */}
-        <View style={[themedStyles.sectionHeader, { marginTop: 4 }]}>
-          <Text style={themedStyles.sectionTitle}>🌙 Today's Focus</Text>
+        {/* Control Center — Caffeine / Settings (Sounds + Alarms already covered above) */}
+        <View style={s.sectionHeaderRow}>
+          <Text style={s.sectionTitle}>Control Center</Text>
+        </View>
+        <View style={s.controlRow}>
+          <TouchableOpacity
+            style={[s.controlCard, { marginRight: 12 }]}
+            onPress={() => navigation.navigate('CaffeineCalculator')}
+            activeOpacity={0.85}
+          >
+            <View style={s.controlIcon}>
+              <Coffee size={20} color={theme.colors.accent} strokeWidth={2.2} />
+            </View>
+            <Text style={s.tileTitle}>Caffeine</Text>
+            <Text style={s.tileSubtext}>Track intake</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={s.controlCard}
+            onPress={() => navigation.navigate('Settings')}
+            activeOpacity={0.85}
+          >
+            <View style={s.controlIcon}>
+              <Layout size={20} color={theme.colors.accent} strokeWidth={2.2} />
+            </View>
+            <Text style={s.tileTitle}>Settings</Text>
+            <Text style={s.tileSubtext}>Preferences</Text>
+          </TouchableOpacity>
         </View>
 
-        {/* ── Mood Ring Card — glanceable last-night quality indicator ── */}
-        <MoodRingCard
-          score={sleepScore}
-          style={{ marginBottom: 16 }}
-        />
-
-        {/* Control Center - Quick Actions */}
-        <View style={[themedStyles.sectionHeader, { marginTop: 16 }]}>
-          <Text style={themedStyles.sectionTitle}>🛠️ Control Center</Text>
-        </View>
-        <View style={themedStyles.quickActionsGrid}>
-          {/* Row 1 */}
-          <View style={themedStyles.quickActionsRow}>
-            <AnimatedPressable
-              style={[themedStyles.actionCard, { borderColor: 'rgba(139, 92, 246, 0.25)', marginRight: 12 }]}
-              onPress={() => navigation.navigate('Sounds')}
-              haptic="light"
-              activeScale={0.94}
-            >
-              <LinearGradient
-                colors={['rgba(139, 92, 246, 0.22)', 'rgba(99, 102, 241, 0.08)']}
-                style={themedStyles.actionContent}
-              >
-                <View style={[themedStyles.actionIconWrapper, { backgroundColor: 'rgba(139, 92, 246, 0.25)' }]}>
-                  <Moon size={22} color="#8B5CF6" strokeWidth={2.5} />
-                </View>
-                <Text style={themedStyles.actionLabel}>Sounds</Text>
-                <Text style={themedStyles.actionSubLabel}>Sleep music</Text>
-              </LinearGradient>
-            </AnimatedPressable>
-
-            <AnimatedPressable
-              style={[themedStyles.actionCard, { borderColor: 'rgba(16, 185, 129, 0.25)' }]}
-              onPress={() => navigation.navigate('Alarms')}
-              haptic="light"
-              activeScale={0.94}
-            >
-              <LinearGradient
-                colors={['rgba(16, 185, 129, 0.22)', 'rgba(5, 150, 105, 0.08)']}
-                style={themedStyles.actionContent}
-              >
-                <View style={[themedStyles.actionIconWrapper, { backgroundColor: 'rgba(16, 185, 129, 0.25)' }]}>
-                  <Bell size={22} color="#10B981" strokeWidth={2.5} />
-                </View>
-                <Text style={themedStyles.actionLabel}>Alarms</Text>
-                <Text style={themedStyles.actionSubLabel}>{nextAlarm ? nextAlarm.time : 'Not set'}</Text>
-              </LinearGradient>
-            </AnimatedPressable>
-          </View>
-
-          {/* Row 2 */}
-          <View style={themedStyles.quickActionsRow}>
-            <AnimatedPressable
-              style={[themedStyles.actionCard, { borderColor: 'rgba(251, 191, 36, 0.25)', marginRight: 12 }]}
-              onPress={() => navigation.navigate('CaffeineCalculator')}
-              haptic="light"
-              activeScale={0.94}
-            >
-              <LinearGradient
-                colors={['rgba(251, 191, 36, 0.18)', 'rgba(217, 119, 6, 0.06)']}
-                style={themedStyles.actionContent}
-              >
-                <View style={[themedStyles.actionIconWrapper, { backgroundColor: 'rgba(251, 191, 36, 0.22)' }]}>
-                  <Coffee size={22} color="#FBBF24" strokeWidth={2.5} />
-                </View>
-                <Text style={themedStyles.actionLabel}>Caffeine</Text>
-                <Text style={themedStyles.actionSubLabel}>Track intake</Text>
-              </LinearGradient>
-            </AnimatedPressable>
-
-            <AnimatedPressable
-              style={[themedStyles.actionCard, { borderColor: 'rgba(100, 116, 139, 0.25)' }]}
-              onPress={() => navigation.navigate('Settings')}
-              haptic="light"
-              activeScale={0.94}
-            >
-              <LinearGradient
-                colors={['rgba(100, 116, 139, 0.22)', 'rgba(71, 85, 105, 0.08)']}
-                style={themedStyles.actionContent}
-              >
-                <View style={[themedStyles.actionIconWrapper, { backgroundColor: 'rgba(100, 116, 139, 0.25)' }]}>
-                  <Layout size={22} color="#94A3B8" strokeWidth={2.5} />
-                </View>
-                <Text style={themedStyles.actionLabel}>Settings</Text>
-                <Text style={themedStyles.actionSubLabel}>Preferences</Text>
-              </LinearGradient>
-            </AnimatedPressable>
-          </View>
-        </View>
-
-        {/* Enhanced Sleep Improvement Dashboard */}
-        <View style={[themedStyles.sectionHeader, { marginTop: 8 }]}>
-          <Text style={themedStyles.sectionTitle}>⭐ Sleep Improvement</Text>
+        {/* Sleep Improvement — weekly performance dashboard */}
+        <View style={s.sectionHeaderRow}>
+          <Text style={s.sectionTitle}>Sleep Improvement</Text>
           <TouchableOpacity onPress={() => navigation.navigate('SleepAnalysis')}>
-            <Text style={themedStyles.seeAllText}>Detailed View</Text>
+            <Text style={s.seeAllText}>Detailed view</Text>
           </TouchableOpacity>
         </View>
 
         <TouchableOpacity
-          activeOpacity={0.9}
+          style={s.improvementCard}
           onPress={() => navigation.navigate('SleepAnalysis')}
-          style={themedStyles.analysisCardLarge}
+          activeOpacity={0.9}
         >
-          <GlassView intensity={30} tint="dark" style={themedStyles.improvementContent}>
-            <View style={themedStyles.improvementHeader}>
-              <View style={themedStyles.analysisIconCircle}>
-                <TrendingUp size={24} color="#8B5CF6" />
-              </View>
-              <View style={{ flex: 1, marginLeft: 16 }}>
-                <Text style={themedStyles.analysisTitle}>Weekly Performance</Text>
-                <Text style={themedStyles.analysisSubtitle}>
-                  {weeklyStats.sessionCount === 0
-                    ? 'No data this week'
-                    : weeklyStats.qualityChange !== 0
-                      ? `Quality is ${weeklyStats.qualityChange > 0 ? 'up' : 'down'} ${Math.abs(weeklyStats.qualityChange)}% vs last week`
-                      : `${weeklyStats.sessionCount} session${weeklyStats.sessionCount === 1 ? '' : 's'} this week`}
+          <View style={s.improvementHeader}>
+            <View style={s.improvementIconCircle}>
+              <TrendingUp size={22} color={theme.colors.accent} strokeWidth={2.2} />
+            </View>
+            <View style={{ flex: 1, marginLeft: 14 }}>
+              <Text style={s.improvementTitle}>Weekly Performance</Text>
+              <Text style={s.improvementSubtitle}>
+                {weeklyStats.sessionCount === 0
+                  ? 'No data this week'
+                  : weeklyStats.qualityChange !== 0
+                    ? `Quality is ${weeklyStats.qualityChange > 0 ? 'up' : 'down'} ${Math.abs(weeklyStats.qualityChange)}% vs last week`
+                    : `${weeklyStats.sessionCount} session${weeklyStats.sessionCount === 1 ? '' : 's'} this week`}
+              </Text>
+            </View>
+            {weeklyStats.qualityChange !== 0 && (
+              <View style={s.trendBadge}>
+                <TrendingUp size={11} color={weeklyStats.qualityChange > 0 ? theme.colors.success : theme.colors.error} />
+                <Text style={[s.trendText, { color: weeklyStats.qualityChange > 0 ? theme.colors.success : theme.colors.error }]}>
+                  {weeklyStats.qualityChange > 0 ? '+' : ''}{weeklyStats.qualityChange}%
                 </Text>
               </View>
-              {weeklyStats.qualityChange !== 0 && (
-                <View style={themedStyles.trendBadge}>
-                  <TrendingUp size={12} color={weeklyStats.qualityChange > 0 ? '#10B981' : '#EF4444'} />
-                  <Text style={[themedStyles.trendText, { color: weeklyStats.qualityChange > 0 ? '#10B981' : '#EF4444' }]}>
-                    {weeklyStats.qualityChange > 0 ? '+' : ''}{weeklyStats.qualityChange}%
-                  </Text>
+            )}
+          </View>
+
+          <View style={s.improvementStatsRow}>
+            <View style={s.improvementStatItem}>
+              <Text style={s.improvementStatValue}>{weeklyStats.avgDuration}</Text>
+              <Text style={s.improvementStatLabel}>Avg Duration</Text>
+            </View>
+            <View style={s.improvementStatDivider} />
+            <View style={s.improvementStatItem}>
+              <Text style={s.improvementStatValue}>{weeklyStats.avgQuality}%</Text>
+              <Text style={s.improvementStatLabel}>Avg Quality</Text>
+            </View>
+            <View style={s.improvementStatDivider} />
+            <View style={s.improvementStatItem}>
+              <Text style={s.improvementStatValue}>{weeklyStats.bedtime}</Text>
+              <Text style={s.improvementStatLabel}>Bedtime</Text>
+            </View>
+          </View>
+
+          <View style={s.miniChartContainer}>
+            {weeklyStats.chartData.map((h, i) => {
+              const now = new Date();
+              const dayIndex = (now.getDay() + 7 - (6 - i)) % 7;
+              const labels = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+              const barHeight = Math.max(4, (h / 100) * 40);
+              return (
+                <View key={i} style={s.miniChartColumn}>
+                  <View style={[s.miniChartBar, { height: barHeight, backgroundColor: i === 6 ? theme.colors.accent : h > 0 ? theme.colors.accentLight : theme.colors.disabled }]} />
+                  <Text style={s.miniChartLabel}>{labels[dayIndex]}</Text>
                 </View>
-              )}
-            </View>
-
-            <View style={themedStyles.improvementStatsRow}>
-              <View style={themedStyles.improvementStatItem}>
-                <Text style={themedStyles.improvementStatValue}>{weeklyStats.avgDuration}</Text>
-                <Text style={themedStyles.improvementStatLabel}>Avg Duration</Text>
-              </View>
-              <View style={themedStyles.improvementStatDivider} />
-              <View style={themedStyles.improvementStatItem}>
-                <Text style={themedStyles.improvementStatValue}>{weeklyStats.avgQuality}%</Text>
-                <Text style={themedStyles.improvementStatLabel}>Avg Quality</Text>
-              </View>
-              <View style={themedStyles.improvementStatDivider} />
-              <View style={themedStyles.improvementStatItem}>
-                <Text style={themedStyles.improvementStatValue}>{weeklyStats.bedtime}</Text>
-                <Text style={themedStyles.improvementStatLabel}>Bedtime</Text>
-              </View>
-            </View>
-
-            <View style={themedStyles.miniChartContainer}>
-              {weeklyStats.chartData.map((h, i) => {
-                const now = new Date();
-                const dayIndex = (now.getDay() + 7 - (6 - i)) % 7;
-                const labels = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
-                // Scale score (0-100) to max 40px bar height
-                const barHeight = Math.max(4, (h / 100) * 40);
-                return (
-                  <View key={i} style={themedStyles.miniChartColumn}>
-                    <View style={[themedStyles.miniChartBar, { height: barHeight, backgroundColor: i === 6 ? '#8B5CF6' : h > 0 ? 'rgba(139, 92, 246, 0.3)' : 'rgba(139, 92, 246, 0.1)' }]} />
-                    <Text style={themedStyles.miniChartLabel}>{labels[dayIndex]}</Text>
-                  </View>
-                );
-              })}
-            </View>
-          </GlassView>
+              );
+            })}
+          </View>
         </TouchableOpacity>
 
         {/* Sleep Tip of the Day */}
-        <TouchableOpacity style={themedStyles.tipCard} onPress={() => navigation.navigate('BedtimeRoutine')}>
-          <LinearGradient
-            colors={['rgba(139, 92, 246, 0.18)', 'rgba(99, 102, 241, 0.06)']}
-            style={themedStyles.tipGradient}
-          >
-            <View style={[themedStyles.tipIconCircle]}>
-              <Lightbulb size={22} color="#8B5CF6" strokeWidth={2} />
-            </View>
-            <View style={themedStyles.tipContent}>
-              <View style={themedStyles.tipTagRow}>
-                <View style={themedStyles.tipTag}>
-                  <Text style={themedStyles.tipTagText}>💡 DAILY TIP</Text>
-                </View>
+        <TouchableOpacity style={s.tipCard} onPress={() => navigation.navigate('BedtimeRoutine')} activeOpacity={0.9}>
+          <View pointerEvents="none" style={s.tipGlow} />
+          <View style={s.tipIconCircle}>
+            <Lightbulb size={20} color={theme.colors.textPrimary} strokeWidth={2.2} />
+          </View>
+          <View style={s.tipContent}>
+            <View style={s.tipTagRow}>
+              <View style={s.tipTag}>
+                <Text style={s.tipTagText}>DAILY TIP</Text>
               </View>
-              <Text style={themedStyles.tipText}>
-                {tipOfTheDay}
-              </Text>
-              <Text style={themedStyles.tipActionText}>Tap to build your routine →</Text>
             </View>
-          </LinearGradient>
+            <Text style={s.tipText}>{tipOfTheDay}</Text>
+            <Text style={s.tipActionText}>Tap to build your routine →</Text>
+          </View>
         </TouchableOpacity>
 
         {/* Achievements */}
-        <View style={[themedStyles.sectionHeader, { marginTop: 8 }]}>
-          <Text style={themedStyles.sectionTitle}>🏆 Achievements</Text>
+        <View style={s.sectionHeaderRow}>
+          <Text style={s.sectionTitle}>Achievements</Text>
           <TouchableOpacity onPress={() => navigation.navigate('Achievements')}>
-            <Text style={themedStyles.seeAllText}>All</Text>
+            <Text style={s.seeAllText}>All</Text>
           </TouchableOpacity>
         </View>
 
         <TouchableOpacity
-          activeOpacity={0.8}
+          style={s.achievementsCard}
           onPress={() => navigation.navigate('Achievements')}
+          activeOpacity={0.85}
         >
-          <GlassView intensity={20} tint="dark" style={themedStyles.achievementsCard}>
-            <LinearGradient
-              colors={['rgba(245,158,11,0.08)', 'rgba(245,158,11,0.02)']}
-              style={themedStyles.achievementsGradientInner}
-            >
-              <View style={themedStyles.achievementsRow}>
-                <View style={themedStyles.achievementsTrophyCircle}>
-                  <Trophy size={28} color="#F59E0B" />
-                </View>
-                <View style={themedStyles.achievementsInfo}>
-                  <Text style={themedStyles.achievementsTitle}>Your Journey</Text>
-                  <View style={themedStyles.achievementsStats}>
-                    <View style={themedStyles.achievementStat}>
-                      <Text style={themedStyles.achievementStatEmoji}>🔥</Text>
-                      <Text style={themedStyles.achievementStatValue}>{currentStreak}</Text>
-                      <Text style={themedStyles.achievementStatLabel}>Streak</Text>
-                    </View>
-                    <View style={themedStyles.achievementStatDivider} />
-                    <View style={themedStyles.achievementStat}>
-                      <Text style={themedStyles.achievementStatEmoji}>⭐</Text>
-                      <Text style={themedStyles.achievementStatValue}>{goodNightStreak}</Text>
-                      <Text style={themedStyles.achievementStatLabel}>Good Nights</Text>
-                    </View>
-                    <View style={themedStyles.achievementStatDivider} />
-                    <View style={themedStyles.achievementStat}>
-                      <Text style={themedStyles.achievementStatEmoji}>📊</Text>
-                      <Text style={themedStyles.achievementStatValue}>{sleepHistory.length}</Text>
-                      <Text style={themedStyles.achievementStatLabel}>Sessions</Text>
-                    </View>
-                  </View>
-                </View>
-                <View style={themedStyles.achievementsChevronCircle}>
-                  <ChevronRight size={16} color="#F59E0B" />
-                </View>
+          <View style={s.achievementsTrophyCircle}>
+            <Trophy size={26} color={theme.colors.warning} strokeWidth={2} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={s.achievementsTitle}>Your Journey</Text>
+            <View style={s.achievementsStats}>
+              <View style={s.achievementStat}>
+                <Text style={s.achievementStatValue}>{currentStreak}</Text>
+                <Text style={s.achievementStatLabel}>Streak</Text>
               </View>
-            </LinearGradient>
-          </GlassView>
+              <View style={s.achievementStatDivider} />
+              <View style={s.achievementStat}>
+                <Text style={s.achievementStatValue}>{goodNightStreak}</Text>
+                <Text style={s.achievementStatLabel}>Good Nights</Text>
+              </View>
+              <View style={s.achievementStatDivider} />
+              <View style={s.achievementStat}>
+                <Text style={s.achievementStatValue}>{sleepHistory.length}</Text>
+                <Text style={s.achievementStatLabel}>Sessions</Text>
+              </View>
+            </View>
+          </View>
+          <ChevronRight size={18} color={theme.colors.textTertiary} />
         </TouchableOpacity>
-
       </ScrollView>
 
-      {/* Sleep Analysis Floating Button */}
-      <TouchableOpacity
-        activeOpacity={0.8}
-        onPress={() => navigation.navigate('SleepAnalysis')}
-        style={[themedStyles.analysisFab, { bottom: bottomMargin + 20 }]}
+      {/* Sidebar/Menu Modal */}
+      <Modal
+        visible={isSidebarVisible}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => setIsSidebarVisible(false)}
       >
-        <LinearGradient
-          colors={['#3B82F6', '#6366F1']}
-          style={themedStyles.analysisFabGradient}
-        >
-          <TrendingUp size={22} color="#FFFFFF" strokeWidth={2.5} />
-        </LinearGradient>
-      </TouchableOpacity>
+        <View style={s.sidebarOverlay}>
+          <View style={s.sidebarContainer}>
+            <View style={[s.sidebarHeader, { paddingTop: insets.top + 20 }]}>
+              <Text style={s.sidebarTitle}>Tools & Support</Text>
+              <TouchableOpacity onPress={() => {
+                setIsSidebarVisible(false);
+                setSearchQuery('');
+              }}>
+                <X size={24} color={theme.colors.textTertiary} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={s.sidebarSearchContainer}>
+              <View style={s.sidebarSearchInputWrapper}>
+                <Search size={18} color={theme.colors.textTertiary} />
+                <TextInput
+                  style={s.sidebarSearchInput}
+                  placeholder="Search tools, sounds..."
+                  placeholderTextColor={theme.colors.textTertiary}
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                />
+                {searchQuery.length > 0 && (
+                  <TouchableOpacity onPress={() => setSearchQuery('')}>
+                    <X size={16} color={theme.colors.textTertiary} />
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
+
+            <ScrollView style={s.sidebarContent} showsVerticalScrollIndicator={false}>
+              {searchQuery.length > 0 ? (
+                <View style={{ marginBottom: 20 }}>
+                  <Text style={s.sidebarSectionTitle}>Search Results</Text>
+                  {searchResults.length > 0 ? (
+                    searchResults.map((item, index) => (
+                      <TouchableOpacity
+                        key={index}
+                        style={s.sidebarItem}
+                        onPress={() => {
+                          setIsSidebarVisible(false);
+                          setSearchQuery('');
+                          navigation.navigate(item.screen);
+                        }}
+                      >
+                        <View style={s.sidebarIconContainer}>
+                          <Zap size={20} color={theme.colors.accent} />
+                        </View>
+                        <Text style={s.sidebarItemText}>{item.label}</Text>
+                        <ChevronRight size={16} color={theme.colors.textTertiary} />
+                      </TouchableOpacity>
+                    ))
+                  ) : (
+                    <Text style={s.sidebarNoResults}>No matches found</Text>
+                  )}
+                  <View style={s.sidebarDivider} />
+                </View>
+              ) : null}
+
+              <Text style={s.sidebarSectionTitle}>Wellness & Analysis</Text>
+              {[
+                { label: 'Bedtime Routine', icon: <CheckCircle2 size={20} color={theme.colors.accent} />, screen: 'BedtimeRoutine' },
+                { label: 'Dream Journal', icon: <Book size={20} color={theme.colors.accent} />, screen: 'DreamJournal' },
+                { label: 'Room Environment', icon: <Gauge size={20} color={theme.colors.accent} />, screen: 'RoomEnvironment' },
+                { label: 'Sleep Stages', icon: <Activity size={20} color={theme.colors.accent} />, screen: 'SleepStages' },
+                { label: 'Snore Detection', icon: <Volume2 size={20} color={theme.colors.accent} />, screen: 'SnoreDetection' },
+                { label: 'Sleep Interruptions', icon: <Clock size={20} color={theme.colors.accent} />, screen: 'SleepInterruptions' },
+                { label: 'Relaxation Library', icon: <Headphones size={20} color={theme.colors.accent} />, screen: 'RelaxationLibrary' },
+                { label: 'Caffeine Calculator', icon: <Coffee size={20} color={theme.colors.accent} />, screen: 'CaffeineCalculator' },
+              ].map((item, index) => (
+                <TouchableOpacity
+                  key={index}
+                  style={s.sidebarItem}
+                  onPress={() => {
+                    setIsSidebarVisible(false);
+                    navigation.navigate(item.screen);
+                  }}
+                >
+                  <View style={s.sidebarIconContainer}>{item.icon}</View>
+                  <Text style={s.sidebarItemText}>{item.label}</Text>
+                  <ChevronRight size={16} color={theme.colors.textTertiary} />
+                </TouchableOpacity>
+              ))}
+
+              <View style={s.sidebarDivider} />
+
+              <Text style={s.sidebarSectionTitle}>Support & Feedback</Text>
+              {[
+                { label: 'Request a Feature', icon: <Lightbulb size={20} color={theme.colors.accent} />, screen: 'FeatureRequest' },
+                { label: 'Help & Support', icon: <HelpCircle size={20} color={theme.colors.accent} />, screen: 'HelpSupport' },
+              ].map((item, index) => (
+                <TouchableOpacity
+                  key={index}
+                  style={s.sidebarItem}
+                  onPress={() => {
+                    setIsSidebarVisible(false);
+                    navigation.navigate(item.screen);
+                  }}
+                >
+                  <View style={s.sidebarIconContainer}>{item.icon}</View>
+                  <Text style={s.sidebarItemText}>{item.label}</Text>
+                  <ChevronRight size={16} color={theme.colors.textTertiary} />
+                </TouchableOpacity>
+              ))}
+
+              <View style={{ height: insets.bottom + 40 }} />
+            </ScrollView>
+          </View>
+          <TouchableOpacity
+            style={s.sidebarCloseArea}
+            activeOpacity={1}
+            onPress={() => setIsSidebarVisible(false)}
+          />
+        </View>
+      </Modal>
 
       {/* Push Notification Prompt - shown on first visit to home */}
       <PushNotificationPrompt
         userId={user?.id !== 'guest' ? user?.id : undefined}
         trigger="first_session"
       />
-    </View >
+    </View>
   );
 }
 
-const styles = (theme: any, width: number) => StyleSheet.create({
+const styles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0F0F1E',
+  },
+  loadingBlock: {
+    flex: 1,
   },
   scrollView: {
     flex: 1,
@@ -1028,505 +856,429 @@ const styles = (theme: any, width: number) => StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 20,
   },
+
+  // Header
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 25,
+    marginBottom: 16,
+  },
+  dateText: {
+    fontFamily: theme.typography.fontFamily.bodyMedium,
+    fontSize: 13,
+    color: theme.colors.textTertiary,
+    marginBottom: 2,
+  },
+  greetingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   greeting: {
-    fontSize: 16,
-    color: '#94A3B8',
-    fontWeight: '500',
-    fontFamily: theme.typography.fontFamily.medium,
-  },
-  userName: {
+    fontFamily: theme.typography.fontFamily.displaySemibold,
     fontSize: 24,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    fontFamily: theme.typography.fontFamily.bold,
+    letterSpacing: -0.4,
+    color: theme.colors.textPrimary,
+    flexShrink: 1,
   },
-  headerActions: {
+  vipBadge: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginLeft: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+    backgroundColor: theme.colors.premiumBadgeBackground,
+    borderWidth: 1,
+    borderColor: theme.colors.premiumBadgeBorder,
   },
-  liveStatus: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(16, 185, 129, 0.1)',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 20,
-    marginRight: 10,
-  },
-  liveDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#10B981',
-    marginRight: 6,
-  },
-  liveText: {
-    color: '#10B981',
+  vipBadgeText: {
+    fontFamily: theme.typography.fontFamily.bodyBold,
     fontSize: 10,
-    fontWeight: '700',
-    fontFamily: theme.typography.fontFamily.bold,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    color: theme.colors.premiumBadgeText,
+    marginLeft: 3,
   },
-  iconButton: {
+  avatarButton: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  headerIconButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 10,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.12)',
-  },
-  mainCardContainer: {
-    marginBottom: 24,
-    borderRadius: 32,
-    overflow: Platform.OS === 'android' ? 'hidden' : 'visible',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#8B5CF6',
-        shadowOffset: { width: 0, height: 12 },
-        shadowOpacity: 0.3,
-        shadowRadius: 24,
-      },
-      android: {
-        elevation: 10,
-      },
-    }),
-  },
-  mainCardBlur: {
-    borderRadius: 32,
+    borderColor: theme.colors.cardBorder,
+    backgroundColor: theme.colors.card,
     overflow: 'hidden',
+    marginLeft: 10,
   },
-  mainCard: {
-    padding: 20,
-    paddingVertical: 24,
-    alignItems: 'center',
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  avatarImage: {
     width: '100%',
-    marginBottom: 24,
+    height: '100%',
   },
-  statusBadge: {
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
+  bellButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: theme.colors.cardBorder,
+    backgroundColor: theme.colors.card,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 10,
   },
-  statusText: {
-    color: '#CBD5E1',
-    fontSize: 11,
-    fontWeight: '600',
-    fontFamily: theme.typography.fontFamily.semibold,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+
+  // Mode pill
+  modePill: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 36,
+    paddingHorizontal: 14,
+    borderRadius: 999,
+    backgroundColor: theme.colors.backgroundTertiary,
+    borderWidth: 1,
+    borderColor: theme.colors.cardBorder,
+    marginBottom: 16,
+    columnGap: 8,
   },
-  currentDate: {
-    color: '#94A3B8',
+  modePillText: {
+    fontFamily: theme.typography.fontFamily.body,
     fontSize: 14,
-    fontWeight: '500',
-    fontFamily: theme.typography.fontFamily.medium,
+    color: theme.colors.textSecondary,
   },
-  scoreContainer: {
+  modePillBold: {
+    fontFamily: theme.typography.fontFamily.bodyBold,
+    color: theme.colors.textPrimary,
+  },
+
+  // Bedtime hero
+  heroBlock: {
     position: 'relative',
-    justifyContent: 'center',
     alignItems: 'center',
-    marginVertical: 16,
-    height: 180,
-    width: 180,
+    paddingVertical: 14,
+    marginBottom: 16,
   },
-  scoreGlow: {
+  heroGlow: {
     position: 'absolute',
-    width: 140,
-    height: 140,
-    borderRadius: 70,
-    opacity: 0.1,
+    left: 20,
+    right: 20,
+    top: -10,
+    bottom: -14,
+    borderRadius: 999,
+    backgroundColor: theme.colors.accentLight,
+    opacity: 0.6,
   },
-  scoreInnerContent: {
-    position: 'absolute',
-    alignItems: 'center',
-    justifyContent: 'center',
+  heroLabel: {
+    fontFamily: theme.typography.fontFamily.bodyBold,
+    fontSize: 13,
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+    color: theme.colors.textTertiary,
+    marginBottom: 6,
   },
-  scoreValue: {
-    fontSize: 60,
-    fontWeight: '800',
-    fontFamily: theme.typography.fontFamily.bold,
-    color: '#FFFFFF',
-    lineHeight: 64,
+  heroTimeRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    columnGap: 6,
   },
-  scoreLabel: {
-    fontSize: 12,
-    color: '#94A3B8',
-    fontWeight: '700',
-    fontFamily: theme.typography.fontFamily.bold,
-    letterSpacing: 1.5,
+  heroTime: {
+    fontFamily: theme.typography.fontFamily.display,
+    fontSize: 72,
+    lineHeight: 76,
+    letterSpacing: -2,
+    color: theme.colors.textPrimary,
+  },
+  heroAmPm: {
+    fontFamily: theme.typography.fontFamily.bodySemibold,
+    fontSize: 20,
+    color: theme.colors.textSecondary,
+  },
+  heroSubtext: {
+    fontFamily: theme.typography.fontFamily.body,
+    fontSize: 15,
+    color: theme.colors.textSecondary,
     marginTop: 4,
   },
-  scoreQualityLabel: {
-    fontSize: 14,
-    fontWeight: '700',
-    fontFamily: theme.typography.fontFamily.bold,
-    marginTop: 2,
-  },
-  statsRow: {
+
+  // CTA
+  ctaButton: {
+    height: 60,
+    borderRadius: theme.borderRadius.lg,
+    backgroundColor: theme.colors.ctaBackground,
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    width: '100%',
-    marginTop: 24,
-    marginBottom: 24,
-    paddingHorizontal: 10,
-  },
-  statItem: {
     alignItems: 'center',
-    flex: 1,
-  },
-  statIconContainer: {
-    marginBottom: 8,
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
     justifyContent: 'center',
-    alignItems: 'center',
-  },
-  statValue: {
-    fontSize: 18,
-    fontWeight: '700',
-    fontFamily: theme.typography.fontFamily.bold,
-    color: '#FFFFFF',
-    marginBottom: 2,
-  },
-  statLabel: {
-    fontSize: 10,
-    color: '#94A3B8',
-    fontWeight: '500',
-    fontFamily: theme.typography.fontFamily.medium,
-  },
-  statDivider: {
-    width: 1,
-    height: 30,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  stageBreakdownContainer: {
-    width: '100%',
+    columnGap: 10,
     marginBottom: 16,
-    paddingHorizontal: 4,
+    ...Platform.select({
+      ios: {
+        shadowColor: theme.colors.ctaBackground,
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.3,
+        shadowRadius: 18,
+      },
+      android: { elevation: 6 },
+    }),
   },
-  stageBarRow: {
-    flexDirection: 'row',
-    height: 6,
-    borderRadius: 3,
-    overflow: 'hidden',
-    marginBottom: 8,
+  ctaButtonTracking: {
+    backgroundColor: theme.colors.error,
   },
-  stageBarSegment: {
-    height: 6,
+  ctaButtonText: {
+    fontFamily: theme.typography.fontFamily.bodyBold,
+    fontSize: 17,
+    color: theme.colors.ctaText,
   },
-  stageLegendRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-  },
-  stageLegendItem: {
+
+  // Last night card
+  lastNightCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginHorizontal: 10,
+    backgroundColor: theme.colors.card,
+    borderWidth: 1,
+    borderColor: theme.colors.cardBorder,
+    borderRadius: theme.borderRadius.card,
+    padding: 14,
+    marginBottom: 16,
+    columnGap: 14,
   },
-  stageLegendDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
-    marginRight: 5,
+  lastNightMark: {
+    width: 72,
+    height: 72,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  stageLegendText: {
-    color: '#94A3B8',
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  startSessionButton: {
-    width: '100%',
+  lastNightMarkEmpty: {
+    width: 56,
     height: 56,
     borderRadius: 28,
-    overflow: 'hidden',
-  },
-  buttonGradient: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  buttonContent: {
-    flex: 1,
-    flexDirection: 'row',
+    backgroundColor: theme.colors.backgroundTertiary,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  buttonContentIcon: {
-    marginRight: 8,
+  lastNightLabel: {
+    fontFamily: theme.typography.fontFamily.body,
+    fontSize: 14,
+    color: theme.colors.textTertiary,
   },
-  startSessionText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '700',
-    fontFamily: theme.typography.fontFamily.bold,
-    letterSpacing: 0.5,
+  lastNightValue: {
+    fontFamily: theme.typography.fontFamily.bodyBold,
+    fontSize: 19,
+    color: theme.colors.textPrimary,
+    marginTop: 2,
   },
+  lastNightSubtext: {
+    fontFamily: theme.typography.fontFamily.body,
+    fontSize: 14,
+    color: theme.colors.textSecondary,
+    marginTop: 2,
+  },
+
+  // 3 quick-action tiles
+  tileGrid: {
+    flexDirection: 'row',
+    marginBottom: 24,
+    columnGap: 12,
+  },
+  tile: {
+    flex: 1,
+    height: 108,
+    borderRadius: theme.borderRadius.lg,
+    backgroundColor: theme.colors.card,
+    borderWidth: 1,
+    borderColor: theme.colors.cardBorder,
+    padding: 14,
+    justifyContent: 'space-between',
+  },
+  tileIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: theme.colors.accentLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tileTitle: {
+    fontFamily: theme.typography.fontFamily.bodyBold,
+    fontSize: 15,
+    color: theme.colors.textPrimary,
+  },
+  tileSubtext: {
+    fontFamily: theme.typography.fontFamily.body,
+    fontSize: 12,
+    color: theme.colors.textTertiary,
+    marginTop: 1,
+  },
+
+  // Section headers
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 14,
+  },
+  sectionTitle: {
+    fontFamily: theme.typography.fontFamily.displaySemibold,
+    fontSize: 19,
+    color: theme.colors.textPrimary,
+    marginBottom: 14,
+  },
+  seeAllText: {
+    fontFamily: theme.typography.fontFamily.bodySemibold,
+    fontSize: 14,
+    color: theme.colors.accent,
+  },
+
+  // Vitals
   vitalsGrid: {
-    marginBottom: 32,
+    marginBottom: 24,
   },
   vitalsRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     marginBottom: 12,
   },
-  vitalWidgetGrid: {
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: 20,
-    padding: 12,
-    paddingBottom: 10,
+  vitalCard: {
     flex: 1,
+    backgroundColor: theme.colors.card,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: theme.colors.cardBorder,
+    borderRadius: theme.borderRadius.lg,
+    padding: 14,
   },
   vitalIconRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 6,
+    marginBottom: 8,
+    columnGap: 6,
   },
   vitalLabel: {
-    color: '#94A3B8',
+    fontFamily: theme.typography.fontFamily.bodySemibold,
     fontSize: 11,
-    fontWeight: '600',
-    fontFamily: theme.typography.fontFamily.semibold,
-    marginLeft: 6,
+    color: theme.colors.textTertiary,
   },
   vitalValue: {
-    color: '#FFFFFF',
+    fontFamily: theme.typography.fontFamily.bodyBold,
     fontSize: 18,
-    fontWeight: '700',
-    fontFamily: theme.typography.fontFamily.bold,
-    marginBottom: 2,
+    color: theme.colors.textPrimary,
+    marginBottom: 4,
   },
   vitalSubtext: {
-    color: '#64748B',
-    fontSize: 10,
-    fontWeight: '500',
-    fontFamily: theme.typography.fontFamily.medium,
+    fontFamily: theme.typography.fontFamily.body,
+    fontSize: 11,
+    color: theme.colors.textTertiary,
   },
-  vitalBottomRow: {
-    height: 16,
-    marginTop: 4,
-    justifyContent: 'center',
-  },
-  readinessBarTrack: {
+  vitalBarTrack: {
     height: 4,
     borderRadius: 2,
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    marginTop: 5,
-    marginBottom: 4,
+    backgroundColor: theme.colors.disabled,
     overflow: 'hidden',
   },
-  readinessBarFill: {
+  vitalBarFill: {
     height: 4,
     borderRadius: 2,
   },
-  sparkLineContainer: {
+
+  // Control Center
+  controlRow: {
     flexDirection: 'row',
-    alignItems: 'flex-end',
-    height: 16,
-    marginTop: 4,
-  },
-  sparkBar: {
-    width: 4,
-    borderRadius: 2,
-    marginRight: 3,
-  },
-  insightsContainer: {
     marginBottom: 24,
   },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    fontFamily: theme.typography.fontFamily.bold,
-    color: '#FFFFFF',
-  },
-  insightBadgeCount: {
-    backgroundColor: '#8B5CF6',
-    color: '#FFFFFF',
-    fontSize: 10,
-    fontWeight: '800',
-    fontFamily: theme.typography.fontFamily.bold,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 10,
-    marginLeft: 8,
-  },
-  seeAllText: {
-    color: '#8B5CF6',
-    fontSize: 14,
-    fontWeight: '600',
-    fontFamily: theme.typography.fontFamily.semibold,
-  },
-  insightCardCompact: {
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: 24,
-    padding: 16,
-    width: 260,
-    marginRight: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  insightTitle: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '700',
-    fontFamily: theme.typography.fontFamily.bold,
-    marginBottom: 6,
-  },
-  insightMessage: {
-    color: '#94A3B8',
-    fontSize: 13,
-    fontFamily: theme.typography.fontFamily.regular,
-    lineHeight: 18,
-    marginBottom: 12,
-  },
-  insightAction: {
-    fontSize: 13,
-    fontWeight: '600',
-    fontFamily: theme.typography.fontFamily.semibold,
-  },
-  quickActionsGrid: {
-    marginBottom: 24,
-  },
-  quickActionsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-  },
-  actionCard: {
+  controlCard: {
     flex: 1,
-    borderRadius: 16,
-    overflow: 'hidden',
+    backgroundColor: theme.colors.card,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  actionContent: {
+    borderColor: theme.colors.cardBorder,
+    borderRadius: theme.borderRadius.lg,
     padding: 14,
+    alignItems: 'flex-start',
+  },
+  controlIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 14,
+    backgroundColor: theme.colors.accentLight,
     alignItems: 'center',
     justifyContent: 'center',
+    marginBottom: 10,
   },
-  actionIconWrapper: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  actionLabel: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '700',
-    fontFamily: theme.typography.fontFamily.bold,
-  },
-  actionSubLabel: {
-    color: '#94A3B8',
-    fontSize: 10,
-    fontWeight: '500',
-    fontFamily: theme.typography.fontFamily.medium,
-    marginTop: 2,
-  },
-  analysisCardLarge: {
-    marginBottom: 24,
-    borderRadius: 24,
-    overflow: 'hidden',
+
+  // Sleep Improvement
+  improvementCard: {
+    backgroundColor: theme.colors.card,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  improvementContent: {
-    padding: 20,
-    borderRadius: 24,
+    borderColor: theme.colors.cardBorder,
+    borderRadius: theme.borderRadius.card,
+    padding: 18,
+    marginBottom: 24,
   },
   improvementHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 18,
+  },
+  improvementIconCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: theme.colors.accentLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  improvementTitle: {
+    fontFamily: theme.typography.fontFamily.bodyBold,
+    fontSize: 15,
+    color: theme.colors.textPrimary,
+  },
+  improvementSubtitle: {
+    fontFamily: theme.typography.fontFamily.body,
+    fontSize: 13,
+    color: theme.colors.textTertiary,
+    marginTop: 2,
   },
   trendBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+    backgroundColor: theme.colors.backgroundTertiary,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
+    columnGap: 4,
   },
   trendText: {
-    color: '#10B981',
+    fontFamily: theme.typography.fontFamily.bodyBold,
     fontSize: 12,
-    fontWeight: '700',
-    fontFamily: theme.typography.fontFamily.bold,
-    marginLeft: 4,
   },
   improvementStatsRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 24,
-    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+    backgroundColor: theme.colors.backgroundTertiary,
+    borderRadius: theme.borderRadius.lg,
     padding: 15,
-    borderRadius: 20,
+    marginBottom: 20,
   },
   improvementStatItem: {
-    alignItems: 'center',
     flex: 1,
+    alignItems: 'center',
   },
   improvementStatValue: {
-    color: '#FFFFFF',
+    fontFamily: theme.typography.fontFamily.bodyBold,
     fontSize: 16,
-    fontWeight: '700',
-    fontFamily: theme.typography.fontFamily.bold,
+    color: theme.colors.textPrimary,
     marginBottom: 4,
   },
   improvementStatLabel: {
-    color: '#94A3B8',
+    fontFamily: theme.typography.fontFamily.bodySemibold,
     fontSize: 10,
-    fontWeight: '600',
-    fontFamily: theme.typography.fontFamily.semibold,
+    color: theme.colors.textTertiary,
     textTransform: 'uppercase',
   },
   improvementStatDivider: {
     width: 1,
-    height: '100%',
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: theme.colors.cardBorder,
   },
   miniChartContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-end',
-    height: 80,
-    paddingTop: 10,
+    height: 72,
   },
   miniChartColumn: {
-    alignItems: 'center',
     flex: 1,
+    alignItems: 'center',
   },
   miniChartBar: {
     width: 8,
@@ -1534,136 +1286,98 @@ const styles = (theme: any, width: number) => StyleSheet.create({
     marginBottom: 8,
   },
   miniChartLabel: {
-    color: '#64748B',
+    fontFamily: theme.typography.fontFamily.bodySemibold,
     fontSize: 10,
-    fontWeight: '600',
-    fontFamily: theme.typography.fontFamily.semibold,
+    color: theme.colors.textTertiary,
   },
-  analysisInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  analysisIconCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(139, 92, 246, 0.15)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  analysisTitle: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '700',
-    fontFamily: theme.typography.fontFamily.bold,
-  },
-  analysisSubtitle: {
-    color: '#94A3B8',
-    fontSize: 13,
-    fontFamily: theme.typography.fontFamily.regular,
-    marginTop: 2,
-  },
+
+  // Tip card
   tipCard: {
-    borderRadius: 24,
+    position: 'relative',
     overflow: 'hidden',
-    marginBottom: 24,
-    borderWidth: 1,
-    borderColor: 'rgba(139, 92, 246, 0.2)',
-  },
-  tipGradient: {
     flexDirection: 'row',
-    padding: 20,
     alignItems: 'flex-start',
+    backgroundColor: theme.colors.card,
+    borderWidth: 1,
+    borderColor: theme.colors.cardBorder,
+    borderRadius: theme.borderRadius.card,
+    padding: 18,
+    marginBottom: 24,
+    columnGap: 14,
+  },
+  tipGlow: {
+    position: 'absolute',
+    right: -40,
+    top: -40,
+    width: 160,
+    height: 160,
+    borderRadius: 80,
+    backgroundColor: theme.colors.accentLight,
   },
   tipIconCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(139, 92, 246, 0.18)',
-    justifyContent: 'center',
+    width: 40,
+    height: 40,
+    borderRadius: 14,
+    backgroundColor: theme.colors.navActiveBackground,
     alignItems: 'center',
-    marginTop: 2,
+    justifyContent: 'center',
   },
   tipContent: {
     flex: 1,
-    marginLeft: 16,
   },
   tipTagRow: {
     flexDirection: 'row',
     marginBottom: 6,
   },
   tipTag: {
-    backgroundColor: 'rgba(139, 92, 246, 0.2)',
+    backgroundColor: theme.colors.accentLight,
     borderRadius: 8,
     paddingHorizontal: 8,
     paddingVertical: 3,
   },
   tipTagText: {
-    color: '#A78BFA',
+    fontFamily: theme.typography.fontFamily.bodyBold,
     fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 0.8,
-  },
-  tipLabel: {
-    color: '#8B5CF6',
-    fontSize: 12,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    marginBottom: 4,
+    letterSpacing: 0.6,
+    color: theme.colors.accent,
   },
   tipText: {
-    color: '#E2E8F0',
+    fontFamily: theme.typography.fontFamily.bodyMedium,
     fontSize: 14,
     lineHeight: 20,
-    fontWeight: '500',
-    marginBottom: 8,
+    color: theme.colors.textSecondary,
+    marginBottom: 6,
   },
   tipActionText: {
-    color: '#8B5CF6',
+    fontFamily: theme.typography.fontFamily.bodySemibold,
     fontSize: 12,
-    fontWeight: '600',
+    color: theme.colors.accent,
   },
+
+  // Achievements
   achievementsCard: {
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: 24,
-    marginBottom: 32,
-    borderWidth: 1,
-    borderColor: 'rgba(245, 158, 11, 0.2)',
-    overflow: 'hidden',
-  },
-  achievementsGradientInner: {
-    padding: 16,
-    borderRadius: 24,
-  },
-  achievementsChevronCircle: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: 'rgba(245, 158, 11, 0.15)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  achievementsRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: theme.colors.card,
+    borderWidth: 1,
+    borderColor: theme.colors.cardBorder,
+    borderRadius: theme.borderRadius.card,
+    padding: 16,
+    marginBottom: 24,
+    columnGap: 16,
   },
   achievementsTrophyCircle: {
     width: 52,
     height: 52,
     borderRadius: 26,
-    backgroundColor: 'rgba(245, 158, 11, 0.15)',
-    justifyContent: 'center',
+    backgroundColor: theme.colors.accentLight,
     alignItems: 'center',
-    marginRight: 16,
-  },
-  achievementsInfo: {
-    flex: 1,
+    justifyContent: 'center',
   },
   achievementsTitle: {
-    color: '#FFFFFF',
+    fontFamily: theme.typography.fontFamily.bodyBold,
     fontSize: 16,
-    fontWeight: '700',
+    color: theme.colors.textPrimary,
     marginBottom: 8,
   },
   achievementsStats: {
@@ -1673,141 +1387,24 @@ const styles = (theme: any, width: number) => StyleSheet.create({
   achievementStat: {
     alignItems: 'center',
   },
-  achievementStatEmoji: {
-    fontSize: 14,
-    marginBottom: 2,
-  },
   achievementStatValue: {
-    color: '#FFFFFF',
+    fontFamily: theme.typography.fontFamily.bodyBold,
     fontSize: 14,
-    fontWeight: '700',
+    color: theme.colors.textPrimary,
   },
   achievementStatLabel: {
-    color: '#64748B',
+    fontFamily: theme.typography.fontFamily.bodyMedium,
     fontSize: 9,
-    fontWeight: '600',
+    color: theme.colors.textTertiary,
   },
   achievementStatDivider: {
     width: 1,
     height: 24,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: theme.colors.cardBorder,
     marginHorizontal: 12,
   },
-  searchModalContainer: {
-    flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.9)',
-  },
-  searchHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingBottom: 20,
-  },
-  searchInputContainer: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    height: 52,
-  },
-  searchInput: {
-    flex: 1,
-    color: '#FFFFFF',
-    fontSize: 16,
-    marginLeft: 12,
-  },
-  closeSearchButton: {
-    marginLeft: 16,
-  },
-  closeSearchText: {
-    color: '#8B5CF6',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  searchResults: {
-    flex: 1,
-    paddingHorizontal: 20,
-  },
-  searchSuggestions: {
-    marginTop: 24,
-  },
-  suggestionTitle: {
-    color: '#64748B',
-    fontSize: 12,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    marginBottom: 16,
-  },
-  suggestionItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.05)',
-  },
-  suggestionText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    marginLeft: 16,
-  },
-  searchNoResults: {
-    marginTop: 40,
-    alignItems: 'center',
-  },
-  noResultsText: {
-    color: '#64748B',
-    fontSize: 16,
-  },
-  atmosphereWidget: {
-    padding: 16,
-    borderRadius: 20,
-    minWidth: 110,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
-  },
-  atmosphereValue: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '700',
-    marginVertical: 4,
-  },
-  atmosphereLabel: {
-    color: '#94A3B8',
-    fontSize: 10,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-  },
-  analysisFab: {
-    position: 'absolute',
-    right: 20,
-    width: 58,
-    height: 58,
-    borderRadius: 29,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.28)',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#3B82F6',
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.32,
-        shadowRadius: 12,
-      },
-      android: {
-        elevation: 10,
-      },
-    }),
-  },
-  analysisFabGradient: {
-    flex: 1,
-    borderRadius: 29,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
+
+  // Sidebar
   sidebarOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.6)',
@@ -1817,15 +1414,19 @@ const styles = (theme: any, width: number) => StyleSheet.create({
     flex: 1,
   },
   sidebarContainer: {
-    width: width * 0.75,
+    width: '75%',
     maxWidth: 320,
-    backgroundColor: '#0F172A',
+    backgroundColor: theme.colors.backgroundSecondary,
     height: '100%',
-    shadowColor: '#000',
-    shadowOffset: { width: 5, height: 0 },
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
-    elevation: 20,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 5, height: 0 },
+        shadowOpacity: 0.3,
+        shadowRadius: 10,
+      },
+      android: { elevation: 20 },
+    }),
   },
   sidebarHeader: {
     flexDirection: 'row',
@@ -1834,13 +1435,12 @@ const styles = (theme: any, width: number) => StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 20,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.05)',
+    borderBottomColor: theme.colors.cardBorder,
   },
   sidebarTitle: {
-    color: '#FFFFFF',
+    fontFamily: theme.typography.fontFamily.displaySemibold,
     fontSize: 20,
-    fontWeight: '700',
-    fontFamily: theme.typography.fontFamily.bold,
+    color: theme.colors.textPrimary,
   },
   sidebarContent: {
     flex: 1,
@@ -1848,10 +1448,9 @@ const styles = (theme: any, width: number) => StyleSheet.create({
     paddingTop: 16,
   },
   sidebarSectionTitle: {
-    color: '#94A3B8',
+    fontFamily: theme.typography.fontFamily.bodyBold,
     fontSize: 12,
-    fontWeight: '700',
-    fontFamily: theme.typography.fontFamily.bold,
+    color: theme.colors.textTertiary,
     textTransform: 'uppercase',
     letterSpacing: 1,
     marginBottom: 12,
@@ -1865,91 +1464,56 @@ const styles = (theme: any, width: number) => StyleSheet.create({
     paddingHorizontal: 8,
     borderRadius: 12,
     marginBottom: 4,
+    columnGap: 12,
   },
   sidebarIconContainer: {
     width: 36,
     height: 36,
     borderRadius: 10,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    justifyContent: 'center',
+    backgroundColor: theme.colors.accentLight,
     alignItems: 'center',
-    marginRight: 12,
+    justifyContent: 'center',
   },
   sidebarItemText: {
     flex: 1,
-    color: '#E2E8F0',
+    fontFamily: theme.typography.fontFamily.bodyMedium,
     fontSize: 16,
-    fontWeight: '500',
-    fontFamily: theme.typography.fontFamily.medium,
+    color: theme.colors.textPrimary,
   },
   sidebarDivider: {
     height: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    backgroundColor: theme.colors.cardBorder,
     marginVertical: 16,
     marginHorizontal: 4,
-  },
-  curvedMenuButton: {
-    width: 50,
-    height: 50,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginLeft: -20,
-    paddingLeft: 10,
-    borderTopRightRadius: 25,
-    borderBottomRightRadius: 25,
-    borderWidth: 1,
-    borderLeftWidth: 0,
-    borderColor: 'rgba(255, 255, 255, 0.15)',
   },
   sidebarSearchContainer: {
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.05)',
+    borderBottomColor: theme.colors.cardBorder,
   },
   sidebarSearchInputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    backgroundColor: theme.colors.backgroundTertiary,
     borderRadius: 12,
     paddingHorizontal: 12,
     height: 44,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
+    borderColor: theme.colors.cardBorder,
+    columnGap: 10,
   },
   sidebarSearchInput: {
     flex: 1,
-    color: '#FFFFFF',
+    fontFamily: theme.typography.fontFamily.body,
     fontSize: 14,
-    marginLeft: 10,
-    fontFamily: theme.typography.fontFamily.regular,
+    color: theme.colors.textPrimary,
   },
   sidebarNoResults: {
-    color: '#64748B',
+    fontFamily: theme.typography.fontFamily.bodyMedium,
     fontSize: 13,
+    color: theme.colors.textTertiary,
     textAlign: 'center',
     paddingVertical: 20,
-    fontFamily: theme.typography.fontFamily.medium,
-  },
-  vipBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 12,
-    marginLeft: 10,
-    shadowColor: '#FFD700',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-  vipBadgeText: {
-    color: '#000',
-    fontSize: 10,
-    fontWeight: '800',
-    marginLeft: 3,
-    fontFamily: theme.typography.fontFamily.bold,
   },
 });
