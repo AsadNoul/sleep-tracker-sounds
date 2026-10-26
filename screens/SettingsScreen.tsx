@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
     View,
     Text,
@@ -9,46 +9,24 @@ import {
     Alert,
     Share,
     Platform,
-    Animated,
     Modal,
     ActivityIndicator,
     Linking,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
 import {
     ChevronLeft,
+    ChevronRight,
     Moon,
-    Clock,
-    Flag,
     User,
     Star,
-    ShieldCheck,
-    CheckCircle2,
-    Book,
-    Gauge,
     Bell,
-    Sun,
-    Smartphone,
-    HelpCircle,
     Info,
-    Share2,
     LogOut,
     Trash2,
-    FileText,
-    Download,
-    ChevronRight,
-    ChevronDown,
-    Lightbulb,
-    Activity,
-    Volume2,
-    Users,
-    Coffee,
     Headphones,
     Heart,
-    Shield,
-    X
+    X,
 } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -68,22 +46,6 @@ import { isExpoNotificationsAvailable } from '../utils/notificationAvailability'
 import PushNotificationPrompt from '../components/PushNotificationPrompt';
 import { isPremiumActive } from '../utils/subscriptionHelpers';
 import revenueCatService from '../services/revenueCatService';
-
-// Android-safe BlurView wrapper
-const GlassCard = ({ style, children, intensity = 20, tint = "dark" }: { style?: any; children: React.ReactNode; intensity?: number; tint?: 'dark' | 'light' | 'default' }) => {
-    if (Platform.OS === 'android') {
-        return (
-            <View style={[style, { backgroundColor: 'rgba(17, 25, 40, 0.75)' }]}>
-                {children}
-            </View>
-        );
-    }
-    return (
-        <BlurView intensity={intensity} tint={tint} style={style}>
-            {children}
-        </BlurView>
-    );
-};
 
 type RootStackParamList = {
     Main: undefined;
@@ -109,6 +71,9 @@ interface OnboardingProfile {
     onboarding_completed_at?: string;
 }
 
+type MovementSensitivity = 'Low' | 'Normal' | 'High';
+const MOVEMENT_LEVELS: MovementSensitivity[] = ['Low', 'Normal', 'High'];
+
 let Notifications: typeof NotificationsType | null = null;
 
 function getNotifications(): typeof NotificationsType | null {
@@ -123,21 +88,35 @@ function getNotifications(): typeof NotificationsType | null {
     return Notifications;
 }
 
+const THEME_OPTIONS: { mode: ThemeMode; label: string }[] = [
+    { mode: 'sunset', label: 'By sunset' },
+    { mode: 'night', label: 'Sleep Mode' },
+    { mode: 'day', label: 'Day View' },
+];
+
 const SettingsScreen = () => {
-    const { theme, isDark } = useAppTheme();
+    const { theme } = useAppTheme();
+    const s = styles(theme);
     const insets = useSafeAreaInsets();
     const bottomMargin = useSafeBottomMargin();
     const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-    const { themeMode, setThemeMode } = useTheme();
+    // Real 3-way theme API — 'sunset' follows sunrise/sunset automatically,
+    // 'night'/'day' pin the theme. nextSwitchLabel is only populated in
+    // 'sunset' mode and describes the next automatic flip.
+    const { themeMode, setThemeMode, nextSwitchLabel } = useTheme();
     const { signOut, deleteAccount, user, saveUserSettings } = useAuth();
-    const [notifications, setNotifications] = useState(true);
-    const [sleepReminder, setSleepReminder] = useState(false);
+
+    // Notifications
+    const [morningReportReady, setMorningReportReady] = useState(true);
+    const [windDownReminder, setWindDownReminder] = useState(false);
+    const [weeklySummary, setWeeklySummary] = useState(false);
+
+    // Tracking
+    const [snoreDetection, setSnoreDetection] = useState(true);
+    const [movementSensitivity, setMovementSensitivity] = useState<MovementSensitivity>('Normal');
+
     const [onboardingProfile, setOnboardingProfile] = useState<OnboardingProfile | null>(null);
     const [isLoadingProfile, setIsLoadingProfile] = useState(true);
-    const [accountPreferencesExpanded, setAccountPreferencesExpanded] = useState(false);
-    const [sleepWellnessExpanded, setSleepWellnessExpanded] = useState(false);
-    const [helpLegalExpanded, setHelpLegalExpanded] = useState(false);
-    const [dataActionsExpanded, setDataActionsExpanded] = useState(false);
     const [confirmModalVisible, setConfirmModalVisible] = useState(false);
     const [confirmConfig, setConfirmConfig] = useState<{
         title: string;
@@ -154,17 +133,18 @@ const SettingsScreen = () => {
     const [showSleepProfileModal, setShowSleepProfileModal] = useState(false);
     const [showVipSupportModal, setShowVipSupportModal] = useState(false);
 
-    // Animated values for fluid background
-    const animatedValue1 = useRef(new Animated.Value(0)).current;
-    const animatedValue2 = useRef(new Animated.Value(0)).current;
-
     // Load settings on mount
     useEffect(() => {
         const loadData = async () => {
             const savedSettings = await loadSettings();
             if (savedSettings) {
-                setNotifications(savedSettings.notifications ?? true);
-                setSleepReminder(savedSettings.sleepReminder ?? false);
+                setMorningReportReady(savedSettings.notifications ?? true);
+                setWindDownReminder(savedSettings.sleepReminder ?? false);
+                setWeeklySummary(savedSettings.weeklySummary ?? false);
+                setSnoreDetection(savedSettings.snoreDetection ?? true);
+                if (MOVEMENT_LEVELS.includes(savedSettings.movementSensitivity)) {
+                    setMovementSensitivity(savedSettings.movementSensitivity);
+                }
             }
 
             // Check push notification permission status (guarded: native
@@ -206,47 +186,6 @@ const SettingsScreen = () => {
         }
     };
 
-    // Animated fluid background
-    useEffect(() => {
-        const animation1 = Animated.loop(
-            Animated.sequence([
-                Animated.timing(animatedValue1, {
-                    toValue: 1,
-                    duration: 8000,
-                    useNativeDriver: true,
-                }),
-                Animated.timing(animatedValue1, {
-                    toValue: 0,
-                    duration: 8000,
-                    useNativeDriver: true,
-                }),
-            ])
-        );
-
-        const animation2 = Animated.loop(
-            Animated.sequence([
-                Animated.timing(animatedValue2, {
-                    toValue: 1,
-                    duration: 6000,
-                    useNativeDriver: true,
-                }),
-                Animated.timing(animatedValue2, {
-                    toValue: 0,
-                    duration: 6000,
-                    useNativeDriver: true,
-                }),
-            ])
-        );
-
-        animation1.start();
-        animation2.start();
-
-        return () => {
-            animation1.stop();
-            animation2.stop();
-        };
-    }, []);
-
     const loadOnboardingData = async () => {
         if (!user || user.id === 'guest') {
             setOnboardingProfile(null);
@@ -286,7 +225,13 @@ const SettingsScreen = () => {
 
     // Save settings whenever they change
     useEffect(() => {
-        const settings = { notifications, sleepReminder };
+        const settings = {
+            notifications: morningReportReady,
+            sleepReminder: windDownReminder,
+            weeklySummary,
+            snoreDetection,
+            movementSensitivity,
+        };
         saveSettings(settings);
 
         // Also save to Supabase if user is authenticated
@@ -295,12 +240,12 @@ const SettingsScreen = () => {
                 console.error('Failed to sync settings to cloud:', err);
             });
         }
-    }, [notifications, sleepReminder, user, saveUserSettings]);
+    }, [morningReportReady, windDownReminder, weeklySummary, snoreDetection, movementSensitivity, user, saveUserSettings]);
 
-    // Handle sleep reminder scheduling
+    // Handle wind-down (sleep) reminder scheduling
     useEffect(() => {
         const handleSleepReminder = async () => {
-            if (!sleepReminder) {
+            if (!windDownReminder) {
                 await notificationService.cancelBedtimeReminder();
                 return;
             }
@@ -319,18 +264,24 @@ const SettingsScreen = () => {
         handleSleepReminder().catch(err =>
             console.error('Failed to update sleep reminder:', err)
         );
-    }, [sleepReminder, onboardingProfile]);
+    }, [windDownReminder, onboardingProfile]);
 
-    const handleSleepReminderToggle = (value: boolean) => {
+    const handleWindDownToggle = (value: boolean) => {
         if (value && !onboardingProfile?.preferred_bed_time) {
             Alert.alert(
                 'Set Bedtime First',
-                'To enable sleep reminders, you need to set your preferred bedtime. Please complete the onboarding or update your profile settings.',
+                'To enable wind-down reminders, you need to set your preferred bedtime. Please complete the onboarding or update your profile settings.',
                 [{ text: 'OK', style: 'default' }]
             );
             return;
         }
-        setSleepReminder(value);
+        setWindDownReminder(value);
+    };
+
+    const handleMovementSensitivityPress = () => {
+        const currentIndex = MOVEMENT_LEVELS.indexOf(movementSensitivity);
+        const next = MOVEMENT_LEVELS[(currentIndex + 1) % MOVEMENT_LEVELS.length];
+        setMovementSensitivity(next);
     };
 
     const navigateToSubscription = () => navigation.navigate('Subscription');
@@ -338,7 +289,6 @@ const SettingsScreen = () => {
     const navigateToHelpSupport = () => navigation.navigate('HelpSupport');
     const navigateToProfile = () => navigation.navigate('Profile');
     const navigateToAbout = () => navigation.navigate('About');
-    const navigateToSleepAnalysis = () => navigation.navigate('SleepAnalysis' as any);
 
     const handleExportData = async () => {
         try {
@@ -393,12 +343,6 @@ const SettingsScreen = () => {
         await Share.share({ message: shareMessage, title: 'Sleep Architect' });
     };
 
-    const handleOpenLink = async (url: string) => {
-        const supported = await Linking.canOpenURL(url);
-        if (supported) await Linking.openURL(url);
-        else Alert.alert('Error', 'Cannot open link');
-    };
-
     const handleRestorePurchases = async () => {
         if (user?.id === 'guest') {
             Alert.alert('Sign In Required', 'Please sign in to restore your purchases.');
@@ -446,13 +390,13 @@ const SettingsScreen = () => {
 
     const handleSignOut = () => {
         showConfirm({
-            title: 'Sign Out',
-            message: 'Are you sure you want to sign out?',
+            title: 'Log Out',
+            message: 'Are you sure you want to log out?',
             isDestructive: true,
-            onConfirmText: 'Sign Out',
+            onConfirmText: 'Log Out',
             onConfirm: async () => {
                 try { await signOut(); }
-                catch (error) { Alert.alert('Error', 'Failed to sign out.'); }
+                catch (error) { Alert.alert('Error', 'Failed to log out.'); }
             },
         });
     };
@@ -478,711 +422,744 @@ const SettingsScreen = () => {
         });
     };
 
-    const translateX1 = animatedValue1.interpolate({ inputRange: [0, 1], outputRange: [-50, 50] });
-    const translateY1 = animatedValue1.interpolate({ inputRange: [0, 1], outputRange: [-30, 30] });
-    const translateX2 = animatedValue2.interpolate({ inputRange: [0, 1], outputRange: [30, -30] });
-    const translateY2 = animatedValue2.interpolate({ inputRange: [0, 1], outputRange: [40, -40] });
+    const isPremium = isPremiumActive(user?.subscription_status, user?.subscription_end_date, user?.role, user?.email);
+    const isAdmin = user?.email === 'admin@naulx.com';
 
     const renderSleepProfileHeader = () => {
-        const isPremium = isPremiumActive(user?.subscription_status, user?.subscription_end_date, user?.role, user?.email);
-
         if (!onboardingProfile || !onboardingProfile.onboarding_completed_at) {
             return (
                 <TouchableOpacity
-                    style={styles.sleepProfileHeaderCompact}
+                    style={s.sleepProfileCard}
                     onPress={() => navigation.navigate('Profile')}
-                    activeOpacity={0.9}
+                    activeOpacity={0.85}
                 >
-                    <GlassCard intensity={30} tint="dark" style={styles.sleepProfileContentCompact}>
-                        <View style={styles.sleepProfileTopCompact}>
-                            <View style={styles.profileIconWrapper}>
-                                <User size={24} color={theme.colors.accent} />
-                            </View>
-                            <View style={[styles.sleepProfileTopText, { marginLeft: 12 }]}>
-                                <Text style={styles.sleepProfileTitle}>Complete Profile</Text>
-                                <Text style={styles.sleepProfileSubtitleCompact}>Personalize your journey</Text>
-                            </View>
-                        </View>
-                        <ChevronRight size={20} color={theme.colors.textSecondary} />
-                    </GlassCard>
+                    <View style={[s.profileIconWrapper, { backgroundColor: theme.colors.accentLight }]}>
+                        <User size={22} color={theme.colors.accent} />
+                    </View>
+                    <View style={s.sleepProfileTextBlock}>
+                        <Text style={s.sleepProfileTitle}>Complete Profile</Text>
+                        <Text style={s.sleepProfileSubtitle}>Personalize your journey</Text>
+                    </View>
+                    <ChevronRight size={20} color={theme.colors.textTertiary} />
                 </TouchableOpacity>
             );
         }
 
         return (
             <TouchableOpacity
-                style={styles.sleepProfileHeaderCompact}
+                style={s.sleepProfileCard}
                 onPress={() => setShowSleepProfileModal(true)}
-                activeOpacity={0.9}
+                activeOpacity={0.85}
             >
-                <GlassCard intensity={30} tint="dark" style={styles.sleepProfileContentCompact}>
-                    <View style={styles.sleepProfileTopCompact}>
-                        <View style={[styles.profileIconWrapper, { backgroundColor: 'rgba(0, 255, 209, 0.1)' }]}>
-                            <Moon size={24} color={theme.colors.accent} />
-                        </View>
-                        <View style={[styles.sleepProfileTopText, { marginLeft: 12 }]}>
-                            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                                <Text style={styles.sleepProfileTitle}>Sleep Profile</Text>
-                                <View style={styles.activeProfileBadge}>
-                                    <View style={styles.activeDot} />
-                                    <Text style={styles.activeText}>Active</Text>
-                                </View>
-                            </View>
-                            <Text style={styles.sleepProfileSubtitleCompact}>
-                                {onboardingProfile.age ? `${onboardingProfile.age}y • ` : ''}
-                                {onboardingProfile.average_sleep_hours ? `${onboardingProfile.average_sleep_hours}h avg • ` : ''}
-                                {onboardingProfile.sleep_goals && onboardingProfile.sleep_goals.length > 0 ? `${onboardingProfile.sleep_goals.length} goals` : 'Set goals'}
-                            </Text>
+                <View style={[s.profileIconWrapper, { backgroundColor: theme.colors.accentLight }]}>
+                    <Moon size={22} color={theme.colors.accent} />
+                </View>
+                <View style={s.sleepProfileTextBlock}>
+                    <View style={s.sleepProfileTitleRow}>
+                        <Text style={s.sleepProfileTitle}>Sleep Profile</Text>
+                        <View style={s.activeBadge}>
+                            <View style={s.activeDot} />
+                            <Text style={s.activeBadgeText}>Active</Text>
                         </View>
                     </View>
-                    <View style={styles.profileAction}>
-                        <Text style={styles.profileActionText}>View</Text>
-                        <ChevronRight size={18} color={theme.colors.accent} style={{ marginLeft: 2 }} />
-                    </View>
-                </GlassCard>
+                    <Text style={s.sleepProfileSubtitle}>
+                        {onboardingProfile.age ? `${onboardingProfile.age}y • ` : ''}
+                        {onboardingProfile.average_sleep_hours ? `${onboardingProfile.average_sleep_hours}h avg • ` : ''}
+                        {onboardingProfile.sleep_goals && onboardingProfile.sleep_goals.length > 0 ? `${onboardingProfile.sleep_goals.length} goals` : 'Set goals'}
+                    </Text>
+                </View>
+                <ChevronRight size={20} color={theme.colors.accent} />
             </TouchableOpacity>
         );
     };
 
     return (
-        <View style={styles.container}>
-            <LinearGradient colors={['#0F111A', '#1B1D2A']} style={styles.gradient}>
-                {/* Fluid Background Elements */}
-                <View style={styles.fluidBackgroundContainer}>
-                    <Animated.View style={[styles.fluidCircle1, { transform: [{ translateX: translateX1 }, { translateY: translateY1 }] }]} />
-                    <Animated.View style={[styles.fluidCircle2, { transform: [{ translateX: translateX2 }, { translateY: translateY2 }] }]} />
+        <View style={[s.container, { backgroundColor: theme.colors.background }]}>
+            <ScrollView
+                style={s.content}
+                contentContainerStyle={{ paddingTop: insets.top + 20, paddingBottom: bottomMargin }}
+                showsVerticalScrollIndicator={false}
+            >
+                <View style={s.header}>
+                    <TouchableOpacity onPress={() => navigation.goBack()} style={s.backButton} accessibilityLabel="Back">
+                        <ChevronLeft size={20} color={theme.colors.textPrimary} />
+                    </TouchableOpacity>
+                    <Text style={s.title}>Settings</Text>
                 </View>
 
-                <ScrollView
-                    style={styles.content}
-                    contentContainerStyle={{ paddingTop: insets.top + 20, paddingBottom: bottomMargin }}
-                    showsVerticalScrollIndicator={false}
-                >
-                    <View style={styles.header}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                            <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-                                <ChevronLeft size={24} color={theme.colors.textPrimary} />
-                            </TouchableOpacity>
-                            <View style={{ marginLeft: 12 }}>
-                                <Text style={styles.title}>Settings</Text>
-                                <Text style={styles.subtitle}>Customize your experience</Text>
-                            </View>
+                <GuestBanner />
+
+                {/* Notification Alert */}
+                {user && user.id !== 'guest' && pushPermissionStatus !== 'granted' && (
+                    <TouchableOpacity style={s.notificationBanner} onPress={() => setShowPushPrompt(true)} activeOpacity={0.85}>
+                        <View style={[s.notificationBannerIcon, { backgroundColor: theme.colors.accentLight }]}>
+                            <Bell size={20} color={theme.colors.accent} />
                         </View>
-                    </View>
-
-                    <GuestBanner />
-
-                    {/* Notification Alert */}
-                    {user && user.id !== 'guest' && pushPermissionStatus !== 'granted' && (
-                        <TouchableOpacity style={styles.notificationBanner} onPress={() => setShowPushPrompt(true)} activeOpacity={0.8}>
-                            <LinearGradient colors={['#8B5CF6', '#EC4899']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.notificationBannerGradient}>
-                                <Bell size={24} color="#FFFFFF" />
-                                <View style={[styles.notificationBannerText, { marginLeft: 12 }]}>
-                                    <Text style={styles.notificationBannerTitle}>Enable Notifications</Text>
-                                    <Text style={styles.notificationBannerSubtitle}>Get sleep reminders & insights</Text>
-                                </View>
-                                <ChevronRight size={20} color="rgba(255,255,255,0.8)" />
-                            </LinearGradient>
-                        </TouchableOpacity>
-                    )}
-
-                    {!isLoadingProfile && renderSleepProfileHeader()}
-
-                    {/* Account Section */}
-                    <GlassCard intensity={20} tint="dark" style={[styles.card, isPremiumActive(user?.subscription_status, user?.subscription_end_date, user?.role, user?.email) && styles.premiumCardBorder]}>
-                        <TouchableOpacity style={styles.collapsibleHeader} onPress={() => setAccountPreferencesExpanded(!accountPreferencesExpanded)}>
-                            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                                <User size={20} color={theme.colors.accent} />
-                                <Text style={styles.cardTitle}>Account</Text>
-                                {isPremiumActive(user?.subscription_status, user?.subscription_end_date, user?.role, user?.email) && (
-                                    <View style={styles.vipBadge}>
-                                        <Star size={10} color="#FFD700" fill="#FFD700" />
-                                        <Text style={[styles.vipBadgeText, { marginLeft: 3 }]}>VIP</Text>
-                                    </View>
-                                )}
-                            </View>
-                            <ChevronDown size={20} color="#A0AEC0" style={{ transform: [{ rotate: accountPreferencesExpanded ? '180deg' : '0deg' }] }} />
-                        </TouchableOpacity>
-
-                        {accountPreferencesExpanded && (
-                            <>
-                                <TouchableOpacity style={styles.settingItem} onPress={navigateToProfile}>
-                                    <View style={styles.settingInfo}>
-                                        <View style={[styles.iconWrapper, { backgroundColor: 'rgba(0, 255, 209, 0.1)' }]}>
-                                            <User size={20} color={theme.colors.accent} />
-                                        </View>
-                                        <Text style={styles.settingLabel}>Your Profile</Text>
-                                    </View>
-                                    <ChevronRight size={20} color="#A0AEC0" />
-                                </TouchableOpacity>
-
-                                <TouchableOpacity style={styles.settingItem} onPress={navigateToSubscription}>
-                                    <View style={styles.settingInfo}>
-                                        <View style={[styles.iconWrapper, { backgroundColor: 'rgba(201, 162, 39, 0.1)' }]}>
-                                            <Star size={20} color={theme.colors.premium} />
-                                        </View>
-                                        <View>
-                                            <Text style={styles.settingLabel}>Manage Subscription</Text>
-                                            {subscriptionExpiry && <Text style={styles.expiryLabel}>Renews on: {subscriptionExpiry}</Text>}
-                                        </View>
-                                    </View>
-                                    <ChevronRight size={20} color="#A0AEC0" />
-                                </TouchableOpacity>
-
-                                <TouchableOpacity style={styles.settingItem} onPress={handleRestorePurchases} disabled={isRestoringPurchases}>
-                                    <View style={styles.settingInfo}>
-                                        <View style={[styles.iconWrapper, { backgroundColor: 'rgba(0, 255, 209, 0.1)' }]}>
-                                            {isRestoringPurchases
-                                                ? <ActivityIndicator size="small" color="#00FFD1" />
-                                                : <Download size={20} color="#00FFD1" />}
-                                        </View>
-                                        <View>
-                                            <Text style={styles.settingLabel}>Restore Purchases</Text>
-                                            <Text style={styles.settingSubLabel}>{isRestoringPurchases ? 'Checking...' : 'Recover existing subscription'}</Text>
-                                        </View>
-                                    </View>
-                                    {!isRestoringPurchases && <ChevronRight size={20} color="#A0AEC0" />}
-                                </TouchableOpacity>
-
-                                <TouchableOpacity style={styles.settingItem} onPress={() => setShowVipSupportModal(true)}>
-                                    <View style={styles.settingInfo}>
-                                        <View style={[styles.iconWrapper, { backgroundColor: 'rgba(201, 162, 39, 0.15)' }]}>
-                                            <Headphones size={20} color="#C9A227" />
-                                        </View>
-                                        <View>
-                                            <Text style={styles.settingLabel}>VIP Support</Text>
-                                            <Text style={styles.settingSubLabel}>Telegram & WhatsApp priority help</Text>
-                                        </View>
-                                    </View>
-                                    <ChevronRight size={20} color="#A0AEC0" />
-                                </TouchableOpacity>
-
-                                {user?.email === 'admin@naulx.com' && (
-                                    <TouchableOpacity style={styles.settingItem} onPress={() => navigation.navigate('Admin' as never)}>
-                                        <View style={styles.settingInfo}>
-                                            <View style={[styles.iconWrapper, { backgroundColor: 'rgba(255, 107, 107, 0.1)' }]}>
-                                                <Users size={20} color="#FF6B6B" />
-                                            </View>
-                                            <Text style={styles.settingLabel}>Admin Dashboard</Text>
-                                        </View>
-                                        <ChevronRight size={20} color="#A0AEC0" />
-                                    </TouchableOpacity>
-                                )}
-                            </>
-                        )}
-                    </GlassCard>
-
-                    {/* Notifications Section */}
-                    <GlassCard intensity={20} tint="dark" style={styles.card}>
-                        <TouchableOpacity style={styles.collapsibleHeader} onPress={() => setSleepWellnessExpanded(!sleepWellnessExpanded)}>
-                            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                                <Bell size={20} color={theme.colors.danger} />
-                                <Text style={styles.cardTitle}>Notifications</Text>
-                            </View>
-                            <ChevronDown size={20} color="#A0AEC0" style={{ transform: [{ rotate: sleepWellnessExpanded ? '180deg' : '0deg' }] }} />
-                        </TouchableOpacity>
-
-                        {sleepWellnessExpanded && (
-                            <>
-                                <View style={styles.settingItem}>
-                                    <View style={styles.settingInfo}>
-                                        <Bell size={24} color={theme.colors.danger} />
-                                        <Text style={styles.settingLabel}>General Notifications</Text>
-                                    </View>
-                                    <Switch value={notifications} onValueChange={setNotifications} trackColor={{ false: '#333', true: theme.colors.accent }} />
-                                </View>
-                                <View style={[styles.settingItem, { borderBottomWidth: 0 }]}>
-                                    <View style={styles.settingInfo}>
-                                        <Clock size={24} color={theme.colors.premium} />
-                                        <Text style={styles.settingLabel}>Sleep Reminder</Text>
-                                    </View>
-                                    <Switch value={sleepReminder} onValueChange={handleSleepReminderToggle} trackColor={{ false: '#333', true: theme.colors.premium }} />
-                                </View>
-                            </>
-                        )}
-                    </GlassCard>
-
-                    {/* App Settings Section */}
-                    <GlassCard intensity={20} tint="dark" style={styles.card}>
-                        <TouchableOpacity style={styles.collapsibleHeader} onPress={() => setHelpLegalExpanded(!helpLegalExpanded)}>
-                            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                                <Smartphone size={20} color={theme.colors.accent} />
-                                <Text style={styles.cardTitle}>App Settings</Text>
-                            </View>
-                            <ChevronDown size={20} color="#A0AEC0" style={{ transform: [{ rotate: helpLegalExpanded ? '180deg' : '0deg' }] }} />
-                        </TouchableOpacity>
-
-                        {helpLegalExpanded && (
-                            <>
-                                <TouchableOpacity style={styles.settingItem} onPress={handleCheckUpdates} disabled={isCheckingUpdates}>
-                                    <View style={styles.settingInfo}>
-                                        <View style={[styles.iconWrapper, { backgroundColor: 'rgba(0, 255, 209, 0.1)' }]}>
-                                            {isCheckingUpdates ? <ActivityIndicator size="small" color={theme.colors.accent} /> : <Download size={20} color={theme.colors.accent} />}
-                                        </View>
-                                        <View>
-                                            <Text style={styles.settingLabel}>Check for updates</Text>
-                                            <Text style={styles.settingSubLabel}>{isCheckingUpdates ? 'Connecting...' : 'Keep app updated'}</Text>
-                                        </View>
-                                    </View>
-                                    {!isCheckingUpdates && <ChevronRight size={20} color="#A0AEC0" />}
-                                </TouchableOpacity>
-                                <TouchableOpacity style={styles.settingItem} onPress={handleShareApp}>
-                                    <View style={styles.settingInfo}>
-                                        <View style={[styles.iconWrapper, { backgroundColor: 'rgba(51, 198, 255, 0.1)' }]}>
-                                            <Share2 size={20} color={theme.colors.highlight} />
-                                        </View>
-                                        <Text style={styles.settingLabel}>Share Application</Text>
-                                    </View>
-                                    <ChevronRight size={20} color="#A0AEC0" />
-                                </TouchableOpacity>
-                                <TouchableOpacity style={styles.settingItem} onPress={navigateToAbout}>
-                                    <View style={styles.settingInfo}>
-                                        <View style={[styles.iconWrapper, { backgroundColor: 'rgba(157, 78, 221, 0.1)' }]}>
-                                            <Info size={20} color="#9D4EDD" />
-                                        </View>
-                                        <Text style={styles.settingLabel}>About Sleep Architect</Text>
-                                    </View>
-                                    <ChevronRight size={20} color="#A0AEC0" />
-                                </TouchableOpacity>
-                            </>
-                        )}
-                    </GlassCard>
-
-                    {/* Data & Privacy Section */}
-                    <GlassCard intensity={20} tint="dark" style={styles.card}>
-                        <TouchableOpacity style={styles.collapsibleHeader} onPress={() => setDataActionsExpanded(!dataActionsExpanded)}>
-                            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                                <ShieldCheck size={20} color={theme.colors.highlight} />
-                                <Text style={styles.cardTitle}>Data & Privacy</Text>
-                            </View>
-                            <ChevronDown size={20} color="#A0AEC0" style={{ transform: [{ rotate: dataActionsExpanded ? '180deg' : '0deg' }] }} />
-                        </TouchableOpacity>
-
-                        {dataActionsExpanded && (
-                            <>
-                                <TouchableOpacity style={styles.settingItem} onPress={navigateToPrivacySettings}>
-                                    <View style={styles.settingInfo}>
-                                        <View style={[styles.iconWrapper, { backgroundColor: 'rgba(51, 198, 255, 0.1)' }]}>
-                                            <ShieldCheck size={20} color={theme.colors.highlight} />
-                                        </View>
-                                        <Text style={styles.settingLabel}>Privacy Controls</Text>
-                                    </View>
-                                    <ChevronRight size={20} color="#A0AEC0" />
-                                </TouchableOpacity>
-                                <TouchableOpacity style={styles.settingItem} onPress={handleExportData}>
-                                    <View style={styles.settingInfo}>
-                                        <View style={[styles.iconWrapper, { backgroundColor: 'rgba(0, 255, 209, 0.1)' }]}>
-                                            <Download size={20} color={theme.colors.accent} />
-                                        </View>
-                                        <Text style={styles.settingLabel}>Export My Data</Text>
-                                    </View>
-                                    <ChevronRight size={20} color="#A0AEC0" />
-                                </TouchableOpacity>
-                                <TouchableOpacity style={[styles.settingItem, { borderBottomWidth: 0 }]} onPress={handleDeleteAccount}>
-                                    <View style={styles.settingInfo}>
-                                        <View style={[styles.iconWrapper, { backgroundColor: 'rgba(255, 107, 107, 0.1)' }]}>
-                                            <Trash2 size={20} color={theme.colors.danger} />
-                                        </View>
-                                        <Text style={[styles.settingLabel, { color: theme.colors.danger }]}>Delete Account</Text>
-                                    </View>
-                                    <ChevronRight size={20} color={theme.colors.danger} />
-                                </TouchableOpacity>
-                            </>
-                        )}
-                    </GlassCard>
-
-                    {/* Sign Out */}
-                    <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
-                        <GlassCard intensity={20} tint="dark" style={styles.signOutCard}>
-                            <LogOut size={24} color={theme.colors.danger} />
-                            <Text style={styles.signOutText}>Sign Out</Text>
-                        </GlassCard>
+                        <View style={s.notificationBannerText}>
+                            <Text style={s.notificationBannerTitle}>Enable Notifications</Text>
+                            <Text style={s.notificationBannerSubtitle}>Get sleep reminders & insights</Text>
+                        </View>
+                        <ChevronRight size={18} color={theme.colors.textTertiary} />
                     </TouchableOpacity>
+                )}
 
-                    <View style={styles.bottomSpacing} />
-                </ScrollView>
+                {!isLoadingProfile && renderSleepProfileHeader()}
 
-                {/* Confirmation Modal */}
-                <Modal visible={confirmModalVisible} transparent animationType="fade" onRequestClose={() => setConfirmModalVisible(false)}>
-                    <View style={styles.modalOverlay}>
-                        <GlassCard intensity={90} tint="dark" style={styles.confirmContent}>
-                            <View style={styles.confirmHeader}>
-                                {confirmConfig?.isDestructive ? <Trash2 size={40} color={theme.colors.danger} /> : <Info size={40} color={theme.colors.accent} />}
-                                <Text style={styles.confirmTitle}>{confirmConfig?.title}</Text>
-                                <Text style={styles.confirmMessage}>{confirmConfig?.message}</Text>
-                            </View>
-                            <View style={styles.confirmActions}>
-                                <TouchableOpacity style={styles.confirmCancelButton} onPress={() => setConfirmModalVisible(false)}>
-                                    <Text style={styles.confirmCancelText}>Cancel</Text>
-                                </TouchableOpacity>
-                                <View style={{ width: 12 }} />
-                                <TouchableOpacity
-                                    style={[styles.confirmConfirmButton, confirmConfig?.isDestructive && { backgroundColor: theme.colors.danger }]}
-                                    onPress={() => { setConfirmModalVisible(false); confirmConfig?.onConfirm(); }}
-                                >
-                                    <Text style={styles.confirmConfirmText}>{confirmConfig?.onConfirmText || (confirmConfig?.isDestructive ? 'Delete' : 'Confirm')}</Text>
-                                </TouchableOpacity>
-                            </View>
-                        </GlassCard>
-                    </View>
-                </Modal>
-
-                {/* Sleep Profile Modal */}
-                <Modal visible={showSleepProfileModal} transparent animationType="slide" onRequestClose={() => setShowSleepProfileModal(false)}>
-                    <View style={styles.modalOverlay}>
-                        <GlassCard intensity={90} tint="dark" style={styles.profileModalContent}>
-                            {/* Header */}
-                            <View style={styles.profileModalHeader}>
-                                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                                    <View style={[styles.iconWrapper, { backgroundColor: 'rgba(0, 255, 209, 0.1)', marginRight: 10 }]}>
-                                        <Moon size={20} color="#00FFD1" />
-                                    </View>
-                                    <Text style={styles.profileModalTitle}>Sleep Profile</Text>
-                                </View>
-                                <TouchableOpacity onPress={() => setShowSleepProfileModal(false)} style={styles.profileModalClose}>
-                                    <X size={20} color="#94A3B8" />
-                                </TouchableOpacity>
-                            </View>
-
-                            <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 480 }}>
-                                {onboardingProfile ? (
-                                    <View>
-                                        {/* Basic Info */}
-                                        {(onboardingProfile.age || onboardingProfile.gender) && (
-                                            <View style={styles.profileSection}>
-                                                <Text style={styles.profileSectionTitle}>Basic Info</Text>
-                                                <View style={styles.profileRow}>
-                                                    {onboardingProfile.age ? (
-                                                        <View style={styles.profileChip}>
-                                                            <Text style={styles.profileChipLabel}>Age</Text>
-                                                            <Text style={styles.profileChipValue}>{onboardingProfile.age}</Text>
-                                                        </View>
-                                                    ) : null}
-                                                    {onboardingProfile.gender ? (
-                                                        <View style={styles.profileChip}>
-                                                            <Text style={styles.profileChipLabel}>Gender</Text>
-                                                            <Text style={styles.profileChipValue}>{onboardingProfile.gender}</Text>
-                                                        </View>
-                                                    ) : null}
-                                                </View>
-                                            </View>
-                                        )}
-
-                                        {/* Sleep Stats */}
-                                        {(onboardingProfile.average_sleep_hours || onboardingProfile.sleep_pattern || onboardingProfile.wake_up_feeling) && (
-                                            <View style={styles.profileSection}>
-                                                <Text style={styles.profileSectionTitle}>Sleep Stats</Text>
-                                                <View style={styles.profileRow}>
-                                                    {onboardingProfile.average_sleep_hours ? (
-                                                        <View style={styles.profileChip}>
-                                                            <Text style={styles.profileChipLabel}>Avg Hours</Text>
-                                                            <Text style={styles.profileChipValue}>{onboardingProfile.average_sleep_hours}h</Text>
-                                                        </View>
-                                                    ) : null}
-                                                    {onboardingProfile.sleep_pattern ? (
-                                                        <View style={styles.profileChip}>
-                                                            <Text style={styles.profileChipLabel}>Pattern</Text>
-                                                            <Text style={styles.profileChipValue}>{onboardingProfile.sleep_pattern}</Text>
-                                                        </View>
-                                                    ) : null}
-                                                    {onboardingProfile.wake_up_feeling ? (
-                                                        <View style={styles.profileChip}>
-                                                            <Text style={styles.profileChipLabel}>Wake Feeling</Text>
-                                                            <Text style={styles.profileChipValue}>{onboardingProfile.wake_up_feeling}</Text>
-                                                        </View>
-                                                    ) : null}
-                                                </View>
-                                            </View>
-                                        )}
-
-                                        {/* Sleep Schedule */}
-                                        {(onboardingProfile.preferred_bed_time || onboardingProfile.preferred_wake_time) && (
-                                            <View style={styles.profileSection}>
-                                                <Text style={styles.profileSectionTitle}>Schedule</Text>
-                                                <View style={styles.profileRow}>
-                                                    {onboardingProfile.preferred_bed_time ? (
-                                                        <View style={styles.profileChip}>
-                                                            <Text style={styles.profileChipLabel}>Bedtime</Text>
-                                                            <Text style={styles.profileChipValue}>{onboardingProfile.preferred_bed_time}</Text>
-                                                        </View>
-                                                    ) : null}
-                                                    {onboardingProfile.preferred_wake_time ? (
-                                                        <View style={styles.profileChip}>
-                                                            <Text style={styles.profileChipLabel}>Wake Time</Text>
-                                                            <Text style={styles.profileChipValue}>{onboardingProfile.preferred_wake_time}</Text>
-                                                        </View>
-                                                    ) : null}
-                                                </View>
-                                            </View>
-                                        )}
-
-                                        {/* Sleep Goals */}
-                                        {onboardingProfile.sleep_goals && onboardingProfile.sleep_goals.length > 0 && (
-                                            <View style={styles.profileSection}>
-                                                <Text style={styles.profileSectionTitle}>Sleep Goals</Text>
-                                                <View style={styles.profileTagList}>
-                                                    {onboardingProfile.sleep_goals.map((goal, i) => (
-                                                        <View key={i} style={styles.profileTag}>
-                                                            <Text style={styles.profileTagText}>{goal}</Text>
-                                                        </View>
-                                                    ))}
-                                                </View>
-                                            </View>
-                                        )}
-
-                                        {/* Sleep Troubles */}
-                                        {onboardingProfile.sleep_troubles && onboardingProfile.sleep_troubles.length > 0 && (
-                                            <View style={styles.profileSection}>
-                                                <Text style={styles.profileSectionTitle}>Sleep Troubles</Text>
-                                                <View style={styles.profileTagList}>
-                                                    {onboardingProfile.sleep_troubles.map((trouble, i) => (
-                                                        <View key={i} style={[styles.profileTag, { backgroundColor: 'rgba(255, 107, 107, 0.1)', borderColor: 'rgba(255, 107, 107, 0.3)' }]}>
-                                                            <Text style={[styles.profileTagText, { color: '#FF9999' }]}>{trouble}</Text>
-                                                        </View>
-                                                    ))}
-                                                </View>
-                                            </View>
-                                        )}
-
-                                        {/* Health Conditions */}
-                                        {onboardingProfile.health_conditions && onboardingProfile.health_conditions.length > 0 && (
-                                            <View style={styles.profileSection}>
-                                                <Text style={styles.profileSectionTitle}>Health Notes</Text>
-                                                <View style={styles.profileTagList}>
-                                                    {onboardingProfile.health_conditions.map((cond, i) => (
-                                                        <View key={i} style={[styles.profileTag, { backgroundColor: 'rgba(201, 162, 39, 0.1)', borderColor: 'rgba(201, 162, 39, 0.3)' }]}>
-                                                            <Text style={[styles.profileTagText, { color: '#C9A227' }]}>{cond}</Text>
-                                                        </View>
-                                                    ))}
-                                                </View>
-                                            </View>
-                                        )}
-
-                                        {/* Completed At */}
-                                        {onboardingProfile.onboarding_completed_at && (
-                                            <Text style={styles.profileCompletedAt}>
-                                                Profile created {new Date(onboardingProfile.onboarding_completed_at).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}
-                                            </Text>
-                                        )}
-                                    </View>
-                                ) : (
-                                    <Text style={{ color: '#94A3B8', textAlign: 'center', marginTop: 24 }}>No profile data found.</Text>
-                                )}
-                            </ScrollView>
-
-                            <TouchableOpacity style={styles.profileModalDone} onPress={() => setShowSleepProfileModal(false)}>
-                                <Text style={styles.profileModalDoneText}>Done</Text>
-                            </TouchableOpacity>
-                        </GlassCard>
-                    </View>
-                </Modal>
-
-                {/* VIP Support Modal */}
-                <Modal visible={showVipSupportModal} transparent animationType="slide" onRequestClose={() => setShowVipSupportModal(false)}>
-                    <View style={styles.modalOverlay}>
-                        <View style={styles.vipModalContent}>
-                            {/* Header */}
-                            <View style={styles.profileModalHeader}>
-                                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                                    <View style={[styles.iconWrapper, { backgroundColor: 'rgba(201, 162, 39, 0.15)', marginRight: 10 }]}>
-                                        <Star size={20} color="#C9A227" fill="#C9A227" />
-                                    </View>
-                                    <Text style={styles.profileModalTitle}>VIP Support</Text>
-                                </View>
-                                <TouchableOpacity onPress={() => setShowVipSupportModal(false)} style={styles.profileModalClose}>
-                                    <X size={20} color="#94A3B8" />
-                                </TouchableOpacity>
-                            </View>
-
-                            <Text style={styles.vipModalSubtitle}>
-                                Reach us directly for priority assistance. We typically respond within a few hours.
+                {/* Look — theme mode picker */}
+                <View style={s.sectionBlock}>
+                    <Text style={s.sectionLabel}>Look</Text>
+                    <View style={s.lookCard}>
+                        <View style={s.themeRadioGroup} accessibilityRole="radiogroup">
+                            {THEME_OPTIONS.map((option) => {
+                                const selected = themeMode === option.mode;
+                                return (
+                                    <TouchableOpacity
+                                        key={option.mode}
+                                        style={[s.themeRadioButton, selected && s.themeRadioButtonSelected]}
+                                        onPress={() => setThemeMode(option.mode)}
+                                        accessibilityRole="radio"
+                                        accessibilityState={{ selected }}
+                                        activeOpacity={0.85}
+                                    >
+                                        <Text style={[s.themeRadioLabel, selected && s.themeRadioLabelSelected]}>
+                                            {option.label}
+                                        </Text>
+                                    </TouchableOpacity>
+                                );
+                            })}
+                        </View>
+                        {themeMode === 'sunset' && nextSwitchLabel ? (
+                            <Text style={s.lookHint}>{nextSwitchLabel}</Text>
+                        ) : (
+                            <Text style={s.lookHint}>
+                                {themeMode === 'night' ? 'Sleep Mode is always on' : 'Day View is always on'}
                             </Text>
+                        )}
+                    </View>
+                </View>
 
-                            {/* Telegram */}
-                            <TouchableOpacity style={styles.vipChannelCard} onPress={() => { setShowVipSupportModal(false); handleOpenVipSupport('telegram'); }} activeOpacity={0.85}>
-                                <View style={[styles.vipChannelIcon, { backgroundColor: 'rgba(0, 136, 204, 0.15)' }]}>
-                                    <Headphones size={28} color="#0088CC" />
-                                </View>
-                                <View style={styles.vipChannelInfo}>
-                                    <Text style={styles.vipChannelName}>Telegram</Text>
-                                    <Text style={styles.vipChannelDesc}>Fastest response · Chat in real time</Text>
-                                </View>
-                                <ChevronRight size={20} color="#0088CC" />
+                {/* Notifications */}
+                <View style={s.sectionBlock}>
+                    <Text style={s.sectionLabel}>Notifications</Text>
+                    <View style={s.groupCard}>
+                        <View style={s.row}>
+                            <Text style={s.rowLabel}>Wind-down reminder</Text>
+                            <Switch
+                                value={windDownReminder}
+                                onValueChange={handleWindDownToggle}
+                                trackColor={{ false: theme.colors.cardBorder, true: theme.colors.accent }}
+                                thumbColor={Platform.OS === 'android' ? theme.colors.textPrimary : undefined}
+                            />
+                        </View>
+                        <View style={s.rowDivider} />
+                        <View style={s.row}>
+                            <Text style={s.rowLabel}>Morning Report ready</Text>
+                            <Switch
+                                value={morningReportReady}
+                                onValueChange={setMorningReportReady}
+                                trackColor={{ false: theme.colors.cardBorder, true: theme.colors.accent }}
+                                thumbColor={Platform.OS === 'android' ? theme.colors.textPrimary : undefined}
+                            />
+                        </View>
+                        <View style={s.rowDivider} />
+                        <View style={[s.row, s.rowLast]}>
+                            <Text style={s.rowLabel}>Weekly summary</Text>
+                            <Switch
+                                value={weeklySummary}
+                                onValueChange={setWeeklySummary}
+                                trackColor={{ false: theme.colors.cardBorder, true: theme.colors.accent }}
+                                thumbColor={Platform.OS === 'android' ? theme.colors.textPrimary : undefined}
+                            />
+                        </View>
+                    </View>
+                </View>
+
+                {/* Tracking */}
+                <View style={s.sectionBlock}>
+                    <Text style={s.sectionLabel}>Tracking</Text>
+                    <View style={s.groupCard}>
+                        <View style={s.row}>
+                            <Text style={s.rowLabel}>Snore detection</Text>
+                            <Switch
+                                value={snoreDetection}
+                                onValueChange={setSnoreDetection}
+                                trackColor={{ false: theme.colors.cardBorder, true: theme.colors.accent }}
+                                thumbColor={Platform.OS === 'android' ? theme.colors.textPrimary : undefined}
+                            />
+                        </View>
+                        <View style={s.rowDivider} />
+                        <TouchableOpacity style={[s.row, s.rowLast]} onPress={handleMovementSensitivityPress} activeOpacity={0.7}>
+                            <Text style={s.rowLabel}>Movement sensitivity</Text>
+                            <View style={s.rowValueGroup}>
+                                <Text style={s.rowValue}>{movementSensitivity}</Text>
+                                <ChevronRight size={16} color={theme.colors.textTertiary} />
+                            </View>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+
+                {/* Account */}
+                <View style={s.sectionBlock}>
+                    <View style={s.sectionLabelRow}>
+                        <Text style={s.sectionLabel}>Account</Text>
+                        {isPremium && (
+                            <View style={s.vipBadge}>
+                                <Star size={10} color={theme.colors.premium} fill={theme.colors.premium} />
+                                <Text style={s.vipBadgeText}>VIP</Text>
+                            </View>
+                        )}
+                    </View>
+                    <View style={s.groupCard}>
+                        <TouchableOpacity style={s.row} onPress={navigateToProfile} activeOpacity={0.7}>
+                            <Text style={s.rowLabel}>Your Profile</Text>
+                            <ChevronRight size={16} color={theme.colors.textTertiary} />
+                        </TouchableOpacity>
+                        <View style={s.rowDivider} />
+
+                        <TouchableOpacity style={s.row} onPress={navigateToSubscription} activeOpacity={0.7}>
+                            <Text style={s.rowLabel}>Subscription</Text>
+                            <View style={s.rowValueGroup}>
+                                <Text style={s.rowValue}>
+                                    {isPremium ? (subscriptionExpiry ? `Renews ${subscriptionExpiry}` : 'VIP') : 'Free'}
+                                </Text>
+                                <ChevronRight size={16} color={theme.colors.textTertiary} />
+                            </View>
+                        </TouchableOpacity>
+                        <View style={s.rowDivider} />
+
+                        <TouchableOpacity style={s.row} onPress={handleRestorePurchases} disabled={isRestoringPurchases} activeOpacity={0.7}>
+                            <Text style={s.rowLabel}>Restore Purchases</Text>
+                            {isRestoringPurchases ? (
+                                <ActivityIndicator size="small" color={theme.colors.accent} />
+                            ) : (
+                                <ChevronRight size={16} color={theme.colors.textTertiary} />
+                            )}
+                        </TouchableOpacity>
+                        <View style={s.rowDivider} />
+
+                        <TouchableOpacity style={s.row} onPress={navigateToPrivacySettings} activeOpacity={0.7}>
+                            <Text style={s.rowLabel}>Privacy & data</Text>
+                            <ChevronRight size={16} color={theme.colors.textTertiary} />
+                        </TouchableOpacity>
+                        <View style={s.rowDivider} />
+
+                        <TouchableOpacity style={s.row} onPress={navigateToHelpSupport} activeOpacity={0.7}>
+                            <Text style={s.rowLabel}>Help & support</Text>
+                            <ChevronRight size={16} color={theme.colors.textTertiary} />
+                        </TouchableOpacity>
+                        <View style={s.rowDivider} />
+
+                        <TouchableOpacity style={s.row} onPress={() => setShowVipSupportModal(true)} activeOpacity={0.7}>
+                            <Text style={s.rowLabel}>VIP Support</Text>
+                            <ChevronRight size={16} color={theme.colors.textTertiary} />
+                        </TouchableOpacity>
+                        <View style={s.rowDivider} />
+
+                        <TouchableOpacity style={s.row} onPress={navigateToAbout} activeOpacity={0.7}>
+                            <Text style={s.rowLabel}>About</Text>
+                            <ChevronRight size={16} color={theme.colors.textTertiary} />
+                        </TouchableOpacity>
+                        <View style={s.rowDivider} />
+
+                        <TouchableOpacity style={s.row} onPress={handleCheckUpdates} disabled={isCheckingUpdates} activeOpacity={0.7}>
+                            <Text style={s.rowLabel}>Check for updates</Text>
+                            {isCheckingUpdates ? (
+                                <ActivityIndicator size="small" color={theme.colors.accent} />
+                            ) : (
+                                <ChevronRight size={16} color={theme.colors.textTertiary} />
+                            )}
+                        </TouchableOpacity>
+                        <View style={s.rowDivider} />
+
+                        <TouchableOpacity style={s.row} onPress={handleShareApp} activeOpacity={0.7}>
+                            <Text style={s.rowLabel}>Share Application</Text>
+                            <ChevronRight size={16} color={theme.colors.textTertiary} />
+                        </TouchableOpacity>
+                        <View style={s.rowDivider} />
+
+                        <TouchableOpacity style={s.row} onPress={handleExportData} activeOpacity={0.7}>
+                            <Text style={s.rowLabel}>Export My Data</Text>
+                            <ChevronRight size={16} color={theme.colors.textTertiary} />
+                        </TouchableOpacity>
+
+                        {isAdmin && (
+                            <>
+                                <View style={s.rowDivider} />
+                                <TouchableOpacity style={s.row} onPress={() => navigation.navigate('Admin' as never)} activeOpacity={0.7}>
+                                    <Text style={s.rowLabel}>Admin Dashboard</Text>
+                                    <ChevronRight size={16} color={theme.colors.textTertiary} />
+                                </TouchableOpacity>
+                            </>
+                        )}
+
+                        <View style={s.rowDivider} />
+                        <TouchableOpacity style={[s.row, s.rowLast]} onPress={handleDeleteAccount} activeOpacity={0.7}>
+                            <Text style={[s.rowLabel, { color: theme.colors.danger }]}>Delete Account</Text>
+                            <ChevronRight size={16} color={theme.colors.danger} />
+                        </TouchableOpacity>
+                    </View>
+                </View>
+
+                {/* Log out */}
+                <TouchableOpacity style={s.logOutButton} onPress={handleSignOut} activeOpacity={0.85}>
+                    <LogOut size={18} color={theme.colors.danger} />
+                    <Text style={s.logOutText}>Log out</Text>
+                </TouchableOpacity>
+
+                <View style={s.bottomSpacing} />
+            </ScrollView>
+
+            {/* Confirmation Modal */}
+            <Modal visible={confirmModalVisible} transparent animationType="fade" onRequestClose={() => setConfirmModalVisible(false)}>
+                <View style={s.modalOverlay}>
+                    <View style={s.confirmContent}>
+                        <View style={s.confirmHeader}>
+                            {confirmConfig?.isDestructive ? <Trash2 size={36} color={theme.colors.danger} /> : <Info size={36} color={theme.colors.accent} />}
+                            <Text style={s.confirmTitle}>{confirmConfig?.title}</Text>
+                            <Text style={s.confirmMessage}>{confirmConfig?.message}</Text>
+                        </View>
+                        <View style={s.confirmActions}>
+                            <TouchableOpacity style={s.confirmCancelButton} onPress={() => setConfirmModalVisible(false)}>
+                                <Text style={s.confirmCancelText}>Cancel</Text>
                             </TouchableOpacity>
-
-                            {/* WhatsApp */}
-                            <TouchableOpacity style={styles.vipChannelCard} onPress={() => { setShowVipSupportModal(false); handleOpenVipSupport('whatsapp'); }} activeOpacity={0.85}>
-                                <View style={[styles.vipChannelIcon, { backgroundColor: 'rgba(37, 211, 102, 0.15)' }]}>
-                                    <Heart size={28} color="#25D366" />
-                                </View>
-                                <View style={styles.vipChannelInfo}>
-                                    <Text style={styles.vipChannelName}>WhatsApp</Text>
-                                    <Text style={styles.vipChannelDesc}>Message us on WhatsApp anytime</Text>
-                                </View>
-                                <ChevronRight size={20} color="#25D366" />
-                            </TouchableOpacity>
-
-                            <TouchableOpacity style={[styles.profileModalDone, { marginTop: 10 }]} onPress={() => setShowVipSupportModal(false)}>
-                                <Text style={styles.profileModalDoneText}>Close</Text>
+                            <TouchableOpacity
+                                style={[s.confirmConfirmButton, confirmConfig?.isDestructive && { backgroundColor: theme.colors.danger }]}
+                                onPress={() => { setConfirmModalVisible(false); confirmConfig?.onConfirm(); }}
+                            >
+                                <Text style={s.confirmConfirmText}>{confirmConfig?.onConfirmText || (confirmConfig?.isDestructive ? 'Delete' : 'Confirm')}</Text>
                             </TouchableOpacity>
                         </View>
                     </View>
-                </Modal>
+                </View>
+            </Modal>
 
-                {/* Push Notification Prompt */}
-                {showPushPrompt && user && <PushNotificationPrompt userId={user.id} trigger="settings" />}
-            </LinearGradient>
+            {/* Sleep Profile Modal */}
+            <Modal visible={showSleepProfileModal} transparent animationType="slide" onRequestClose={() => setShowSleepProfileModal(false)}>
+                <View style={s.modalOverlay}>
+                    <View style={s.profileModalContent}>
+                        <View style={s.profileModalHeader}>
+                            <View style={s.profileModalHeaderLeft}>
+                                <View style={[s.profileIconWrapper, { backgroundColor: theme.colors.accentLight }]}>
+                                    <Moon size={18} color={theme.colors.accent} />
+                                </View>
+                                <Text style={s.profileModalTitle}>Sleep Profile</Text>
+                            </View>
+                            <TouchableOpacity onPress={() => setShowSleepProfileModal(false)} style={s.profileModalClose}>
+                                <X size={18} color={theme.colors.textTertiary} />
+                            </TouchableOpacity>
+                        </View>
+
+                        <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 480 }}>
+                            {onboardingProfile ? (
+                                <View>
+                                    {(onboardingProfile.age || onboardingProfile.gender) && (
+                                        <View style={s.profileSection}>
+                                            <Text style={s.profileSectionTitle}>Basic Info</Text>
+                                            <View style={s.profileRow}>
+                                                {onboardingProfile.age ? (
+                                                    <View style={s.profileChip}>
+                                                        <Text style={s.profileChipLabel}>Age</Text>
+                                                        <Text style={s.profileChipValue}>{onboardingProfile.age}</Text>
+                                                    </View>
+                                                ) : null}
+                                                {onboardingProfile.gender ? (
+                                                    <View style={s.profileChip}>
+                                                        <Text style={s.profileChipLabel}>Gender</Text>
+                                                        <Text style={s.profileChipValue}>{onboardingProfile.gender}</Text>
+                                                    </View>
+                                                ) : null}
+                                            </View>
+                                        </View>
+                                    )}
+
+                                    {(onboardingProfile.average_sleep_hours || onboardingProfile.sleep_pattern || onboardingProfile.wake_up_feeling) && (
+                                        <View style={s.profileSection}>
+                                            <Text style={s.profileSectionTitle}>Sleep Stats</Text>
+                                            <View style={s.profileRow}>
+                                                {onboardingProfile.average_sleep_hours ? (
+                                                    <View style={s.profileChip}>
+                                                        <Text style={s.profileChipLabel}>Avg Hours</Text>
+                                                        <Text style={s.profileChipValue}>{onboardingProfile.average_sleep_hours}h</Text>
+                                                    </View>
+                                                ) : null}
+                                                {onboardingProfile.sleep_pattern ? (
+                                                    <View style={s.profileChip}>
+                                                        <Text style={s.profileChipLabel}>Pattern</Text>
+                                                        <Text style={s.profileChipValue}>{onboardingProfile.sleep_pattern}</Text>
+                                                    </View>
+                                                ) : null}
+                                                {onboardingProfile.wake_up_feeling ? (
+                                                    <View style={s.profileChip}>
+                                                        <Text style={s.profileChipLabel}>Wake Feeling</Text>
+                                                        <Text style={s.profileChipValue}>{onboardingProfile.wake_up_feeling}</Text>
+                                                    </View>
+                                                ) : null}
+                                            </View>
+                                        </View>
+                                    )}
+
+                                    {(onboardingProfile.preferred_bed_time || onboardingProfile.preferred_wake_time) && (
+                                        <View style={s.profileSection}>
+                                            <Text style={s.profileSectionTitle}>Schedule</Text>
+                                            <View style={s.profileRow}>
+                                                {onboardingProfile.preferred_bed_time ? (
+                                                    <View style={s.profileChip}>
+                                                        <Text style={s.profileChipLabel}>Bedtime</Text>
+                                                        <Text style={s.profileChipValue}>{onboardingProfile.preferred_bed_time}</Text>
+                                                    </View>
+                                                ) : null}
+                                                {onboardingProfile.preferred_wake_time ? (
+                                                    <View style={s.profileChip}>
+                                                        <Text style={s.profileChipLabel}>Wake Time</Text>
+                                                        <Text style={s.profileChipValue}>{onboardingProfile.preferred_wake_time}</Text>
+                                                    </View>
+                                                ) : null}
+                                            </View>
+                                        </View>
+                                    )}
+
+                                    {onboardingProfile.sleep_goals && onboardingProfile.sleep_goals.length > 0 && (
+                                        <View style={s.profileSection}>
+                                            <Text style={s.profileSectionTitle}>Sleep Goals</Text>
+                                            <View style={s.profileTagList}>
+                                                {onboardingProfile.sleep_goals.map((goal, i) => (
+                                                    <View key={i} style={s.profileTag}>
+                                                        <Text style={s.profileTagText}>{goal}</Text>
+                                                    </View>
+                                                ))}
+                                            </View>
+                                        </View>
+                                    )}
+
+                                    {onboardingProfile.sleep_troubles && onboardingProfile.sleep_troubles.length > 0 && (
+                                        <View style={s.profileSection}>
+                                            <Text style={s.profileSectionTitle}>Sleep Troubles</Text>
+                                            <View style={s.profileTagList}>
+                                                {onboardingProfile.sleep_troubles.map((trouble, i) => (
+                                                    <View key={i} style={[s.profileTag, s.profileTagDanger]}>
+                                                        <Text style={[s.profileTagText, { color: theme.colors.danger }]}>{trouble}</Text>
+                                                    </View>
+                                                ))}
+                                            </View>
+                                        </View>
+                                    )}
+
+                                    {onboardingProfile.health_conditions && onboardingProfile.health_conditions.length > 0 && (
+                                        <View style={s.profileSection}>
+                                            <Text style={s.profileSectionTitle}>Health Notes</Text>
+                                            <View style={s.profileTagList}>
+                                                {onboardingProfile.health_conditions.map((cond, i) => (
+                                                    <View key={i} style={[s.profileTag, s.profileTagPremium]}>
+                                                        <Text style={[s.profileTagText, { color: theme.colors.premium }]}>{cond}</Text>
+                                                    </View>
+                                                ))}
+                                            </View>
+                                        </View>
+                                    )}
+
+                                    {onboardingProfile.onboarding_completed_at && (
+                                        <Text style={s.profileCompletedAt}>
+                                            Profile created {new Date(onboardingProfile.onboarding_completed_at).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}
+                                        </Text>
+                                    )}
+                                </View>
+                            ) : (
+                                <Text style={s.profileEmptyText}>No profile data found.</Text>
+                            )}
+                        </ScrollView>
+
+                        <TouchableOpacity style={s.profileModalDone} onPress={() => setShowSleepProfileModal(false)}>
+                            <Text style={s.profileModalDoneText}>Done</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* VIP Support Modal */}
+            <Modal visible={showVipSupportModal} transparent animationType="slide" onRequestClose={() => setShowVipSupportModal(false)}>
+                <View style={s.modalOverlay}>
+                    <View style={s.profileModalContent}>
+                        <View style={s.profileModalHeader}>
+                            <View style={s.profileModalHeaderLeft}>
+                                <View style={[s.profileIconWrapper, { backgroundColor: theme.colors.premiumBadgeBackground }]}>
+                                    <Star size={18} color={theme.colors.premium} fill={theme.colors.premium} />
+                                </View>
+                                <Text style={s.profileModalTitle}>VIP Support</Text>
+                            </View>
+                            <TouchableOpacity onPress={() => setShowVipSupportModal(false)} style={s.profileModalClose}>
+                                <X size={18} color={theme.colors.textTertiary} />
+                            </TouchableOpacity>
+                        </View>
+
+                        <Text style={s.vipModalSubtitle}>
+                            Reach us directly for priority assistance. We typically respond within a few hours.
+                        </Text>
+
+                        <TouchableOpacity style={s.vipChannelCard} onPress={() => { setShowVipSupportModal(false); handleOpenVipSupport('telegram'); }} activeOpacity={0.85}>
+                            <View style={[s.vipChannelIcon, { backgroundColor: theme.colors.accentLight }]}>
+                                <Headphones size={24} color={theme.colors.accent} />
+                            </View>
+                            <View style={s.vipChannelInfo}>
+                                <Text style={s.vipChannelName}>Telegram</Text>
+                                <Text style={s.vipChannelDesc}>Fastest response · Chat in real time</Text>
+                            </View>
+                            <ChevronRight size={18} color={theme.colors.textTertiary} />
+                        </TouchableOpacity>
+
+                        <TouchableOpacity style={s.vipChannelCard} onPress={() => { setShowVipSupportModal(false); handleOpenVipSupport('whatsapp'); }} activeOpacity={0.85}>
+                            <View style={[s.vipChannelIcon, { backgroundColor: theme.colors.highlightLight }]}>
+                                <Heart size={24} color={theme.colors.highlight} />
+                            </View>
+                            <View style={s.vipChannelInfo}>
+                                <Text style={s.vipChannelName}>WhatsApp</Text>
+                                <Text style={s.vipChannelDesc}>Message us on WhatsApp anytime</Text>
+                            </View>
+                            <ChevronRight size={18} color={theme.colors.textTertiary} />
+                        </TouchableOpacity>
+
+                        <TouchableOpacity style={s.profileModalDone} onPress={() => setShowVipSupportModal(false)}>
+                            <Text style={s.profileModalDoneText}>Close</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* Push Notification Prompt */}
+            {showPushPrompt && user && <PushNotificationPrompt userId={user.id} trigger="settings" />}
         </View>
     );
 };
 
-const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#0F111A' },
-    gradient: { flex: 1 },
+const styles = (theme: any) => StyleSheet.create({
+    container: { flex: 1 },
     content: { flex: 1, paddingHorizontal: 20 },
-    header: { marginBottom: 24 },
+    header: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        columnGap: 12,
+        marginBottom: 20,
+    },
     backButton: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: 'rgba(255, 255, 255, 0.05)',
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: theme.colors.card,
+        borderWidth: 1,
+        borderColor: theme.colors.cardBorder,
         justifyContent: 'center',
         alignItems: 'center',
-        borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.1)',
     },
-    title: { fontSize: 28, fontWeight: '700', color: '#FFFFFF', marginBottom: 4 },
-    subtitle: { fontSize: 16, color: '#94A3B8' },
-    card: {
-        backgroundColor: 'rgba(27, 29, 42, 0.7)',
-        borderRadius: 16,
+    title: {
+        fontFamily: theme.typography.fontFamily.displaySemibold,
+        fontSize: 24,
+        letterSpacing: -0.2,
+        color: theme.colors.textPrimary,
+    },
+
+    sleepProfileCard: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        columnGap: 12,
+        backgroundColor: theme.colors.card,
+        borderWidth: 1,
+        borderColor: theme.colors.cardBorder,
+        borderRadius: theme.borderRadius.card,
         padding: 16,
         marginBottom: 16,
-        borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.1)',
     },
-    premiumCardBorder: {
-        borderColor: '#FFD700',
-        shadowColor: '#FFD700',
-        shadowOffset: { width: 0, height: 0 },
-        shadowOpacity: 0.2,
-        shadowRadius: 10,
-        elevation: 5,
-    },
-    cardTitle: { fontSize: 18, fontWeight: '600', color: '#FFFFFF', marginLeft: 8 },
-    collapsibleHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingVertical: 4,
-    },
-    settingItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingVertical: 14,
-        borderBottomWidth: 1,
-        borderBottomColor: 'rgba(255, 255, 255, 0.05)',
-    },
-    settingInfo: { flexDirection: 'row', alignItems: 'center', flex: 1 },
-    settingLabel: { fontSize: 16, color: '#FFFFFF', marginLeft: 12 },
-    settingSubLabel: { fontSize: 13, color: '#94A3B8', marginLeft: 12, marginTop: 2 },
-    iconWrapper: {
-        width: 36,
-        height: 36,
-        borderRadius: 10,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    vipBadge: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: 'rgba(255, 215, 0, 0.15)',
-        paddingHorizontal: 8,
-        paddingVertical: 2,
-        borderRadius: 8,
-        marginLeft: 10,
-        borderWidth: 1,
-        borderColor: 'rgba(255, 215, 0, 0.3)',
-    },
-    vipBadgeText: { color: '#FFD700', fontSize: 10, fontWeight: '900' },
-    expiryLabel: { fontSize: 12, color: '#94A3B8', marginTop: 2, marginLeft: 12 },
-    notificationBanner: { marginBottom: 20, borderRadius: 16, overflow: 'hidden' },
-    notificationBannerGradient: { flexDirection: 'row', alignItems: 'center', padding: 16 },
-    notificationBannerText: { flex: 1 },
-    notificationBannerTitle: { fontSize: 16, fontWeight: '700', color: '#FFFFFF' },
-    notificationBannerSubtitle: { fontSize: 13, color: 'rgba(255,255,255,0.85)' },
-    signOutButton: { marginTop: 10 },
-    signOutCard: {
-        backgroundColor: 'rgba(255, 107, 107, 0.1)',
-        borderRadius: 16,
-        padding: 16,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderWidth: 1,
-        borderColor: 'rgba(255, 107, 107, 0.3)',
-    },
-    signOutText: { fontSize: 16, fontWeight: '600', color: '#FF6B6B', marginLeft: 8 },
-    bottomSpacing: { height: 40 },
-    fluidBackgroundContainer: { ...StyleSheet.absoluteFillObject, overflow: 'hidden' },
-    fluidCircle1: {
-        position: 'absolute',
-        width: 250,
-        height: 250,
-        borderRadius: 125,
-        backgroundColor: '#C9A227',
-        opacity: 0.1,
-        top: -50,
-        left: -50,
-    },
-    fluidCircle2: {
-        position: 'absolute',
-        width: 200,
-        height: 200,
-        borderRadius: 100,
-        backgroundColor: '#9B7ED9',
-        opacity: 0.1,
-        bottom: -50,
-        right: -50,
-    },
-    sleepProfileHeaderCompact: { marginBottom: 20, borderRadius: 16, overflow: 'hidden' },
-    sleepProfileContentCompact: {
-        padding: 16,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        backgroundColor: 'rgba(27, 29, 42, 0.4)',
-        borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.05)',
-    },
-    sleepProfileTopCompact: { flexDirection: 'row', alignItems: 'center', flex: 1 },
     profileIconWrapper: {
         width: 44,
         height: 44,
         borderRadius: 12,
-        backgroundColor: 'rgba(255, 255, 255, 0.05)',
         justifyContent: 'center',
         alignItems: 'center',
     },
-    sleepProfileTitle: { fontSize: 20, fontWeight: '700', color: '#FFFFFF' },
-    sleepProfileSubtitleCompact: { fontSize: 13, color: '#94A3B8', marginTop: 2 },
-    activeProfileBadge: {
+    sleepProfileTextBlock: { flex: 1, rowGap: 2 },
+    sleepProfileTitleRow: { flexDirection: 'row', alignItems: 'center', columnGap: 8 },
+    sleepProfileTitle: {
+        fontFamily: theme.typography.fontFamily.bodyBold,
+        fontSize: 16,
+        color: theme.colors.textPrimary,
+    },
+    sleepProfileSubtitle: {
+        fontFamily: theme.typography.fontFamily.body,
+        fontSize: 13,
+        color: theme.colors.textTertiary,
+    },
+    activeBadge: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: 'rgba(0, 255, 209, 0.1)',
+        backgroundColor: theme.colors.accentLight,
         paddingHorizontal: 8,
         paddingVertical: 2,
         borderRadius: 8,
-        marginLeft: 8,
+        columnGap: 4,
     },
-    activeDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#00FFD1', marginRight: 4 },
-    activeText: { color: '#00FFD1', fontSize: 10, fontWeight: '700', textTransform: 'uppercase' },
-    profileAction: { flexDirection: 'row', alignItems: 'center' },
-    profileActionText: { color: '#00FFD1', fontSize: 14, fontWeight: '600' },
+    activeDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: theme.colors.accent },
+    activeBadgeText: {
+        fontFamily: theme.typography.fontFamily.bodyBold,
+        color: theme.colors.accent,
+        fontSize: 10,
+        textTransform: 'uppercase',
+    },
+
+    notificationBanner: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        columnGap: 12,
+        backgroundColor: theme.colors.card,
+        borderWidth: 1,
+        borderColor: theme.colors.accentBorder,
+        borderRadius: theme.borderRadius.card,
+        padding: 14,
+        marginBottom: 16,
+    },
+    notificationBannerIcon: {
+        width: 40,
+        height: 40,
+        borderRadius: 12,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    notificationBannerText: { flex: 1, rowGap: 2 },
+    notificationBannerTitle: {
+        fontFamily: theme.typography.fontFamily.bodyBold,
+        fontSize: 15,
+        color: theme.colors.textPrimary,
+    },
+    notificationBannerSubtitle: {
+        fontFamily: theme.typography.fontFamily.body,
+        fontSize: 12,
+        color: theme.colors.textTertiary,
+    },
+
+    sectionBlock: { rowGap: 8, marginBottom: 20 },
+    sectionLabelRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        columnGap: 8,
+    },
+    sectionLabel: {
+        fontFamily: theme.typography.fontFamily.bodyBold,
+        fontSize: 13,
+        letterSpacing: 1,
+        textTransform: 'uppercase',
+        color: theme.colors.textTertiary,
+    },
+    vipBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: theme.colors.premiumBadgeBackground,
+        borderWidth: 1,
+        borderColor: theme.colors.premiumBadgeBorder,
+        paddingHorizontal: 8,
+        paddingVertical: 2,
+        borderRadius: 8,
+        columnGap: 3,
+    },
+    vipBadgeText: {
+        fontFamily: theme.typography.fontFamily.bodyBold,
+        color: theme.colors.premiumBadgeText,
+        fontSize: 10,
+    },
+
+    lookCard: {
+        backgroundColor: theme.colors.card,
+        borderWidth: 1,
+        borderColor: theme.colors.cardBorder,
+        borderRadius: theme.borderRadius.card,
+        padding: 14,
+        rowGap: 12,
+    },
+    themeRadioGroup: {
+        flexDirection: 'row',
+        columnGap: 6,
+    },
+    themeRadioButton: {
+        flex: 1,
+        height: 48,
+        borderRadius: 14,
+        borderWidth: 1,
+        borderColor: theme.colors.cardBorder,
+        backgroundColor: theme.colors.backgroundTertiary,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    themeRadioButtonSelected: {
+        borderWidth: 1.5,
+        borderColor: theme.colors.accent,
+        backgroundColor: theme.colors.navActiveBackground,
+    },
+    themeRadioLabel: {
+        fontFamily: theme.typography.fontFamily.bodySemibold,
+        fontSize: 13,
+        color: theme.colors.textPrimary,
+    },
+    themeRadioLabelSelected: {
+        fontFamily: theme.typography.fontFamily.bodyBold,
+    },
+    lookHint: {
+        fontFamily: theme.typography.fontFamily.body,
+        fontSize: 14,
+        color: theme.colors.textSecondary,
+    },
+
+    groupCard: {
+        backgroundColor: theme.colors.card,
+        borderWidth: 1,
+        borderColor: theme.colors.cardBorder,
+        borderRadius: theme.borderRadius.card,
+        paddingHorizontal: 16,
+    },
+    row: {
+        minHeight: 54,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingVertical: 12,
+    },
+    rowLast: {},
+    rowDivider: {
+        height: 1,
+        backgroundColor: theme.colors.cardBorder,
+    },
+    rowLabel: {
+        fontFamily: theme.typography.fontFamily.bodySemibold,
+        fontSize: 15,
+        color: theme.colors.textPrimary,
+    },
+    rowValueGroup: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        columnGap: 6,
+    },
+    rowValue: {
+        fontFamily: theme.typography.fontFamily.body,
+        fontSize: 14,
+        color: theme.colors.textTertiary,
+    },
+
+    logOutButton: {
+        marginTop: 4,
+        height: 50,
+        borderRadius: 18,
+        borderWidth: 1,
+        borderColor: theme.colors.accentBorder,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        columnGap: 8,
+    },
+    logOutText: {
+        fontFamily: theme.typography.fontFamily.bodyBold,
+        fontSize: 16,
+        color: theme.colors.danger,
+    },
+    bottomSpacing: { height: 40 },
+
     modalOverlay: {
         flex: 1,
-        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+        backgroundColor: 'rgba(0, 0, 0, 0.6)',
         justifyContent: 'center',
         alignItems: 'center',
         padding: 24,
@@ -1191,41 +1168,58 @@ const styles = StyleSheet.create({
         width: '100%',
         borderRadius: 24,
         padding: 24,
-        backgroundColor: 'rgba(27, 29, 42, 0.9)',
+        backgroundColor: theme.colors.card,
         borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.1)',
-        overflow: 'hidden',
+        borderColor: theme.colors.cardBorder,
     },
-    confirmHeader: { alignItems: 'center', marginBottom: 24 },
-    confirmTitle: { fontSize: 22, fontWeight: '700', color: '#FFFFFF', marginTop: 16, marginBottom: 8, textAlign: 'center' },
-    confirmMessage: { fontSize: 16, color: '#94A3B8', textAlign: 'center', lineHeight: 22 },
-    confirmActions: { flexDirection: 'row' },
+    confirmHeader: { alignItems: 'center', marginBottom: 24, rowGap: 12 },
+    confirmTitle: {
+        fontFamily: theme.typography.fontFamily.displaySemibold,
+        fontSize: 20,
+        color: theme.colors.textPrimary,
+        textAlign: 'center',
+    },
+    confirmMessage: {
+        fontFamily: theme.typography.fontFamily.body,
+        fontSize: 15,
+        color: theme.colors.textSecondary,
+        textAlign: 'center',
+        lineHeight: 22,
+    },
+    confirmActions: { flexDirection: 'row', columnGap: 12 },
     confirmCancelButton: {
         flex: 1,
         paddingVertical: 14,
-        borderRadius: 12,
+        borderRadius: 14,
         alignItems: 'center',
-        backgroundColor: 'rgba(255, 255, 255, 0.05)',
+        backgroundColor: theme.colors.backgroundTertiary,
     },
-    confirmCancelText: { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
+    confirmCancelText: {
+        fontFamily: theme.typography.fontFamily.bodySemibold,
+        color: theme.colors.textPrimary,
+        fontSize: 15,
+    },
     confirmConfirmButton: {
         flex: 1,
         paddingVertical: 14,
-        borderRadius: 12,
+        borderRadius: 14,
         alignItems: 'center',
-        backgroundColor: '#C9A227',
+        backgroundColor: theme.colors.accent,
     },
-    confirmConfirmText: { color: '#000000', fontSize: 16, fontWeight: '700' },
+    confirmConfirmText: {
+        fontFamily: theme.typography.fontFamily.bodyBold,
+        color: theme.colors.background,
+        fontSize: 15,
+    },
 
-    // Sleep Profile Modal
+    // Sleep Profile / VIP Support modal (shared shell)
     profileModalContent: {
         width: '100%',
         borderRadius: 24,
         padding: 24,
-        backgroundColor: 'rgba(27, 29, 42, 0.97)',
+        backgroundColor: theme.colors.card,
         borderWidth: 1,
-        borderColor: 'rgba(0, 255, 209, 0.2)',
-        overflow: 'hidden',
+        borderColor: theme.colors.cardBorder,
     },
     profileModalHeader: {
         flexDirection: 'row',
@@ -1233,145 +1227,135 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         marginBottom: 20,
     },
+    profileModalHeaderLeft: { flexDirection: 'row', alignItems: 'center', columnGap: 10 },
     profileModalTitle: {
-        fontSize: 20,
-        fontWeight: '700',
-        color: '#FFFFFF',
+        fontFamily: theme.typography.fontFamily.displaySemibold,
+        fontSize: 18,
+        color: theme.colors.textPrimary,
     },
     profileModalClose: {
         width: 34,
         height: 34,
         borderRadius: 17,
-        backgroundColor: 'rgba(255, 255, 255, 0.06)',
+        backgroundColor: theme.colors.backgroundTertiary,
         justifyContent: 'center',
         alignItems: 'center',
     },
-    profileSection: {
-        marginBottom: 18,
-    },
+    profileSection: { marginBottom: 18, rowGap: 10 },
     profileSectionTitle: {
+        fontFamily: theme.typography.fontFamily.bodyBold,
         fontSize: 12,
-        fontWeight: '700',
-        color: '#00FFD1',
+        color: theme.colors.accent,
         textTransform: 'uppercase',
         letterSpacing: 1,
-        marginBottom: 10,
     },
-    profileRow: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-    },
+    profileRow: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 10, rowGap: 8 },
     profileChip: {
-        backgroundColor: 'rgba(255, 255, 255, 0.06)',
+        backgroundColor: theme.colors.backgroundTertiary,
         borderRadius: 10,
         paddingHorizontal: 14,
         paddingVertical: 8,
-        marginRight: 10,
-        marginBottom: 8,
         borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.08)',
+        borderColor: theme.colors.cardBorder,
         alignItems: 'center',
     },
     profileChipLabel: {
+        fontFamily: theme.typography.fontFamily.bodySemibold,
         fontSize: 10,
-        color: '#94A3B8',
-        fontWeight: '600',
+        color: theme.colors.textTertiary,
         textTransform: 'uppercase',
         marginBottom: 2,
     },
     profileChipValue: {
+        fontFamily: theme.typography.fontFamily.bodySemibold,
         fontSize: 15,
-        color: '#FFFFFF',
-        fontWeight: '600',
+        color: theme.colors.textPrimary,
     },
-    profileTagList: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-    },
+    profileTagList: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 8, rowGap: 8 },
     profileTag: {
-        backgroundColor: 'rgba(0, 255, 209, 0.08)',
+        backgroundColor: theme.colors.accentLight,
         borderRadius: 8,
         paddingHorizontal: 12,
         paddingVertical: 6,
-        marginRight: 8,
-        marginBottom: 8,
         borderWidth: 1,
-        borderColor: 'rgba(0, 255, 209, 0.2)',
+        borderColor: theme.colors.accentBorder,
+    },
+    profileTagDanger: {
+        backgroundColor: theme.colors.cardOverlay,
+        borderColor: theme.colors.danger,
+    },
+    profileTagPremium: {
+        backgroundColor: theme.colors.premiumBadgeBackground,
+        borderColor: theme.colors.premiumBadgeBorder,
     },
     profileTagText: {
+        fontFamily: theme.typography.fontFamily.bodyMedium,
         fontSize: 13,
-        color: '#00FFD1',
-        fontWeight: '500',
+        color: theme.colors.accent,
     },
     profileCompletedAt: {
+        fontFamily: theme.typography.fontFamily.body,
         fontSize: 12,
-        color: '#4A5568',
+        color: theme.colors.textTertiary,
         textAlign: 'center',
         marginTop: 12,
-        marginBottom: 4,
+    },
+    profileEmptyText: {
+        fontFamily: theme.typography.fontFamily.body,
+        color: theme.colors.textTertiary,
+        textAlign: 'center',
+        marginTop: 24,
     },
     profileModalDone: {
         marginTop: 20,
-        backgroundColor: 'rgba(0, 255, 209, 0.1)',
-        borderRadius: 12,
+        backgroundColor: theme.colors.accentLight,
+        borderRadius: 14,
         paddingVertical: 14,
         alignItems: 'center',
         borderWidth: 1,
-        borderColor: 'rgba(0, 255, 209, 0.3)',
+        borderColor: theme.colors.accentBorder,
     },
     profileModalDoneText: {
-        fontSize: 16,
-        fontWeight: '700',
-        color: '#00FFD1',
+        fontFamily: theme.typography.fontFamily.bodyBold,
+        fontSize: 15,
+        color: theme.colors.accent,
     },
 
-    // VIP Support Modal
-    vipModalContent: {
-        width: '100%',
-        borderRadius: 24,
-        padding: 24,
-        backgroundColor: 'rgba(20, 22, 35, 0.98)',
-        borderWidth: 1,
-        borderColor: 'rgba(201, 162, 39, 0.25)',
-        overflow: 'hidden',
-    },
     vipModalSubtitle: {
+        fontFamily: theme.typography.fontFamily.body,
         fontSize: 14,
-        color: '#94A3B8',
+        color: theme.colors.textSecondary,
         lineHeight: 20,
-        marginBottom: 20,
-        textAlign: 'center',
+        marginBottom: 18,
     },
     vipChannelCard: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: 'rgba(255, 255, 255, 0.04)',
+        columnGap: 14,
+        backgroundColor: theme.colors.backgroundTertiary,
         borderRadius: 16,
-        padding: 16,
+        padding: 14,
         marginBottom: 12,
         borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.08)',
+        borderColor: theme.colors.cardBorder,
     },
     vipChannelIcon: {
-        width: 52,
-        height: 52,
+        width: 48,
+        height: 48,
         borderRadius: 14,
         justifyContent: 'center',
         alignItems: 'center',
-        marginRight: 14,
     },
-    vipChannelInfo: {
-        flex: 1,
-    },
+    vipChannelInfo: { flex: 1, rowGap: 2 },
     vipChannelName: {
-        fontSize: 17,
-        fontWeight: '700',
-        color: '#FFFFFF',
-        marginBottom: 3,
+        fontFamily: theme.typography.fontFamily.bodyBold,
+        fontSize: 16,
+        color: theme.colors.textPrimary,
     },
     vipChannelDesc: {
+        fontFamily: theme.typography.fontFamily.body,
         fontSize: 13,
-        color: '#94A3B8',
+        color: theme.colors.textTertiary,
     },
 });
 
