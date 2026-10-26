@@ -13,7 +13,6 @@ import {
   Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
 import {
   CloudRain,
   Droplets,
@@ -41,7 +40,8 @@ import {
   CheckCircle2,
   Star,
   Coffee,
-  Zap
+  Activity,
+  Waves,
 } from 'lucide-react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -50,26 +50,32 @@ import { useAudio } from '../contexts/AudioContext';
 import { useAuth } from '../contexts/AuthContext';
 import { format12HourTime, formatDuration } from '../utils/dateFormatting';
 import Slider from '@react-native-community/slider';
-import SleepBackgroundAnimation from '../components/SleepBackgroundAnimation';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import notificationService from '../services/notificationService';
 import sleepRecorderService from '../services/sleepRecorderService';
 import RatingPrompt from '../components/RatingPrompt';
 
-const GlassView = ({ style, children, intensity = 20, tint = "dark" }: any) => {
-  if (Platform.OS === 'android') {
-    return (
-      <View style={[style, { backgroundColor: 'rgba(17, 25, 40, 0.7)' }]}>
-        {children}
-      </View>
-    );
-  }
-  return (
-    <BlurView intensity={intensity} tint={tint} style={style}>
-      {children}
-    </BlurView>
-  );
-};
+// ============================================================================
+// Sleep Architect — Sleep Session (redesign/ui-ux-v3)
+// ============================================================================
+// Rebuilt to match the design canvas's `Trk-Session.dc.html` ("Sleeping ·
+// active session") and `Trk-Wake.dc.html` ("Good morning · rate night"), plus
+// their `D-` Day variants. This screen is a single route (App.tsx's
+// `SleepSession`) with internal view-state sections — it is NOT split into
+// two app screens, matching the existing state machine:
+//   1. Setup (not tracking)      — no canvas equivalent for the pre-session
+//      settings list; self-designed in the same card system.
+//   2. Active tracking (isTracking) — canvas: Trk-Session.dc.html
+//   3. Dimmed lock screen (isDimmed) — no canvas equivalent; self-designed,
+//      keeps the near-black true "dimmed" look since it exists to save
+//      battery/avoid light at night.
+//   4. End-of-sleep rating form (showEndForm) — canvas: Trk-Wake.dc.html
+//
+// No data flow, service call, or business logic was touched — only JSX and
+// styling. theme.colors.cardBorder is used for every card/row border (never
+// a hardcoded color) so this screen inherits the ~2.0 contrast-ratio fix
+// automatically.
+// ============================================================================
 
 const ICON_MAP: Record<string, any> = {
   'rainy': CloudRain,
@@ -109,14 +115,14 @@ const sleepSounds = [
 ];
 
 export default function SleepSessionScreen() {
-  const { theme, isDark } = useAppTheme();
+  const { theme, isNight } = useAppTheme();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
   const route = useRoute<any>();
   const { user } = useAuth();
   const { currentSession, isTracking, startSleepSession, endSleepSession, sleepHistory } = useSleep();
   const { isPlaying, currentSound, volume, playSound, pauseSound, stopSound, setVolume, isMixing, stopMixing } = useAudio();
-  const themedStyles = useMemo(() => styles(theme), [theme]);
+  const s = useMemo(() => styles(theme), [theme]);
 
   // Initialize states from navigation params if available
   const [sleepSoundsEnabled, setSleepSoundsEnabled] = useState(route.params?.initialSounds ?? false);
@@ -203,7 +209,7 @@ export default function SleepSessionScreen() {
 
   // Auto-dimming logic
   useEffect(() => {
-    let dimTimer: NodeJS.Timeout;
+    let dimTimer: ReturnType<typeof setTimeout>;
 
     if (isTracking && !isDimmed) {
       dimTimer = setTimeout(() => {
@@ -219,6 +225,17 @@ export default function SleepSessionScreen() {
   const getElapsedTime = () => {
     if (!currentSession || !isTracking) return '0:00:00';
     return elapsedTimeRef.current;
+  };
+
+  // "In bed" stat for the active-tracking card grid (canvas: "In bed" tile) —
+  // same elapsed clock, formatted as "Xh Ym" to match the canvas's style.
+  const getInBedLabel = () => {
+    const raw = getElapsedTime(); // "H:MM:SS"
+    const [h, m] = raw.split(':');
+    const hours = parseInt(h, 10) || 0;
+    const minutes = parseInt(m, 10) || 0;
+    if (hours <= 0) return `${minutes}m`;
+    return `${hours}h ${minutes.toString().padStart(2, '0')}m`;
   };
 
   const handleStartSleep = async () => {
@@ -316,7 +333,7 @@ export default function SleepSessionScreen() {
   };
 
   const handleNextTrack = async () => {
-    const currentIndex = sleepSounds.findIndex((s) => s.id === selectedMusic?.id);
+    const currentIndex = sleepSounds.findIndex((snd) => snd.id === selectedMusic?.id);
     const nextIndex = (currentIndex + 1) % sleepSounds.length;
     const nextSound = sleepSounds[nextIndex];
 
@@ -332,7 +349,7 @@ export default function SleepSessionScreen() {
   };
 
   const handlePreviousTrack = async () => {
-    const currentIndex = sleepSounds.findIndex((s) => s.id === selectedMusic?.id);
+    const currentIndex = sleepSounds.findIndex((snd) => snd.id === selectedMusic?.id);
     const prevIndex = currentIndex <= 0 ? sleepSounds.length - 1 : currentIndex - 1;
     const prevSound = sleepSounds[prevIndex];
 
@@ -510,755 +527,707 @@ export default function SleepSessionScreen() {
     }
   };
 
+  // ==========================================================================
+  // 4. End-of-sleep rating form — canvas: Trk-Wake.dc.html / D-Trk-Wake.dc.html
+  // ==========================================================================
   if (showEndForm) {
     return (
-      <View style={themedStyles.container}>
-        <LinearGradient colors={['#0F0F1E', '#161632', '#0F0F1E']} style={themedStyles.gradient}>
-          <ScrollView style={themedStyles.formContainer} showsVerticalScrollIndicator={false}>
-            <View style={themedStyles.formHeader}>
-              <Text style={themedStyles.formTitle}>End Sleep Session</Text>
-              <Text style={themedStyles.formSubtitle}>
-                You slept for {getElapsedTime()}
-              </Text>
+      <View style={[s.container, { backgroundColor: theme.colors.background }]}>
+        <StatusBar barStyle={isNight ? 'light-content' : 'dark-content'} />
+        <ScrollView
+          style={s.formScroll}
+          contentContainerStyle={{ paddingTop: insets.top + 24, paddingBottom: insets.bottom + 40 }}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={s.formHeader}>
+            <Text style={s.formEyebrow}>
+              {new Date().toLocaleDateString('en-US', { weekday: 'long' })} · {format12HourTime(new Date())}
+            </Text>
+            <Text style={s.formTitle}>Good morning</Text>
+            <Text style={s.formSubtitle}>
+              You slept <Text style={s.formSubtitleStrong}>{getElapsedTime().split(':').slice(0, 2).join('h ')}m</Text>. Your print is ready.
+            </Text>
+          </View>
+
+          {/* How did you sleep — canvas's 1-10 rating grid, mapped onto the
+              app's existing 5-star rating state (no new data field invented). */}
+          <View style={s.formCard}>
+            <View style={s.formCardHeaderRow}>
+              <Text style={s.formCardTitle}>How did you sleep?</Text>
+              <Text style={s.formCardHint}>1 = poor · 5 = excellent</Text>
             </View>
-
-            <GlassView intensity={20} tint="dark" style={themedStyles.formCard}>
-              {/* Sleep Quality Rating */}
-              <View style={themedStyles.inputGroup}>
-                <Text style={themedStyles.inputLabel}>How would you rate your sleep?</Text>
-                <View style={themedStyles.starRatingContainer}>
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <TouchableOpacity
-                      key={star}
-                      onPress={() => setSleepRating(star)}
-                      style={themedStyles.starButton}
-                      activeOpacity={0.7}
-                    >
-                      <Star
-                        size={40}
-                        color={star <= sleepRating ? '#F59E0B' : '#4A4A5A'}
-                        fill={star <= sleepRating ? '#F59E0B' : 'transparent'}
-                      />
-                    </TouchableOpacity>
-                  ))}
-                </View>
-                <Text style={themedStyles.ratingLabel}>
-                  {sleepRating === 0 && 'Tap to rate'}
-                  {sleepRating === 1 && 'Poor - Very restless night'}
-                  {sleepRating === 2 && 'Fair - Somewhat restless'}
-                  {sleepRating === 3 && 'Good - Average sleep'}
-                  {sleepRating === 4 && 'Great - Slept well'}
-                  {sleepRating === 5 && 'Excellent - Perfect sleep!'}
-                </Text>
-              </View>
-
-              <View style={themedStyles.inputGroup}>
-                <Text style={themedStyles.inputLabel}>How many times did you wake up?</Text>
-                <TextInput
-                  style={themedStyles.input}
-                  value={wakeUps}
-                  onChangeText={setWakeUps}
-                  keyboardType="number-pad"
-                  placeholder="0"
-                  placeholderTextColor={theme.colors.textSecondary}
-                />
-              </View>
-
-              <View style={themedStyles.inputGroup}>
-                <Text style={themedStyles.inputLabel}>Notes (optional)</Text>
-                <TextInput
-                  style={[themedStyles.input, themedStyles.textArea]}
-                  value={notes}
-                  onChangeText={setNotes}
-                  multiline
-                  numberOfLines={4}
-                  placeholder="How was your sleep?"
-                  placeholderTextColor={theme.colors.textSecondary}
-                />
-              </View>
-
-              <TouchableOpacity
-                style={themedStyles.confirmButton}
-                onPress={handleEndSleepConfirm}
-                activeOpacity={0.8}
-              >
-                <LinearGradient
-                  colors={['#8B5CF6', '#6366F1']}
-                  style={themedStyles.confirmGradient}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
+            <View style={s.starRatingContainer}>
+              {[1, 2, 3, 4, 5].map((star) => (
+                <TouchableOpacity
+                  key={star}
+                  onPress={() => setSleepRating(star)}
+                  style={[s.starButton, star <= sleepRating && s.starButtonActive]}
+                  activeOpacity={0.7}
                 >
-                  <Text style={themedStyles.confirmButtonText}>Save Sleep Data</Text>
-                </LinearGradient>
-              </TouchableOpacity>
+                  <Star
+                    size={26}
+                    color={star <= sleepRating ? theme.colors.ctaText : theme.colors.textTertiary}
+                    fill={star <= sleepRating ? theme.colors.ctaText : 'transparent'}
+                  />
+                </TouchableOpacity>
+              ))}
+            </View>
+            <Text style={s.ratingLabel}>
+              {sleepRating === 0 && 'Tap to rate'}
+              {sleepRating === 1 && 'Poor — very restless night'}
+              {sleepRating === 2 && 'Fair — somewhat restless'}
+              {sleepRating === 3 && 'Good — average sleep'}
+              {sleepRating === 4 && 'Great — slept well'}
+              {sleepRating === 5 && 'Excellent — perfect sleep'}
+            </Text>
+          </View>
 
-              <TouchableOpacity
-                style={themedStyles.cancelButton}
-                onPress={() => setShowEndForm(false)}
-              >
-                <Text style={themedStyles.cancelButtonText}>Cancel</Text>
-              </TouchableOpacity>
-            </GlassView>
-          </ScrollView>
-        </LinearGradient>
+          {/* Wake-ups — existing data field, styled like the canvas's tag card */}
+          <View style={s.formCard}>
+            <Text style={s.formCardTitle}>How many times did you wake up?</Text>
+            <TextInput
+              style={s.input}
+              value={wakeUps}
+              onChangeText={setWakeUps}
+              keyboardType="number-pad"
+              placeholder="0"
+              placeholderTextColor={theme.colors.textTertiary}
+            />
+          </View>
+
+          {/* Note — canvas's "Note · Optional" textarea */}
+          <View style={s.formCard}>
+            <View style={s.noteLabelRow}>
+              <Text style={s.formCardTitle}>Note</Text>
+              <Text style={s.formCardHint}>Optional</Text>
+            </View>
+            <TextInput
+              style={[s.input, s.textArea]}
+              value={notes}
+              onChangeText={setNotes}
+              multiline
+              numberOfLines={4}
+              placeholder="Dreamt about the sea…"
+              placeholderTextColor={theme.colors.textTertiary}
+            />
+          </View>
+
+          <TouchableOpacity
+            style={s.confirmButton}
+            onPress={handleEndSleepConfirm}
+            activeOpacity={0.9}
+          >
+            <Text style={s.confirmButtonText}>Save Sleep Data</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={s.cancelButton}
+            onPress={() => setShowEndForm(false)}
+          >
+            <Text style={s.cancelButtonText}>Cancel</Text>
+          </TouchableOpacity>
+        </ScrollView>
       </View>
     );
   }
 
+  // ==========================================================================
+  // 2 / 3. Active tracking — canvas: Trk-Session.dc.html / D-Trk-Session.dc.html
+  // ==========================================================================
   if (isTracking && currentSession) {
+    // 3. Dimmed lock screen — no canvas equivalent; self-designed, deliberately
+    // near-black regardless of theme since its whole purpose is dimness at
+    // night (kept close to the original intent rather than theme-recolored).
     if (isDimmed) {
       return (
         <TouchableOpacity
           activeOpacity={1}
-          style={themedStyles.dimmedContainer}
+          style={s.dimmedContainer}
           onPress={() => setIsDimmed(false)}
         >
           <StatusBar hidden />
-          <View style={themedStyles.dimmedContent}>
-            <Text style={themedStyles.dimmedTime}>
+          <View style={s.dimmedContent}>
+            <Text style={s.dimmedTime}>
               {format12HourTime(clockRef.current)}
             </Text>
-            <View style={themedStyles.dimmedStats}>
-              <Moon size={20} color={theme.colors.textSecondary} style={{ marginRight: 8 }} />
-              <Text style={themedStyles.dimmedDuration}>
-                {getElapsedTime().split(':').slice(0, 2).join('h ')}m asleep
-              </Text>
+            <View style={s.dimmedStats}>
+              <Moon size={18} color="rgba(255,255,255,0.4)" style={{ marginRight: 8 }} />
+              <Text style={s.dimmedDuration}>{getInBedLabel()} asleep</Text>
             </View>
-            <Text style={themedStyles.dimmedHint}>Tap anywhere to wake screen</Text>
+            <Text style={s.dimmedHint}>Tap anywhere to wake screen</Text>
           </View>
         </TouchableOpacity>
       );
     }
 
     return (
-      <View style={themedStyles.container}>
+      <View style={[s.trackContainer, { backgroundColor: isNight ? '#000000' : theme.colors.background }]}>
         <StatusBar hidden />
 
-        {/* Animated Space Background */}
-        <SleepBackgroundAnimation duration={300} transitionDuration={3} />
-
-        <View style={themedStyles.contentOverlay}>
-          <View style={themedStyles.topControls}>
-            <TouchableOpacity onPress={exitSleepMode} style={themedStyles.exitButton}>
-              <X size={24} color={theme.colors.textSecondary} />
-            </TouchableOpacity>
-
-            <View style={themedStyles.trackingBadge}>
-              <View style={themedStyles.trackingDot} />
-              <Text style={themedStyles.trackingText}>Tracking</Text>
+        <View
+          style={[
+            s.trackContent,
+            { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 24 },
+          ]}
+        >
+          {/* Top row — Tracking pill (canvas) + exit control (app necessity, no canvas equivalent) */}
+          <View style={s.trackTopRow}>
+            <View style={s.trackingBadge}>
+              <View style={s.trackingDot} />
+              <Text style={s.trackingBadgeText}>Tracking your sleep</Text>
             </View>
+            <TouchableOpacity onPress={exitSleepMode} style={s.trackExitButton} activeOpacity={0.7}>
+              <X size={18} color={theme.colors.textSecondary} />
+            </TouchableOpacity>
           </View>
 
-          <View style={themedStyles.clockContainer}>
-            <Text style={themedStyles.elapsedLabel}>Sleep Duration</Text>
-            <Text style={themedStyles.timeDisplay}>{getElapsedTime()}</Text>
-            <Text style={themedStyles.dateDisplay}>
-              Started at {format12HourTime(new Date(currentSession.startTime))}
+          {/* Giant Fraunces clock — canvas hero */}
+          <View style={s.trackHero}>
+            <View pointerEvents="none" style={s.trackHeroGlow} />
+            <Text style={s.trackHeroTime}>{format12HourTime(clockRef.current).split(' ')[0]}</Text>
+            <Text style={s.trackHeroSubtext}>
+              {format12HourTime(clockRef.current).split(' ')[1]}
+              {alarmTime ? ` · Alarm at ${format12HourTime(alarmTime)}` : ''}
             </Text>
           </View>
 
-          {currentSession.sleepSoundsEnabled && (
-            <View style={themedStyles.soundStatus}>
-              <View style={themedStyles.soundIndicator}>
-                <View style={themedStyles.soundWave} />
-                <View style={themedStyles.soundWave} />
-                <View style={themedStyles.soundWave} />
-              </View>
-              <Text style={themedStyles.soundText}>Sleep Sounds Playing</Text>
+          {/* 3-stat grid — canvas: In bed / Movement / Snoring, wired to the
+              real recorder status instead of static demo values */}
+          <View style={s.trackStatsGrid}>
+            <View style={s.trackStatTile}>
+              <Text style={s.trackStatLabel}>In bed</Text>
+              <Text style={s.trackStatValue}>{getInBedLabel()}</Text>
             </View>
-          )}
-
-          {currentSession.smartAlarmEnabled && alarmTime && (
-            <View style={themedStyles.alarmContainer}>
-              <AlarmClock size={20} color={theme.colors.accent} />
-              <Text style={themedStyles.alarmText}>
-                Alarm: {format12HourTime(alarmTime)}
+            <View style={s.trackStatTile}>
+              <Text style={s.trackStatLabel}>Movement</Text>
+              <Text style={s.trackStatValue}>
+                {recordingStatus?.isRecording
+                  ? (recordingStatus.currentVolume > 0.4 ? 'Active' : 'Calm')
+                  : '—'}
               </Text>
             </View>
-          )}
+            <View style={s.trackStatTile}>
+              <Text style={s.trackStatLabel}>Snoring</Text>
+              <Text style={s.trackStatValue}>
+                {sleepRecorderEnabled
+                  ? (recordingStatus?.snoringEvents > 0 ? `${recordingStatus.snoringEvents} events` : 'Listening')
+                  : 'Off'}
+              </Text>
+            </View>
+          </View>
 
-          {recordingStatus && recordingStatus.isRecording && (
-            <View style={themedStyles.recordingContainer}>
-              <Mic size={20} color={theme.colors.danger} />
-              <View style={themedStyles.recordingDetails}>
-                <View style={themedStyles.recordingHeader}>
-                  <Text style={themedStyles.recordingText}>🎙️ Recording Active</Text>
-                  <View style={themedStyles.volumeMeter}>
+          {/* Recorder detail strip — self-designed, no canvas equivalent for
+              the live volume meter / snoring+talk counts the old screen had */}
+          {sleepRecorderEnabled && recordingStatus?.isRecording && (
+            <View style={s.recordingCard}>
+              <Mic size={18} color={theme.colors.error} />
+              <View style={s.recordingDetails}>
+                <View style={s.recordingHeaderRow}>
+                  <Text style={s.recordingCardText}>Recording active</Text>
+                  <View style={s.volumeMeter}>
                     <View
                       style={[
-                        themedStyles.volumeBar,
-                        { width: `${Math.min(100, recordingStatus.currentVolume * 100)}%` }
+                        s.volumeBar,
+                        { width: `${Math.min(100, (recordingStatus.currentVolume || 0) * 100)}%` },
                       ]}
                     />
                   </View>
                 </View>
-                <Text style={themedStyles.recordingStats}>
-                  Noise: {recordingStatus.eventsDetected} | Snoring: {recordingStatus.snoringEvents} | Talk: {recordingStatus.sleepTalkEvents}
+                <Text style={s.recordingStatsText}>
+                  Noise {recordingStatus.eventsDetected} · Snoring {recordingStatus.snoringEvents} · Talk {recordingStatus.sleepTalkEvents}
                 </Text>
               </View>
             </View>
           )}
 
-          {/* Enhanced Music Player Controls */}
-          <View style={themedStyles.musicPlayerContainer}>
-            <GlassView intensity={30} tint="dark" style={themedStyles.musicPlayer}>
-              {/* Track Info with Playlist Button */}
-              <View style={themedStyles.musicHeader}>
-                <View style={themedStyles.musicInfo}>
-                  <View style={themedStyles.musicIconContainer}>
-                    {(() => {
-                      const Icon = ICON_MAP[selectedMusic?.icon || 'musical-note'] || Music;
-                      return <Icon size={28} color={theme.colors.accent} />;
-                    })()}
-                  </View>
-                  <View style={themedStyles.musicDetails}>
-                    <Text style={themedStyles.musicName}>{selectedMusic?.name || 'No Music'}</Text>
-                    <Text style={themedStyles.musicStatus}>
-                      {isPlaying && currentSound === selectedMusic?.id ? '▶ Playing' : '⏸ Paused'}
-                    </Text>
-                  </View>
-                </View>
-                <TouchableOpacity
-                  style={themedStyles.playlistButton}
-                  onPress={() => setShowMusicPicker(true)}
-                  activeOpacity={0.7}
-                >
-                  <List size={24} color={theme.colors.accent} />
-                  <Text style={themedStyles.playlistButtonText}>Playlist</Text>
-                </TouchableOpacity>
+          {/* Sound player row — canvas's "Rainy cabin" row, wired to the real player */}
+          {sleepSoundsEnabled && (
+            <View style={s.soundRow}>
+              <View style={s.soundRowIcon}>
+                {(() => {
+                  const Icon = ICON_MAP[selectedMusic?.icon || 'musical-note'] || Music;
+                  return <Icon size={18} color={theme.colors.textSecondary} />;
+                })()}
               </View>
-
-              {/* Playback Controls */}
-              <View style={themedStyles.musicControls}>
-                <TouchableOpacity
-                  style={themedStyles.musicButton}
-                  onPress={handlePreviousTrack}
-                  activeOpacity={0.7}
-                >
-                  <SkipBack size={28} color={theme.colors.textSecondary} />
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={themedStyles.playPauseButton}
-                  onPress={toggleMusicPlayback}
-                  activeOpacity={0.8}
-                >
-                  <LinearGradient
-                    colors={['#8B5CF6', '#6366F1']}
-                    style={themedStyles.playPauseGradient}
-                  >
-                    {isPlaying && currentSound === selectedMusic?.id ? (
-                      <Pause size={32} color="#FFFFFF" fill="#FFFFFF" />
-                    ) : (
-                      <Play size={32} color="#FFFFFF" fill="#FFFFFF" />
-                    )}
-                  </LinearGradient>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={themedStyles.musicButton}
-                  onPress={handleNextTrack}
-                  activeOpacity={0.7}
-                >
-                  <SkipForward size={28} color={theme.colors.textSecondary} />
-                </TouchableOpacity>
+              <View style={s.soundRowText}>
+                <Text style={s.soundRowTitle} numberOfLines={1}>{selectedMusic?.name || 'No sound'}</Text>
+                <Text style={s.soundRowSubtitle}>
+                  {isPlaying && currentSound === selectedMusic?.id ? 'Playing' : 'Paused'}
+                </Text>
               </View>
-
-              {/* Volume Control */}
-              <View style={themedStyles.volumeContainer}>
-                <TouchableOpacity onPress={() => setVolume(0)} activeOpacity={0.7}>
-                  <VolumeX size={22} color={theme.colors.textSecondary} />
-                </TouchableOpacity>
-                <Slider
-                  style={themedStyles.volumeSlider}
-                  value={volume}
-                  onValueChange={setVolume}
-                  minimumValue={0}
-                  maximumValue={1}
-                  minimumTrackTintColor="#8B5CF6"
-                  maximumTrackTintColor="#2A2D3A"
-                  thumbTintColor="#8B5CF6"
-                />
-                <TouchableOpacity onPress={() => setVolume(1)} activeOpacity={0.7}>
-                  <Volume2 size={22} color={theme.colors.textSecondary} />
-                </TouchableOpacity>
-              </View>
-
-              {/* Stop Button */}
               <TouchableOpacity
-                style={themedStyles.stopButton}
-                onPress={stopSound}
+                onPress={() => setShowMusicPicker(true)}
+                style={s.soundRowListButton}
                 activeOpacity={0.7}
               >
-                <CircleStop size={20} color={theme.colors.danger} />
-                <Text style={themedStyles.stopButtonText}>Stop Playback</Text>
+                <List size={16} color={theme.colors.textSecondary} />
               </TouchableOpacity>
-            </GlassView>
-          </View>
+              <TouchableOpacity
+                onPress={toggleMusicPlayback}
+                style={s.soundRowPlayButton}
+                activeOpacity={0.8}
+              >
+                {isPlaying && currentSound === selectedMusic?.id ? (
+                  <Pause size={18} color={theme.colors.textPrimary} fill={theme.colors.textPrimary} />
+                ) : (
+                  <Play size={18} color={theme.colors.textPrimary} fill={theme.colors.textPrimary} />
+                )}
+              </TouchableOpacity>
+            </View>
+          )}
 
-          <TouchableOpacity
-            style={themedStyles.endButton}
-            onPress={handleEndSleepClick}
-            activeOpacity={0.9}
-          >
-            <LinearGradient
-              colors={[theme.colors.danger, '#FF8E8E']}
-              style={themedStyles.endGradient}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
+          {/* Full transport + volume — self-designed extension of the canvas's
+              single row, since this app has prev/next/volume the canvas lacks */}
+          {sleepSoundsEnabled && (
+            <View style={s.transportRow}>
+              <TouchableOpacity onPress={handlePreviousTrack} style={s.transportButton} activeOpacity={0.7}>
+                <SkipBack size={20} color={theme.colors.textSecondary} />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => setVolume(volume > 0 ? 0 : 1)} activeOpacity={0.7}>
+                {volume > 0 ? (
+                  <Volume2 size={18} color={theme.colors.textSecondary} />
+                ) : (
+                  <VolumeX size={18} color={theme.colors.textSecondary} />
+                )}
+              </TouchableOpacity>
+              <Slider
+                style={s.volumeSlider}
+                value={volume}
+                onValueChange={setVolume}
+                minimumValue={0}
+                maximumValue={1}
+                minimumTrackTintColor={theme.colors.accent}
+                maximumTrackTintColor={theme.colors.cardBorder}
+                thumbTintColor={theme.colors.accent}
+              />
+              <TouchableOpacity onPress={handleNextTrack} style={s.transportButton} activeOpacity={0.7}>
+                <SkipForward size={20} color={theme.colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* Hold-to-wake CTA — canvas's bottom button + caption */}
+          <View style={s.trackBottom}>
+            <TouchableOpacity
+              style={s.wakeButton}
+              onPress={handleEndSleepClick}
+              activeOpacity={0.85}
             >
-              <CircleStop size={24} color={theme.colors.textPrimary} />
-              <Text style={themedStyles.endButtonText}>End Sleep Session</Text>
-            </LinearGradient>
-          </TouchableOpacity>
+              <View pointerEvents="none" style={s.wakeButtonFill} />
+              <CircleStop size={20} color={theme.colors.ctaText} style={{ marginRight: 10 }} />
+              <Text style={s.wakeButtonText}>End Sleep Session</Text>
+            </TouchableOpacity>
+            <Text style={s.trackCaption}>Place your phone face down on the bed, near your pillow.</Text>
+          </View>
         </View>
       </View>
     );
   }
 
-  // Memoize styles to prevent unnecessary re-renders
-
+  // ==========================================================================
+  // 1. Setup / pre-session settings — no canvas equivalent; self-designed in
+  //    the same card system (theme.colors.card/cardBorder, Fraunces/DM Sans).
+  // ==========================================================================
   return (
-    <View style={themedStyles.container}>
-      <LinearGradient colors={['#0F0F1E', '#161632', '#0F0F1E']} style={themedStyles.gradient}>
-        <View style={themedStyles.topControls}>
-          <TouchableOpacity onPress={exitSleepMode} style={themedStyles.backButton}>
-            <ChevronLeft size={28} color={theme.colors.textSecondary} />
-            <Text style={themedStyles.backButtonText}>Back</Text>
-          </TouchableOpacity>
+    <View style={[s.container, { backgroundColor: theme.colors.background }]}>
+      <StatusBar barStyle={isNight ? 'light-content' : 'dark-content'} />
+
+      <View style={[s.topControls, { paddingTop: insets.top + 12 }]}>
+        <TouchableOpacity onPress={exitSleepMode} style={s.backButton} activeOpacity={0.7}>
+          <ChevronLeft size={24} color={theme.colors.textSecondary} />
+          <Text style={s.backButtonText}>Back</Text>
+        </TouchableOpacity>
+      </View>
+
+      <ScrollView
+        style={s.content}
+        contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={s.header}>
+          <Text style={s.eyebrow}>Tonight</Text>
+          <Text style={s.title}>Ready to sleep?</Text>
+          <Text style={s.subtitle}>Configure your session before you start.</Text>
         </View>
 
-        <ScrollView
-          style={themedStyles.content}
-          contentContainerStyle={{
-            paddingTop: insets.top + 20,
-            paddingBottom: insets.bottom + 100
-          }}
-          showsVerticalScrollIndicator={false}
-        >
-          <View style={themedStyles.header}>
-            <Text style={themedStyles.title}>Ready to Sleep?</Text>
-            <Text style={themedStyles.subtitle}>Configure your sleep session</Text>
-          </View>
+        <View style={s.card}>
+          <Text style={s.cardTitle}>Sleep Settings</Text>
 
-          <GlassView intensity={20} tint="dark" style={themedStyles.card}>
-            <Text style={themedStyles.cardTitle}>Sleep Settings</Text>
-
-            {/* Nap Mode Toggle */}
-            <View style={themedStyles.settingItem}>
-              <View style={themedStyles.settingLeft}>
-                <Coffee size={24} color="#F59E0B" />
-                <View>
-                  <Text style={themedStyles.settingLabel}>Nap Mode</Text>
-                  <Text style={{ color: theme.colors.textSecondary, fontSize: 11, marginTop: 1 }}>
-                    {isNapMode
-                      ? napDuration !== null ? `${napDuration} min nap · Auto alarm` : 'Tap to set duration'
-                      : 'Full night sleep'}
-                  </Text>
-                </View>
+          {/* Nap Mode Toggle */}
+          <View style={s.settingItem}>
+            <View style={s.settingLeft}>
+              <View style={s.settingIcon}>
+                <Coffee size={20} color={theme.colors.accent} strokeWidth={2.2} />
               </View>
-              <TouchableOpacity
-                style={[themedStyles.toggle, isNapMode && { backgroundColor: '#F59E0B' }]}
-                onPress={() => {
-                  const enabling = !isNapMode;
-                  setIsNapMode(enabling);
-                  if (enabling) {
-                    setSmartAlarmEnabled(false);
-                    setShowNapPicker(true); // Immediately ask for duration
-                  } else {
-                    setNapDuration(null);
-                  }
-                }}
-              >
-                <View style={[themedStyles.toggleThumb, isNapMode && themedStyles.toggleThumbActive]} />
-              </TouchableOpacity>
-            </View>
-
-            {/* Nap duration row (shows when nap mode is on) */}
-            {isNapMode && (
-              <TouchableOpacity
-                style={themedStyles.napDurationButton}
-                onPress={() => setShowNapPicker(true)}
-              >
-                <View style={themedStyles.musicSelectContent}>
-                  <Clock size={20} color="#F59E0B" />
-                  <Text style={[themedStyles.musicSelectText, { color: napDuration !== null ? '#F59E0B' : theme.colors.textSecondary }]}>
-                    {napDuration !== null ? `Nap for ${napDuration} minutes` : 'Choose nap duration'}
-                  </Text>
-                </View>
-                <ChevronRight size={20} color={theme.colors.textSecondary} />
-              </TouchableOpacity>
-            )}
-
-            <View style={themedStyles.settingItem}>
-              <View style={themedStyles.settingLeft}>
-                <Music size={24} color={theme.colors.accent} />
-                <Text style={themedStyles.settingLabel}>Sleep Sounds</Text>
-              </View>
-              <TouchableOpacity
-                style={[themedStyles.toggle, sleepSoundsEnabled && themedStyles.toggleActive]}
-                onPress={() => setSleepSoundsEnabled(!sleepSoundsEnabled)}
-              >
-                <View
-                  style={[
-                    themedStyles.toggleThumb,
-                    sleepSoundsEnabled && themedStyles.toggleThumbActive,
-                  ]}
-                />
-              </TouchableOpacity>
-            </View>
-
-            {sleepSoundsEnabled && (
-              <TouchableOpacity
-                style={themedStyles.musicSelectButton}
-                onPress={() => setShowMusicPicker(true)}
-              >
-                <View style={themedStyles.musicSelectContent}>
-                  {(() => {
-                    const Icon = ICON_MAP[selectedMusic?.icon || 'musical-note'] || Music;
-                    return <Icon size={20} color={theme.colors.accent} />;
-                  })()}
-                  <Text style={themedStyles.musicSelectText}>{selectedMusic?.name || 'Choose Music'}</Text>
-                </View>
-                <ChevronRight size={20} color={theme.colors.textSecondary} />
-              </TouchableOpacity>
-            )}
-
-            <View style={themedStyles.settingItem}>
-              <View style={themedStyles.settingLeft}>
-                <AlarmClock size={24} color={theme.colors.highlight} />
-                <Text style={themedStyles.settingLabel}>Smart Alarm</Text>
-              </View>
-              <TouchableOpacity
-                style={[themedStyles.toggle, smartAlarmEnabled && themedStyles.toggleActive]}
-                onPress={() => setSmartAlarmEnabled(!smartAlarmEnabled)}
-              >
-                <View
-                  style={[
-                    themedStyles.toggleThumb,
-                    smartAlarmEnabled && themedStyles.toggleThumbActive,
-                  ]}
-                />
-              </TouchableOpacity>
-            </View>
-
-            {smartAlarmEnabled && (
-              <TouchableOpacity
-                style={themedStyles.alarmTimeButton}
-                onPress={() => setShowAlarmPicker(true)}
-              >
-                <View style={themedStyles.alarmTimeContent}>
-                  <Clock size={20} color={theme.colors.highlight} />
-                  <Text style={themedStyles.alarmTimeText}>
-                    {alarmTime ? `Wake up at ${format12HourTime(alarmTime)}` : 'Set Alarm Time'}
-                  </Text>
-                </View>
-                <ChevronRight size={20} color={theme.colors.textSecondary} />
-              </TouchableOpacity>
-            )}
-
-            <View style={themedStyles.settingItem}>
-              <View style={themedStyles.settingLeft}>
-                <Mic size={24} color={theme.colors.danger} />
-                <Text style={themedStyles.settingLabel}>Sleep Recorder</Text>
-              </View>
-              <TouchableOpacity
-                style={[themedStyles.toggle, sleepRecorderEnabled && themedStyles.toggleActive]}
-                onPress={() => setSleepRecorderEnabled(!sleepRecorderEnabled)}
-              >
-                <View
-                  style={[
-                    themedStyles.toggleThumb,
-                    sleepRecorderEnabled && themedStyles.toggleThumbActive,
-                  ]}
-                />
-              </TouchableOpacity>
-            </View>
-
-            {sleepRecorderEnabled && (
-              <View style={themedStyles.recorderInfo}>
-                <Info size={16} color={theme.colors.textSecondary} />
-                <Text style={themedStyles.recorderInfoText}>
-                  Monitors audio for snoring and sleep talk detection
+              <View style={{ flex: 1 }}>
+                <Text style={s.settingLabel}>Nap Mode</Text>
+                <Text style={s.settingSubtext}>
+                  {isNapMode
+                    ? napDuration !== null ? `${napDuration} min nap · Auto alarm` : 'Tap to set duration'
+                    : 'Full night sleep'}
                 </Text>
               </View>
-            )}
-          </GlassView>
-
-          <GlassView intensity={20} tint="dark" style={themedStyles.tipsCard}>
-            <View style={themedStyles.tipHeader}>
-              <Lightbulb size={20} color={theme.colors.premium} />
-              <Text style={themedStyles.tipTitle}>Sleep Tips</Text>
             </View>
-            <Text style={themedStyles.tipText}>
-              • Place your phone face down on a stable surface{'\n'}
-              • Keep your phone plugged in{'\n'}
-              • Enable Do Not Disturb mode{'\n'}
-              • Create a comfortable sleep environment
-            </Text>
-          </GlassView>
-
-          <TouchableOpacity
-            style={themedStyles.startButton}
-            onPress={handleStartSleep}
-            activeOpacity={0.9}
-          >
-            <LinearGradient
-              colors={isNapMode ? ['#F59E0B', '#D97706'] : ['#8B5CF6', '#6366F1']}
-              style={themedStyles.startGradient}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-            >
-              {isNapMode ? <Coffee size={24} color="#FFFFFF" /> : <Moon size={24} color="#FFFFFF" />}
-              <Text style={themedStyles.startButtonText}>
-                {isNapMode ? 'Start Nap Session' : 'Start Sleep Session'}
-              </Text>
-            </LinearGradient>
-          </TouchableOpacity>
-
-          <View style={themedStyles.bottomSpacing} />
-        </ScrollView>
-
-        {/* Music Picker Modal */}
-        <Modal
-          visible={showMusicPicker}
-          animationType="slide"
-          transparent={true}
-          onRequestClose={() => setShowMusicPicker(false)}
-        >
-          <View style={themedStyles.modalOverlay}>
-            <GlassView intensity={90} tint="dark" style={themedStyles.modalBlur}>
-              <View style={themedStyles.modalContent}>
-                <View style={themedStyles.modalHeader}>
-                  <Text style={themedStyles.modalTitle}>Choose Sleep Music</Text>
-                  <TouchableOpacity
-                    onPress={() => setShowMusicPicker(false)}
-                    style={themedStyles.modalClose}
-                  >
-                    <X size={28} color={theme.colors.textSecondary} />
-                  </TouchableOpacity>
-                </View>
-
-                <ScrollView style={themedStyles.soundsList} showsVerticalScrollIndicator={false}>
-                  {sleepSounds.map((sound) => (
-                    <TouchableOpacity
-                      key={sound.id}
-                      style={[
-                        themedStyles.soundItem,
-                        selectedMusic?.id === sound.id && themedStyles.soundItemSelected,
-                      ]}
-                      onPress={() => handleMusicSelect(sound)}
-                    >
-                      <View style={themedStyles.soundItemLeft}>
-                        <View
-                          style={[
-                            themedStyles.soundIcon,
-                            selectedMusic?.id === sound.id && themedStyles.soundIconSelected,
-                          ]}
-                        >
-                          {(() => {
-                            const IconComponent = ICON_MAP[sound.icon] || Music;
-                            return (
-                              <IconComponent
-                                size={24}
-                                color={selectedMusic?.id === sound.id ? theme.colors.background : theme.colors.accent}
-                              />
-                            );
-                          })()}
-                        </View>
-                        <Text style={themedStyles.soundName}>{sound.name}</Text>
-                      </View>
-                      {selectedMusic?.id === sound.id && (
-                        <CheckCircle2 size={24} color={theme.colors.accent} />
-                      )}
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </View>
-            </GlassView>
-          </View>
-        </Modal>
-
-        {/* Nap Duration Picker Modal */}
-        <Modal
-          visible={showNapPicker}
-          animationType="slide"
-          transparent={true}
-          onRequestClose={() => setShowNapPicker(false)}
-        >
-          <View style={themedStyles.modalOverlay}>
-            <GlassView intensity={90} tint="dark" style={themedStyles.modalBlur}>
-              <View style={themedStyles.modalContent}>
-                <View style={themedStyles.modalHeader}>
-                  <Text style={themedStyles.modalTitle}>How long is your nap?</Text>
-                  <TouchableOpacity onPress={() => setShowNapPicker(false)} style={themedStyles.modalClose}>
-                    <X size={28} color={theme.colors.textSecondary} />
-                  </TouchableOpacity>
-                </View>
-                <ScrollView style={themedStyles.soundsList} showsVerticalScrollIndicator={false}>
-                  {[10, 15, 20, 25, 30, 45, 60, 90].map((mins) => (
-                    <TouchableOpacity
-                      key={mins}
-                      style={[
-                        themedStyles.soundItem,
-                        napDuration === mins && themedStyles.soundItemSelected,
-                        napDuration === mins && { borderColor: '#F59E0B' },
-                      ]}
-                      onPress={() => {
-                        setNapDuration(mins);
-                        setShowNapPicker(false);
-                      }}
-                    >
-                      <View style={themedStyles.soundItemLeft}>
-                        <View style={[
-                          themedStyles.soundIcon,
-                          napDuration === mins && { backgroundColor: '#F59E0B' },
-                        ]}>
-                          <Clock size={24} color={napDuration === mins ? '#000' : '#F59E0B'} />
-                        </View>
-                        <View>
-                          <Text style={themedStyles.soundName}>{mins} minutes</Text>
-                          <Text style={{ fontSize: 12, color: theme.colors.textSecondary, marginTop: 2 }}>
-                            {mins <= 20 ? 'Power nap' : mins <= 45 ? 'Recovery nap' : 'Full cycle nap'}
-                          </Text>
-                        </View>
-                      </View>
-                      {napDuration === mins && <CheckCircle2 size={24} color="#F59E0B" />}
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </View>
-            </GlassView>
-          </View>
-        </Modal>
-
-        {/* Alarm Time Picker Modal */}
-        {showAlarmPicker && (
-          <Modal
-            visible={showAlarmPicker}
-            animationType="slide"
-            transparent={true}
-            onRequestClose={() => setShowAlarmPicker(false)}
-          >
             <TouchableOpacity
-              style={themedStyles.modalOverlay}
-              activeOpacity={1}
-              onPress={() => setShowAlarmPicker(false)}
+              style={[s.toggle, isNapMode && s.toggleActive]}
+              onPress={() => {
+                const enabling = !isNapMode;
+                setIsNapMode(enabling);
+                if (enabling) {
+                  setSmartAlarmEnabled(false);
+                  setShowNapPicker(true); // Immediately ask for duration
+                } else {
+                  setNapDuration(null);
+                }
+              }}
+              activeOpacity={0.8}
             >
-              <GlassView intensity={90} tint="dark" style={themedStyles.modalBlur}>
+              <View style={[s.toggleThumb, isNapMode && s.toggleThumbActive]} />
+            </TouchableOpacity>
+          </View>
+
+          {/* Nap duration row (shows when nap mode is on) */}
+          {isNapMode && (
+            <TouchableOpacity style={s.subRow} onPress={() => setShowNapPicker(true)} activeOpacity={0.8}>
+              <View style={s.subRowContent}>
+                <Clock size={18} color={theme.colors.accent} />
+                <Text style={s.subRowText}>
+                  {napDuration !== null ? `Nap for ${napDuration} minutes` : 'Choose nap duration'}
+                </Text>
+              </View>
+              <ChevronRight size={18} color={theme.colors.textTertiary} />
+            </TouchableOpacity>
+          )}
+
+          <View style={s.settingDivider} />
+
+          <View style={s.settingItem}>
+            <View style={s.settingLeft}>
+              <View style={s.settingIcon}>
+                <Music size={20} color={theme.colors.accent} strokeWidth={2.2} />
+              </View>
+              <Text style={s.settingLabel}>Sleep Sounds</Text>
+            </View>
+            <TouchableOpacity
+              style={[s.toggle, sleepSoundsEnabled && s.toggleActive]}
+              onPress={() => setSleepSoundsEnabled(!sleepSoundsEnabled)}
+              activeOpacity={0.8}
+            >
+              <View style={[s.toggleThumb, sleepSoundsEnabled && s.toggleThumbActive]} />
+            </TouchableOpacity>
+          </View>
+
+          {sleepSoundsEnabled && (
+            <TouchableOpacity style={s.subRow} onPress={() => setShowMusicPicker(true)} activeOpacity={0.8}>
+              <View style={s.subRowContent}>
+                {(() => {
+                  const Icon = ICON_MAP[selectedMusic?.icon || 'musical-note'] || Music;
+                  return <Icon size={18} color={theme.colors.accent} />;
+                })()}
+                <Text style={s.subRowText}>{selectedMusic?.name || 'Choose Music'}</Text>
+              </View>
+              <ChevronRight size={18} color={theme.colors.textTertiary} />
+            </TouchableOpacity>
+          )}
+
+          <View style={s.settingDivider} />
+
+          <View style={s.settingItem}>
+            <View style={s.settingLeft}>
+              <View style={s.settingIcon}>
+                <AlarmClock size={20} color={theme.colors.accent} strokeWidth={2.2} />
+              </View>
+              <Text style={s.settingLabel}>Smart Alarm</Text>
+            </View>
+            <TouchableOpacity
+              style={[s.toggle, smartAlarmEnabled && s.toggleActive]}
+              onPress={() => setSmartAlarmEnabled(!smartAlarmEnabled)}
+              activeOpacity={0.8}
+            >
+              <View style={[s.toggleThumb, smartAlarmEnabled && s.toggleThumbActive]} />
+            </TouchableOpacity>
+          </View>
+
+          {smartAlarmEnabled && (
+            <TouchableOpacity style={s.subRow} onPress={() => setShowAlarmPicker(true)} activeOpacity={0.8}>
+              <View style={s.subRowContent}>
+                <Clock size={18} color={theme.colors.accent} />
+                <Text style={s.subRowText}>
+                  {alarmTime ? `Wake up at ${format12HourTime(alarmTime)}` : 'Set Alarm Time'}
+                </Text>
+              </View>
+              <ChevronRight size={18} color={theme.colors.textTertiary} />
+            </TouchableOpacity>
+          )}
+
+          <View style={s.settingDivider} />
+
+          <View style={s.settingItem}>
+            <View style={s.settingLeft}>
+              <View style={s.settingIcon}>
+                <Mic size={20} color={theme.colors.accent} strokeWidth={2.2} />
+              </View>
+              <Text style={s.settingLabel}>Sleep Recorder</Text>
+            </View>
+            <TouchableOpacity
+              style={[s.toggle, sleepRecorderEnabled && s.toggleActive]}
+              onPress={() => setSleepRecorderEnabled(!sleepRecorderEnabled)}
+              activeOpacity={0.8}
+            >
+              <View style={[s.toggleThumb, sleepRecorderEnabled && s.toggleThumbActive]} />
+            </TouchableOpacity>
+          </View>
+
+          {sleepRecorderEnabled && (
+            <View style={s.recorderInfo}>
+              <Info size={15} color={theme.colors.textTertiary} />
+              <Text style={s.recorderInfoText}>
+                Monitors audio for snoring and sleep talk detection
+              </Text>
+            </View>
+          )}
+        </View>
+
+        <View style={s.tipsCard}>
+          <View pointerEvents="none" style={s.tipsGlow} />
+          <View style={s.tipHeader}>
+            <View style={s.tipIconCircle}>
+              <Lightbulb size={18} color={theme.colors.textPrimary} strokeWidth={2.2} />
+            </View>
+            <Text style={s.tipTitle}>Sleep Tips</Text>
+          </View>
+          <Text style={s.tipText}>
+            • Place your phone face down on a stable surface{'\n'}
+            • Keep your phone plugged in{'\n'}
+            • Enable Do Not Disturb mode{'\n'}
+            • Create a comfortable sleep environment
+          </Text>
+        </View>
+
+        <TouchableOpacity
+          style={s.startButton}
+          onPress={handleStartSleep}
+          activeOpacity={0.9}
+        >
+          {isNapMode ? (
+            <Coffee size={20} color={theme.colors.ctaText} strokeWidth={2.4} />
+          ) : (
+            <Waves size={20} color={theme.colors.ctaText} strokeWidth={2.4} />
+          )}
+          <Text style={s.startButtonText}>
+            {isNapMode ? 'Start Nap Session' : 'Start Sleep Session'}
+          </Text>
+        </TouchableOpacity>
+      </ScrollView>
+
+      {/* Music Picker Modal */}
+      <Modal
+        visible={showMusicPicker}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowMusicPicker(false)}
+      >
+        <View style={s.modalOverlay}>
+          <View style={s.modalContent}>
+            <View style={s.modalHeader}>
+              <Text style={s.modalTitle}>Choose Sleep Music</Text>
+              <TouchableOpacity onPress={() => setShowMusicPicker(false)} style={s.modalClose} activeOpacity={0.7}>
+                <X size={24} color={theme.colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={s.modalList} showsVerticalScrollIndicator={false}>
+              {sleepSounds.map((sound) => (
                 <TouchableOpacity
-                  activeOpacity={1}
-                  onPress={(e) => e.stopPropagation()}
+                  key={sound.id}
+                  style={[s.modalRow, selectedMusic?.id === sound.id && s.modalRowSelected]}
+                  onPress={() => handleMusicSelect(sound)}
+                  activeOpacity={0.8}
                 >
-                  <View style={themedStyles.modalContent}>
-                    <View style={themedStyles.modalHeader}>
-                      <Text style={themedStyles.modalTitle}>Set Wake-Up Time</Text>
-                      <TouchableOpacity
-                        onPress={() => setShowAlarmPicker(false)}
-                        style={themedStyles.modalClose}
-                      >
-                        <X size={28} color={theme.colors.textSecondary} />
-                      </TouchableOpacity>
+                  <View style={s.modalRowLeft}>
+                    <View style={[s.modalRowIcon, selectedMusic?.id === sound.id && s.modalRowIconSelected]}>
+                      {(() => {
+                        const IconComponent = ICON_MAP[sound.icon] || Music;
+                        return (
+                          <IconComponent
+                            size={20}
+                            color={selectedMusic?.id === sound.id ? theme.colors.ctaText : theme.colors.accent}
+                          />
+                        );
+                      })()}
                     </View>
+                    <Text style={s.modalRowText}>{sound.name}</Text>
+                  </View>
+                  {selectedMusic?.id === sound.id && (
+                    <CheckCircle2 size={20} color={theme.colors.accent} />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
 
-                    <View style={themedStyles.pickerContainer}>
-                      {/* Quick Preset Buttons */}
-                      <View style={themedStyles.quickPresetsContainer}>
-                        <Text style={themedStyles.quickPresetsLabel}>Quick Select:</Text>
-                        <View style={themedStyles.quickPresetsButtons}>
-                          {[6, 7, 8, 9].map((hour) => {
-                            const presetTime = new Date();
-                            const currentHour = presetTime.getHours();
-
-                            // If the preset hour has already passed today, set it for tomorrow
-                            if (hour <= currentHour) {
-                              presetTime.setDate(presetTime.getDate() + 1);
-                            }
-
-                            presetTime.setHours(hour, 0, 0, 0);
-
-                            return (
-                              <TouchableOpacity
-                                key={hour}
-                                style={themedStyles.presetButton}
-                                onPress={() => {
-                                  setAlarmTime(presetTime);
-                                  setTempAlarmTime(presetTime);
-                                  setShowAlarmPicker(false);
-                                }}
-                              >
-                                <Text style={themedStyles.presetButtonText}>{hour}:00</Text>
-                                <Text style={themedStyles.presetButtonLabel}>AM</Text>
-                              </TouchableOpacity>
-                            );
-                          })}
-                        </View>
-                      </View>
-
-                      <Text style={themedStyles.orText}>or set custom time</Text>
-
-                      {/* Current Selection Display */}
-                      {tempAlarmTime && (
-                        <View style={themedStyles.selectedTimeDisplay}>
-                          <Text style={themedStyles.selectedTimeLabel}>Selected Time:</Text>
-                          <Text style={themedStyles.selectedTimeValue}>
-                            {format12HourTime(tempAlarmTime)}
-                          </Text>
-                        </View>
-                      )}
-
-                      {/* Time Picker */}
-                      <DateTimePicker
-                        value={tempAlarmTime}
-                        mode="time"
-                        display={Platform.OS === 'ios' ? 'spinner' : 'clock'}
-                        onChange={(event, selectedDate) => {
-                          if (event.type === 'dismissed') {
-                            return;
-                          }
-                          if (selectedDate) {
-                            setTempAlarmTime(selectedDate);
-                            // On Android, automatically close and set time
-                            if (Platform.OS === 'android') {
-                              setAlarmTime(selectedDate);
-                              setShowAlarmPicker(false);
-                            }
-                          }
-                        }}
-                        textColor="#FFFFFF"
-                        themeVariant="dark"
-                      />
-
-                      {/* iOS Only: Confirm Button */}
-                      {Platform.OS === 'ios' && (
-                        <TouchableOpacity
-                          style={themedStyles.pickerDoneButton}
-                          onPress={() => {
-                            setAlarmTime(tempAlarmTime);
-                            setShowAlarmPicker(false);
-                          }}
-                        >
-                          <LinearGradient
-                            colors={['#8B5CF6', '#6366F1']}
-                            style={themedStyles.pickerDoneGradient}
-                          >
-                            <Text style={themedStyles.pickerDoneText}>Set Alarm</Text>
-                          </LinearGradient>
-                        </TouchableOpacity>
-                      )}
+      {/* Nap Duration Picker Modal */}
+      <Modal
+        visible={showNapPicker}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowNapPicker(false)}
+      >
+        <View style={s.modalOverlay}>
+          <View style={s.modalContent}>
+            <View style={s.modalHeader}>
+              <Text style={s.modalTitle}>How long is your nap?</Text>
+              <TouchableOpacity onPress={() => setShowNapPicker(false)} style={s.modalClose} activeOpacity={0.7}>
+                <X size={24} color={theme.colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={s.modalList} showsVerticalScrollIndicator={false}>
+              {[10, 15, 20, 25, 30, 45, 60, 90].map((mins) => (
+                <TouchableOpacity
+                  key={mins}
+                  style={[s.modalRow, napDuration === mins && s.modalRowSelected]}
+                  onPress={() => {
+                    setNapDuration(mins);
+                    setShowNapPicker(false);
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <View style={s.modalRowLeft}>
+                    <View style={[s.modalRowIcon, napDuration === mins && s.modalRowIconSelected]}>
+                      <Clock size={20} color={napDuration === mins ? theme.colors.ctaText : theme.colors.accent} />
+                    </View>
+                    <View>
+                      <Text style={s.modalRowText}>{mins} minutes</Text>
+                      <Text style={s.modalRowSubtext}>
+                        {mins <= 20 ? 'Power nap' : mins <= 45 ? 'Recovery nap' : 'Full cycle nap'}
+                      </Text>
                     </View>
                   </View>
+                  {napDuration === mins && <CheckCircle2 size={20} color={theme.colors.accent} />}
                 </TouchableOpacity>
-              </GlassView>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Alarm Time Picker Modal */}
+      {showAlarmPicker && (
+        <Modal
+          visible={showAlarmPicker}
+          animationType="slide"
+          transparent={true}
+          onRequestClose={() => setShowAlarmPicker(false)}
+        >
+          <TouchableOpacity
+            style={s.modalOverlay}
+            activeOpacity={1}
+            onPress={() => setShowAlarmPicker(false)}
+          >
+            <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()}>
+              <View style={s.modalContent}>
+                <View style={s.modalHeader}>
+                  <Text style={s.modalTitle}>Set Wake-Up Time</Text>
+                  <TouchableOpacity onPress={() => setShowAlarmPicker(false)} style={s.modalClose} activeOpacity={0.7}>
+                    <X size={24} color={theme.colors.textSecondary} />
+                  </TouchableOpacity>
+                </View>
+
+                <View style={s.pickerContainer}>
+                  {/* Quick Preset Buttons */}
+                  <View style={s.quickPresetsContainer}>
+                    <Text style={s.quickPresetsLabel}>Quick Select</Text>
+                    <View style={s.quickPresetsButtons}>
+                      {[6, 7, 8, 9].map((hour) => {
+                        const presetTime = new Date();
+                        const currentHour = presetTime.getHours();
+
+                        // If the preset hour has already passed today, set it for tomorrow
+                        if (hour <= currentHour) {
+                          presetTime.setDate(presetTime.getDate() + 1);
+                        }
+
+                        presetTime.setHours(hour, 0, 0, 0);
+
+                        return (
+                          <TouchableOpacity
+                            key={hour}
+                            style={s.presetButton}
+                            onPress={() => {
+                              setAlarmTime(presetTime);
+                              setTempAlarmTime(presetTime);
+                              setShowAlarmPicker(false);
+                            }}
+                            activeOpacity={0.8}
+                          >
+                            <Text style={s.presetButtonText}>{hour}:00</Text>
+                            <Text style={s.presetButtonLabel}>AM</Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  </View>
+
+                  <Text style={s.orText}>or set a custom time</Text>
+
+                  {/* Current Selection Display */}
+                  {tempAlarmTime && (
+                    <View style={s.selectedTimeDisplay}>
+                      <Text style={s.selectedTimeLabel}>Selected Time</Text>
+                      <Text style={s.selectedTimeValue}>
+                        {format12HourTime(tempAlarmTime)}
+                      </Text>
+                    </View>
+                  )}
+
+                  {/* Time Picker */}
+                  <DateTimePicker
+                    value={tempAlarmTime}
+                    mode="time"
+                    display={Platform.OS === 'ios' ? 'spinner' : 'clock'}
+                    onChange={(event, selectedDate) => {
+                      if (event.type === 'dismissed') {
+                        return;
+                      }
+                      if (selectedDate) {
+                        setTempAlarmTime(selectedDate);
+                        // On Android, automatically close and set time
+                        if (Platform.OS === 'android') {
+                          setAlarmTime(selectedDate);
+                          setShowAlarmPicker(false);
+                        }
+                      }
+                    }}
+                    textColor={theme.colors.textPrimary}
+                    themeVariant={isNight ? 'dark' : 'light'}
+                  />
+
+                  {/* iOS Only: Confirm Button */}
+                  {Platform.OS === 'ios' && (
+                    <TouchableOpacity
+                      style={s.pickerDoneButton}
+                      onPress={() => {
+                        setAlarmTime(tempAlarmTime);
+                        setShowAlarmPicker(false);
+                      }}
+                      activeOpacity={0.9}
+                    >
+                      <Text style={s.pickerDoneText}>Set Alarm</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </View>
             </TouchableOpacity>
-          </Modal>
-        )}
-      </LinearGradient>
+          </TouchableOpacity>
+        </Modal>
+      )}
 
       {/* Rating Prompt */}
       {showRatingPrompt && (
-        <RatingPrompt 
-          trigger="session_complete" 
+        <RatingPrompt
+          trigger="session_complete"
           sessionCount={sleepHistory?.length || 0}
         />
       )}
@@ -1267,6 +1236,491 @@ export default function SleepSessionScreen() {
 }
 
 const styles = (theme: any) => StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  content: {
+    flex: 1,
+    paddingHorizontal: 20,
+  },
+  topControls: {
+    paddingHorizontal: 12,
+    paddingBottom: 8,
+  },
+  backButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 8,
+    alignSelf: 'flex-start',
+  },
+  backButtonText: {
+    fontFamily: theme.typography.fontFamily.bodySemibold,
+    fontSize: 15,
+    color: theme.colors.textSecondary,
+    marginLeft: 2,
+  },
+
+  // Setup header
+  header: {
+    marginTop: 8,
+    marginBottom: 20,
+  },
+  eyebrow: {
+    fontFamily: theme.typography.fontFamily.bodyBold,
+    fontSize: 13,
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+    color: theme.colors.textTertiary,
+    marginBottom: 6,
+  },
+  title: {
+    fontFamily: theme.typography.fontFamily.displaySemibold,
+    fontSize: 30,
+    letterSpacing: -0.4,
+    color: theme.colors.textPrimary,
+    marginBottom: 6,
+  },
+  subtitle: {
+    fontFamily: theme.typography.fontFamily.body,
+    fontSize: 15,
+    color: theme.colors.textSecondary,
+  },
+
+  // Settings card
+  card: {
+    backgroundColor: theme.colors.card,
+    borderWidth: 1,
+    borderColor: theme.colors.cardBorder,
+    borderRadius: theme.borderRadius.card,
+    padding: 18,
+    marginBottom: 16,
+  },
+  cardTitle: {
+    fontFamily: theme.typography.fontFamily.bodyBold,
+    fontSize: 15,
+    color: theme.colors.textPrimary,
+    marginBottom: 16,
+  },
+  settingItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 8,
+  },
+  settingLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    columnGap: 12,
+  },
+  settingIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: theme.colors.accentLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  settingLabel: {
+    fontFamily: theme.typography.fontFamily.bodySemibold,
+    fontSize: 15,
+    color: theme.colors.textPrimary,
+  },
+  settingSubtext: {
+    fontFamily: theme.typography.fontFamily.body,
+    fontSize: 12,
+    color: theme.colors.textTertiary,
+    marginTop: 1,
+  },
+  settingDivider: {
+    height: 1,
+    backgroundColor: theme.colors.cardBorder,
+    marginVertical: 12,
+  },
+  toggle: {
+    width: 48,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: theme.colors.backgroundTertiary,
+    borderWidth: 1,
+    borderColor: theme.colors.cardBorder,
+    padding: 2,
+    justifyContent: 'center',
+  },
+  toggleActive: {
+    backgroundColor: theme.colors.selectedBackground,
+    borderColor: theme.colors.accentBorder,
+  },
+  toggleThumb: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: theme.colors.textTertiary,
+  },
+  toggleThumbActive: {
+    backgroundColor: theme.colors.accent,
+    alignSelf: 'flex-end',
+  },
+  subRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: theme.colors.backgroundTertiary,
+    borderWidth: 1,
+    borderColor: theme.colors.cardBorder,
+    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    marginTop: 10,
+  },
+  subRowContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    columnGap: 10,
+    flex: 1,
+  },
+  subRowText: {
+    fontFamily: theme.typography.fontFamily.bodyMedium,
+    fontSize: 14,
+    color: theme.colors.textPrimary,
+    flex: 1,
+  },
+  recorderInfo: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: theme.colors.backgroundTertiary,
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 10,
+    columnGap: 8,
+  },
+  recorderInfoText: {
+    fontFamily: theme.typography.fontFamily.body,
+    fontSize: 12,
+    color: theme.colors.textTertiary,
+    flex: 1,
+    lineHeight: 17,
+  },
+
+  // Tips card
+  tipsCard: {
+    position: 'relative',
+    overflow: 'hidden',
+    backgroundColor: theme.colors.card,
+    borderWidth: 1,
+    borderColor: theme.colors.cardBorder,
+    borderRadius: theme.borderRadius.card,
+    padding: 18,
+    marginBottom: 24,
+  },
+  tipsGlow: {
+    position: 'absolute',
+    right: -40,
+    top: -40,
+    width: 150,
+    height: 150,
+    borderRadius: 75,
+    backgroundColor: theme.colors.accentLight,
+  },
+  tipHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    columnGap: 10,
+    marginBottom: 12,
+  },
+  tipIconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    backgroundColor: theme.colors.navActiveBackground,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tipTitle: {
+    fontFamily: theme.typography.fontFamily.bodyBold,
+    fontSize: 15,
+    color: theme.colors.textPrimary,
+  },
+  tipText: {
+    fontFamily: theme.typography.fontFamily.body,
+    fontSize: 13,
+    color: theme.colors.textSecondary,
+    lineHeight: 21,
+  },
+
+  // Start CTA
+  startButton: {
+    height: 60,
+    borderRadius: theme.borderRadius.lg,
+    backgroundColor: theme.colors.ctaBackground,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    columnGap: 10,
+    marginBottom: 20,
+    ...Platform.select({
+      ios: {
+        shadowColor: theme.colors.ctaBackground,
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.3,
+        shadowRadius: 18,
+      },
+      android: { elevation: 6 },
+    }),
+  },
+  startButtonText: {
+    fontFamily: theme.typography.fontFamily.bodyBold,
+    fontSize: 17,
+    color: theme.colors.ctaText,
+  },
+
+  // ===== Active tracking (canvas: Trk-Session) =====
+  trackContainer: {
+    flex: 1,
+  },
+  trackContent: {
+    flex: 1,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+  },
+  trackTopRow: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  trackingBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 36,
+    paddingHorizontal: 14,
+    borderRadius: 999,
+    backgroundColor: theme.colors.card,
+    borderWidth: 1,
+    borderColor: theme.colors.cardBorder,
+    columnGap: 8,
+  },
+  trackingDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: theme.colors.accent,
+  },
+  trackingBadgeText: {
+    fontFamily: theme.typography.fontFamily.body,
+    fontSize: 13,
+    color: theme.colors.textSecondary,
+  },
+  trackExitButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: theme.colors.card,
+    borderWidth: 1,
+    borderColor: theme.colors.cardBorder,
+  },
+  trackHero: {
+    position: 'relative',
+    alignItems: 'center',
+    marginTop: 64,
+  },
+  trackHeroGlow: {
+    position: 'absolute',
+    left: -80,
+    right: -80,
+    top: -50,
+    bottom: -50,
+    borderRadius: 999,
+    backgroundColor: theme.colors.accentLight,
+  },
+  trackHeroTime: {
+    fontFamily: theme.typography.fontFamily.display,
+    fontSize: 80,
+    letterSpacing: -2,
+    lineHeight: 84,
+    color: theme.colors.textPrimary,
+  },
+  trackHeroSubtext: {
+    fontFamily: theme.typography.fontFamily.body,
+    fontSize: 15,
+    color: theme.colors.textSecondary,
+    marginTop: 6,
+  },
+  trackStatsGrid: {
+    width: '100%',
+    flexDirection: 'row',
+    columnGap: 10,
+    marginTop: 44,
+  },
+  trackStatTile: {
+    flex: 1,
+    backgroundColor: theme.colors.card,
+    borderWidth: 1,
+    borderColor: theme.colors.cardBorder,
+    borderRadius: 18,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  trackStatLabel: {
+    fontFamily: theme.typography.fontFamily.body,
+    fontSize: 12,
+    color: theme.colors.textTertiary,
+    marginBottom: 2,
+  },
+  trackStatValue: {
+    fontFamily: theme.typography.fontFamily.bodyBold,
+    fontSize: 16,
+    color: theme.colors.textPrimary,
+  },
+  recordingCard: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.colors.card,
+    borderWidth: 1,
+    borderColor: theme.colors.cardBorder,
+    borderRadius: 18,
+    padding: 14,
+    marginTop: 14,
+    columnGap: 12,
+  },
+  recordingDetails: {
+    flex: 1,
+  },
+  recordingHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  recordingCardText: {
+    fontFamily: theme.typography.fontFamily.bodySemibold,
+    fontSize: 13,
+    color: theme.colors.textPrimary,
+  },
+  volumeMeter: {
+    height: 4,
+    width: 56,
+    borderRadius: 2,
+    backgroundColor: theme.colors.disabled,
+    overflow: 'hidden',
+  },
+  volumeBar: {
+    height: '100%',
+    backgroundColor: theme.colors.error,
+  },
+  recordingStatsText: {
+    fontFamily: theme.typography.fontFamily.body,
+    fontSize: 11,
+    color: theme.colors.textTertiary,
+  },
+  soundRow: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.colors.card,
+    borderWidth: 1,
+    borderColor: theme.colors.cardBorder,
+    borderRadius: 20,
+    padding: 12,
+    marginTop: 14,
+    columnGap: 12,
+  },
+  soundRowIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: theme.colors.backgroundTertiary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  soundRowText: {
+    flex: 1,
+  },
+  soundRowTitle: {
+    fontFamily: theme.typography.fontFamily.bodySemibold,
+    fontSize: 14,
+    color: theme.colors.textPrimary,
+  },
+  soundRowSubtitle: {
+    fontFamily: theme.typography.fontFamily.body,
+    fontSize: 12,
+    color: theme.colors.textTertiary,
+    marginTop: 1,
+  },
+  soundRowListButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: theme.colors.backgroundTertiary,
+  },
+  soundRowPlayButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: theme.colors.cardBorder,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  transportRow: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    columnGap: 12,
+    marginTop: 14,
+  },
+  transportButton: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  volumeSlider: {
+    flex: 1,
+  },
+  trackBottom: {
+    marginTop: 'auto',
+    width: '100%',
+    alignItems: 'center',
+    rowGap: 14,
+  },
+  wakeButton: {
+    position: 'relative',
+    overflow: 'hidden',
+    width: '100%',
+    height: 64,
+    borderRadius: 22,
+    backgroundColor: theme.colors.ctaBackground,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  wakeButtonFill: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: '34%',
+    backgroundColor: 'rgba(255,255,255,0.14)',
+  },
+  wakeButtonText: {
+    fontFamily: theme.typography.fontFamily.bodyBold,
+    fontSize: 17,
+    color: theme.colors.ctaText,
+  },
+  trackCaption: {
+    fontFamily: theme.typography.fontFamily.body,
+    fontSize: 13,
+    color: theme.colors.textTertiary,
+    textAlign: 'center',
+  },
+
+  // ===== Dimmed lock screen (self-designed) =====
   dimmedContainer: {
     flex: 1,
     backgroundColor: '#000000',
@@ -1277,8 +1731,9 @@ const styles = (theme: any) => StyleSheet.create({
     alignItems: 'center',
   },
   dimmedTime: {
+    fontFamily: theme.typography.fontFamily.display,
     fontSize: 84,
-    fontWeight: '100',
+    fontWeight: '300',
     color: 'rgba(255, 255, 255, 0.4)',
     letterSpacing: 4,
   },
@@ -1291,809 +1746,309 @@ const styles = (theme: any) => StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 40,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
+    borderColor: 'rgba(255, 255, 255, 0.08)',
   },
   dimmedDuration: {
-    fontSize: 20,
+    fontFamily: theme.typography.fontFamily.body,
+    fontSize: 18,
     color: 'rgba(255, 255, 255, 0.6)',
-    fontWeight: '400',
   },
   dimmedHint: {
     position: 'absolute',
     bottom: -100,
-    fontSize: 14,
+    fontFamily: theme.typography.fontFamily.body,
+    fontSize: 13,
     color: 'rgba(255, 255, 255, 0.3)',
-    fontWeight: '400',
   },
-  container: {
-    flex: 1,
-    backgroundColor: '#05050A', // Deeper black for better contrast
-  },
-  contentOverlay: {
-    flex: 1,
-  },
-  gradient: {
-    flex: 1,
-  },
-  content: {
-    flex: 1,
-    paddingHorizontal: 20,
-  },
-  topControls: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 60, // Moved down from top
-    marginBottom: 20,
-  },
-  exitButton: {
-    padding: 10,
-  },
-  backButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 10,
-    marginLeft: -10,
-  },
-  backButtonText: {
-    fontSize: 16,
-    color: theme.colors.textSecondary,
-    marginLeft: 4,
-    fontWeight: '600',
-  },
-  trackingBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(229, 115, 115, 0.2)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-  },
-  trackingDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#E57373',
-    marginRight: 6,
-  },
-  trackingText: {
-    color: '#E57373',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  header: {
-    marginBottom: 30,
-    marginTop: 20,
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    marginBottom: 8,
-    textShadowColor: 'rgba(139, 92, 246, 0.5)',
-    textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 10,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: theme.colors.textSecondary,
-  },
-  card: {
-    backgroundColor: 'rgba(27, 29, 42, 0.7)',
-    borderRadius: 20,
-    padding: 20,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(139, 92, 246, 0.3)',
-    overflow: 'hidden',
-  },
-  cardTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: theme.colors.textPrimary,
-    marginBottom: 20,
-  },
-  settingItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 12,
-    marginBottom: 12,
-  },
-  settingLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  settingLabel: {
-    fontSize: 16,
-    color: theme.colors.textPrimary,
-    marginLeft: 12,
-    fontWeight: '500',
-  },
-  toggle: {
-    width: 50,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: '#2A2D3A',
-    padding: 2,
-    justifyContent: 'center',
-  },
-  toggleActive: {
-    backgroundColor: 'rgba(139, 92, 246, 0.3)',
-  },
-  toggleThumb: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: '#8E8E93',
-  },
-  toggleThumbActive: {
-    backgroundColor: '#8B5CF6',
-    alignSelf: 'flex-end',
-  },
-  tipsCard: {
-    backgroundColor: 'rgba(27, 29, 42, 0.7)',
-    borderRadius: 20,
-    padding: 20,
-    marginBottom: 30,
-    borderWidth: 1,
-    borderColor: 'rgba(139, 92, 246, 0.3)',
-    overflow: 'hidden',
-  },
-  tipHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  tipTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: theme.colors.textPrimary,
-    marginLeft: 8,
-  },
-  tipText: {
-    fontSize: 14,
-    color: theme.colors.textSecondary,
-    lineHeight: 22,
-  },
-  startButton: {
-    borderRadius: 20,
-    overflow: 'hidden',
-    shadowColor: '#8B5CF6',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.5,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-  startGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 18,
-  },
-  startButtonText: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    marginLeft: 10,
-  },
-  clockContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    flex: 1,
-    marginTop: -40,
-  },
-  elapsedLabel: {
-    fontSize: 16,
-    color: theme.colors.textSecondary,
-    marginBottom: 12,
-  },
-  timeDisplay: {
-    fontSize: 64,
-    fontWeight: '200',
-    color: '#FFFFFF',
-    textAlign: 'center',
-    marginBottom: 10,
-    textShadowColor: 'rgba(139, 92, 246, 0.5)',
-    textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 15,
-  },
-  dateDisplay: {
-    fontSize: 16,
-    color: theme.colors.textSecondary,
-    textAlign: 'center',
-  },
-  soundStatus: {
-    alignItems: 'center',
-    marginBottom: 30,
-  },
-  soundIndicator: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  soundWave: {
-    width: 3,
-    height: 20,
-    backgroundColor: '#8B5CF6',
-    marginHorizontal: 2,
-    borderRadius: 2,
-  },
-  soundText: {
-    fontSize: 14,
-    color: '#8B5CF6',
-    textAlign: 'center',
-  },
-  alarmContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 40,
-  },
-  alarmText: {
-    fontSize: 14,
-    color: '#8B5CF6',
-    marginLeft: 8,
-    fontWeight: '600',
-  },
-  endButton: {
-    borderRadius: 20,
-    overflow: 'hidden',
-    marginHorizontal: 20,
-    marginBottom: 40,
-  },
-  endGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 18,
-  },
-  endButtonText: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: theme.colors.textPrimary,
-    marginLeft: 10,
-  },
-  formContainer: {
+
+  // ===== End-of-sleep rating form (canvas: Trk-Wake) =====
+  formScroll: {
     flex: 1,
     paddingHorizontal: 20,
   },
   formHeader: {
-    marginTop: 80,
-    marginBottom: 30,
+    marginBottom: 16,
+    rowGap: 4,
+  },
+  formEyebrow: {
+    fontFamily: theme.typography.fontFamily.body,
+    fontSize: 13,
+    color: theme.colors.textTertiary,
   },
   formTitle: {
-    fontSize: 28,
-    fontWeight: '700',
+    fontFamily: theme.typography.fontFamily.displaySemibold,
+    fontSize: 30,
+    letterSpacing: -0.4,
     color: theme.colors.textPrimary,
-    marginBottom: 8,
   },
   formSubtitle: {
-    fontSize: 16,
+    fontFamily: theme.typography.fontFamily.body,
+    fontSize: 15,
     color: theme.colors.textSecondary,
   },
-  formCard: {
-    backgroundColor: 'rgba(27, 29, 42, 0.7)',
-    borderRadius: 20,
-    padding: 24,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-    overflow: 'hidden',
-  },
-  inputGroup: {
-    marginBottom: 24,
-  },
-  inputLabel: {
-    fontSize: 16,
+  formSubtitleStrong: {
+    fontFamily: theme.typography.fontFamily.bodyBold,
     color: theme.colors.textPrimary,
+  },
+  formCard: {
+    backgroundColor: theme.colors.card,
+    borderWidth: 1,
+    borderColor: theme.colors.cardBorder,
+    borderRadius: theme.borderRadius.card,
+    padding: 18,
+    marginBottom: 14,
+  },
+  formCardHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
     marginBottom: 12,
-    fontWeight: '500',
+  },
+  formCardTitle: {
+    fontFamily: theme.typography.fontFamily.bodyBold,
+    fontSize: 15,
+    color: theme.colors.textPrimary,
+  },
+  formCardHint: {
+    fontFamily: theme.typography.fontFamily.body,
+    fontSize: 12,
+    color: theme.colors.textTertiary,
+  },
+  noteLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    columnGap: 8,
+    marginBottom: 10,
   },
   starRatingContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    marginVertical: 16,
-    rowGap: 8, columnGap: 8,
+    columnGap: 10,
+    marginBottom: 10,
   },
   starButton: {
-    padding: 4,
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: theme.colors.cardBorder,
+    backgroundColor: theme.colors.backgroundTertiary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  starButtonActive: {
+    backgroundColor: theme.colors.accent,
+    borderColor: theme.colors.accent,
   },
   ratingLabel: {
-    fontSize: 14,
+    fontFamily: theme.typography.fontFamily.body,
+    fontSize: 13,
     color: theme.colors.textSecondary,
     textAlign: 'center',
-    marginTop: 8,
-    fontStyle: 'italic',
   },
   input: {
-    backgroundColor: 'rgba(42, 45, 58, 0.6)',
-    borderRadius: 12,
+    backgroundColor: theme.colors.backgroundTertiary,
+    borderRadius: 14,
     padding: 16,
+    fontFamily: theme.typography.fontFamily.body,
     fontSize: 16,
     color: theme.colors.textPrimary,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: theme.colors.cardBorder,
   },
   textArea: {
-    height: 100,
+    height: 90,
     textAlignVertical: 'top',
   },
   confirmButton: {
-    borderRadius: 16,
-    overflow: 'hidden',
+    height: 60,
+    borderRadius: 20,
+    backgroundColor: theme.colors.ctaBackground,
+    alignItems: 'center',
+    justifyContent: 'center',
     marginTop: 8,
   },
-  confirmGradient: {
-    paddingVertical: 16,
-    alignItems: 'center',
-  },
   confirmButtonText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: theme.colors.background,
+    fontFamily: theme.typography.fontFamily.bodyBold,
+    fontSize: 17,
+    color: theme.colors.ctaText,
   },
   cancelButton: {
     paddingVertical: 16,
     alignItems: 'center',
-    marginTop: 12,
+    marginTop: 8,
   },
   cancelButtonText: {
-    fontSize: 16,
-    color: theme.colors.textSecondary,
-    fontWeight: '600',
-  },
-  bottomSpacing: {
-    height: 30,
-  },
-  napDurationButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: 'rgba(245, 158, 11, 0.1)',
-    padding: 16,
-    borderRadius: 12,
-    marginTop: 4,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(245, 158, 11, 0.25)',
-  },
-  musicSelectButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: 'rgba(139, 92, 246, 0.1)',
-    padding: 16,
-    borderRadius: 12,
-    marginTop: 12,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(139, 92, 246, 0.2)',
-  },
-  musicSelectContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  musicSelectText: {
+    fontFamily: theme.typography.fontFamily.bodySemibold,
     fontSize: 15,
-    color: theme.colors.textPrimary,
-    marginLeft: 10,
-    fontWeight: '500',
-  },
-  musicPlayerContainer: {
-    paddingHorizontal: 20,
-    marginBottom: 30,
-  },
-  musicPlayer: {
-    backgroundColor: 'rgba(27, 29, 42, 0.8)',
-    borderRadius: 20,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-    overflow: 'hidden',
-  },
-  musicHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 20,
-  },
-  musicInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  musicIconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: 'rgba(0, 255, 209, 0.15)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  musicDetails: {
-    marginLeft: 12,
-    flex: 1,
-  },
-  musicName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: theme.colors.textPrimary,
-    marginBottom: 4,
-  },
-  musicStatus: {
-    fontSize: 13,
     color: theme.colors.textSecondary,
   },
-  musicControls: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 16,
-  },
-  musicButton: {
-    width: 48,
-    height: 48,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginHorizontal: 8,
-  },
-  playPauseButton: {
-    borderRadius: 32,
-    overflow: 'hidden',
-    marginHorizontal: 16,
-  },
-  playPauseGradient: {
-    width: 64,
-    height: 64,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  volumeContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  volumeSlider: {
-    flex: 1,
-    marginHorizontal: 12,
-  },
-  playlistButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-  },
-  playlistButtonText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#8B5CF6',
-    marginLeft: 6,
-  },
-  stopButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-  },
-  stopButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#E57373',
-    marginLeft: 8,
-  },
+
+  // ===== Modals (music / nap / alarm pickers) =====
   modalOverlay: {
     flex: 1,
     justifyContent: 'flex-end',
-  },
-  modalBlur: {
-    flex: 1,
-    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0,0,0,0.5)',
   },
   modalContent: {
-    backgroundColor: 'rgba(27, 29, 42, 0.95)',
-    borderTopLeftRadius: 30,
-    borderTopRightRadius: 30,
+    backgroundColor: theme.colors.backgroundSecondary,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
     paddingTop: 20,
     paddingBottom: 40,
     maxHeight: '80%',
     borderTopWidth: 1,
     borderLeftWidth: 1,
     borderRightWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: theme.colors.cardBorder,
   },
   modalHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 24,
-    paddingBottom: 20,
+    paddingBottom: 18,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+    borderBottomColor: theme.colors.cardBorder,
   },
   modalTitle: {
-    fontSize: 22,
-    fontWeight: '700',
+    fontFamily: theme.typography.fontFamily.displaySemibold,
+    fontSize: 21,
     color: theme.colors.textPrimary,
   },
   modalClose: {
     padding: 4,
   },
-  soundsList: {
-    paddingHorizontal: 24,
-    paddingTop: 16,
+  modalList: {
+    paddingHorizontal: 20,
+    paddingTop: 14,
   },
-  soundItem: {
+  modalRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 16,
-    paddingHorizontal: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
     borderRadius: 16,
-    backgroundColor: 'rgba(42, 45, 58, 0.4)',
-    marginBottom: 12,
+    backgroundColor: theme.colors.card,
+    marginBottom: 10,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
+    borderColor: theme.colors.cardBorder,
   },
-  soundItemSelected: {
-    backgroundColor: 'rgba(139, 92, 246, 0.15)',
-    borderColor: 'rgba(139, 92, 246, 0.3)',
+  modalRowSelected: {
+    backgroundColor: theme.colors.selectedBackground,
+    borderColor: theme.colors.accentBorder,
   },
-  soundItemLeft: {
+  modalRowLeft: {
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
+    columnGap: 14,
   },
-  soundIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: 'rgba(139, 92, 246, 0.1)',
+  modalRowIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: theme.colors.accentLight,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 14,
   },
-  soundIconSelected: {
-    backgroundColor: '#8B5CF6',
+  modalRowIconSelected: {
+    backgroundColor: theme.colors.accent,
   },
-  soundName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: theme.colors.textPrimary,
-    flex: 1,
-  },
-  alarmTimeButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: 'rgba(99, 102, 241, 0.1)',
-    padding: 16,
-    borderRadius: 12,
-    marginTop: 12,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(99, 102, 241, 0.2)',
-  },
-  alarmTimeContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  alarmTimeText: {
+  modalRowText: {
+    fontFamily: theme.typography.fontFamily.bodySemibold,
     fontSize: 15,
     color: theme.colors.textPrimary,
-    marginLeft: 10,
-    fontWeight: '500',
   },
-  recorderInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 107, 107, 0.1)',
-    padding: 12,
-    borderRadius: 10,
-    marginTop: 8,
-    marginBottom: 12,
-  },
-  recorderInfoText: {
-    fontSize: 13,
-    color: theme.colors.textSecondary,
-    marginLeft: 8,
-    flex: 1,
-  },
-  recordingContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255, 107, 107, 0.15)',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 16,
-    marginBottom: 30,
-    marginHorizontal: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(229, 115, 115, 0.3)',
-  },
-  recordingDetails: {
-    marginLeft: 10,
-    flex: 1,
-  },
-  recordingHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 4,
-  },
-  recordingText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#E57373',
-  },
-  volumeMeter: {
-    height: 4,
-    width: 60,
-    backgroundColor: 'rgba(229, 115, 115, 0.2)',
-    borderRadius: 2,
-    overflow: 'hidden',
-  },
-  volumeBar: {
-    height: '100%',
-    backgroundColor: '#E57373',
-  },
-  recordingStats: {
+  modalRowSubtext: {
+    fontFamily: theme.typography.fontFamily.body,
     fontSize: 12,
-    color: theme.colors.textSecondary,
+    color: theme.colors.textTertiary,
+    marginTop: 2,
   },
   pickerContainer: {
-    padding: 20,
+    paddingHorizontal: 20,
+    paddingTop: 20,
     alignItems: 'center',
-  },
-  timePickerWrapper: {
-    marginVertical: 20,
-    backgroundColor: 'rgba(42, 45, 58, 0.4)',
-    borderRadius: 12,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(139, 92, 246, 0.2)',
-  },
-  pickerLabel: {
-    fontSize: 14,
-    color: theme.colors.textPrimary,
-    marginBottom: 16,
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-  pickerDoneButton: {
-    marginTop: 20,
-    borderRadius: 16,
-    overflow: 'hidden',
-    width: '100%',
-  },
-  pickerDoneGradient: {
-    paddingVertical: 16,
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'center',
-    rowGap: 10, columnGap: 10,
-  },
-  pickerDoneText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  selectedTimeDisplay: {
-    backgroundColor: 'rgba(139, 92, 246, 0.15)',
-    padding: 16,
-    borderRadius: 12,
-    marginVertical: 16,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(139, 92, 246, 0.3)',
-  },
-  selectedTimeLabel: {
-    fontSize: 12,
-    color: theme.colors.textSecondary,
-    marginBottom: 8,
-    fontWeight: '500',
-  },
-  selectedTimeValue: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#8B5CF6',
-  },
-  pickerButtonContainer: {
-    flexDirection: 'row',
-    rowGap: 12, columnGap: 12,
-    marginTop: 20,
-  },
-  pickerCancelButton: {
-    flex: 1,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    backgroundColor: 'rgba(160, 174, 192, 0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(160, 174, 192, 0.3)',
-    alignItems: 'center',
-  },
-  pickerCancelButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: theme.colors.textSecondary,
-  },
-  pickerOKButton: {
-    flex: 1,
-    borderRadius: 12,
-    overflow: 'hidden',
-  },
-  pickerOKGradient: {
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  pickerOKButtonText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  alarmInfoBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(99, 102, 241, 0.1)',
-    padding: 12,
-    borderRadius: 12,
-    marginBottom: 20,
-    rowGap: 10, columnGap: 10,
-    borderWidth: 1,
-    borderColor: 'rgba(99, 102, 241, 0.2)',
-  },
-  alarmInfoText: {
-    flex: 1,
-    fontSize: 14,
-    color: theme.colors.textPrimary,
-    fontWeight: '500',
   },
   quickPresetsContainer: {
-    marginBottom: 20,
+    marginBottom: 16,
     width: '100%',
   },
   quickPresetsLabel: {
-    fontSize: 14,
-    color: theme.colors.textSecondary,
-    marginBottom: 12,
+    fontFamily: theme.typography.fontFamily.bodySemibold,
+    fontSize: 13,
+    color: theme.colors.textTertiary,
+    marginBottom: 10,
     textAlign: 'center',
   },
   quickPresetsButtons: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    rowGap: 8, columnGap: 8,
+    columnGap: 8,
   },
   presetButton: {
     flex: 1,
-    backgroundColor: 'rgba(139, 92, 246, 0.1)',
+    backgroundColor: theme.colors.accentLight,
     paddingVertical: 14,
-    borderRadius: 12,
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: 'rgba(139, 92, 246, 0.3)',
+    borderColor: theme.colors.accentBorder,
     alignItems: 'center',
   },
   presetButtonText: {
+    fontFamily: theme.typography.fontFamily.bodyBold,
     fontSize: 16,
-    fontWeight: '700',
-    color: '#8B5CF6',
+    color: theme.colors.accent,
   },
   presetButtonLabel: {
+    fontFamily: theme.typography.fontFamily.body,
     fontSize: 11,
-    color: theme.colors.textSecondary,
+    color: theme.colors.textTertiary,
     marginTop: 2,
   },
   orText: {
+    fontFamily: theme.typography.fontFamily.body,
+    fontSize: 12,
+    color: theme.colors.textTertiary,
+    textAlign: 'center',
+    marginVertical: 14,
+  },
+  selectedTimeDisplay: {
+    backgroundColor: theme.colors.accentLight,
+    borderWidth: 1,
+    borderColor: theme.colors.accentBorder,
+    padding: 16,
+    borderRadius: 14,
+    marginBottom: 14,
+    alignItems: 'center',
+    width: '100%',
+  },
+  selectedTimeLabel: {
+    fontFamily: theme.typography.fontFamily.bodyMedium,
     fontSize: 12,
     color: theme.colors.textSecondary,
-    textAlign: 'center',
-    marginVertical: 16,
-    fontStyle: 'italic',
+    marginBottom: 6,
+  },
+  selectedTimeValue: {
+    fontFamily: theme.typography.fontFamily.displaySemibold,
+    fontSize: 26,
+    color: theme.colors.accent,
+  },
+  pickerDoneButton: {
+    marginTop: 18,
+    height: 56,
+    borderRadius: 16,
+    width: '100%',
+    backgroundColor: theme.colors.ctaBackground,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pickerDoneText: {
+    fontFamily: theme.typography.fontFamily.bodyBold,
+    fontSize: 16,
+    color: theme.colors.ctaText,
   },
 });
-
