@@ -108,12 +108,7 @@ const styles = (theme: any) =>
     chipSelected: {
       borderWidth: 1.5,
       borderColor: theme.colors.accent,
-      backgroundColor: theme.colors.accentLight,
-      shadowColor: theme.colors.accent,
-      shadowOffset: { width: 0, height: 0 },
-      shadowOpacity: 0.18,
-      shadowRadius: 8,
-      elevation: 2,
+      backgroundColor: theme.colors.selectedBackground,
     },
     chipText: {
       fontFamily: theme.typography.fontFamily.bodySemibold,

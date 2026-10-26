@@ -28,6 +28,13 @@ export const nightTheme = {
     accent: '#E8A35E',
     accentLight: 'rgba(232, 163, 94, 0.1)',
     accentBorder: 'rgba(232, 163, 94, 0.3)',
+    // Brighter than accentLight — for a selected pill/card/row's fill, where
+    // accentLight alone reads too dim against a near-black background, and
+    // combining it with an Android `elevation` shadow renders as a dark
+    // rectangle instead of a glow (elevation always draws a hard-edged drop
+    // shadow, never a soft ambient one). Selected-state styling should use
+    // this background + a brighter border instead of shadow/elevation.
+    selectedBackground: 'rgba(232, 163, 94, 0.22)',
 
     highlight: '#F06A2E',
     highlightLight: 'rgba(240, 106, 46, 0.1)',
@@ -196,6 +203,9 @@ export const dayTheme = {
     accent: '#B8471C',
     accentLight: 'rgba(184, 71, 28, 0.1)',
     accentBorder: 'rgba(184, 71, 28, 0.3)',
+    // See nightTheme's selectedBackground for why this exists — a brighter
+    // fill for selected pills/cards/rows than accentLight alone provides.
+    selectedBackground: 'rgba(184, 71, 28, 0.16)',
 
     highlight: '#4F6B4A',
     highlightLight: 'rgba(79, 107, 74, 0.1)',

@@ -102,12 +102,7 @@ const styles = (theme: any) =>
     cardSelected: {
       borderWidth: 1.5,
       borderColor: theme.colors.accent,
-      backgroundColor: theme.colors.accentLight,
-      shadowColor: theme.colors.accent,
-      shadowOffset: { width: 0, height: 0 },
-      shadowOpacity: 0.2,
-      shadowRadius: 10,
-      elevation: 3,
+      backgroundColor: theme.colors.selectedBackground,
     },
     cardTitle: {
       fontFamily: theme.typography.fontFamily.bodyBold,
