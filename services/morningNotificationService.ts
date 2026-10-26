@@ -1,6 +1,7 @@
 import * as Notifications from 'expo-notifications';
 import { SleepSession } from '../contexts/SleepContext';
 import { getSleepScoreColor } from '../utils/sleepQualityColors';
+import { isExpoNotificationsAvailable } from '../utils/notificationAvailability';
 
 /**
  * Morning notification service
@@ -8,6 +9,7 @@ import { getSleepScoreColor } from '../utils/sleepQualityColors';
  */
 
 export async function scheduleMorningNotification(session: SleepSession) {
+  if (!isExpoNotificationsAvailable()) return;
   try {
     // Check if notifications are permitted
     const { status } = await Notifications.getPermissionsAsync();
@@ -75,6 +77,7 @@ export async function scheduleMorningNotification(session: SleepSession) {
 }
 
 export async function sendImmediateSleepSummary(session: SleepSession) {
+  if (!isExpoNotificationsAvailable()) return;
   try {
     const { status } = await Notifications.getPermissionsAsync();
     if (status !== 'granted') {
@@ -111,6 +114,7 @@ export async function sendImmediateSleepSummary(session: SleepSession) {
 }
 
 export async function scheduleWeeklySummary(sleepSessions: SleepSession[]) {
+  if (!isExpoNotificationsAvailable()) return;
   try {
     const { status } = await Notifications.getPermissionsAsync();
     if (status !== 'granted') {

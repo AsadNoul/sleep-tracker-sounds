@@ -1,17 +1,23 @@
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { isExpoNotificationsAvailable } from '../utils/notificationAvailability';
 
-// Configure how notifications should behave
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
+// Configure how notifications should behave.
+// Guarded: this used to run unconditionally at module scope, which crashes
+// the whole app in Expo Go on Android (native module missing since SDK 53).
+// See utils/notificationAvailability.ts for details.
+if (isExpoNotificationsAvailable()) {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowAlert: true,
+      shouldPlaySound: true,
+      shouldSetBadge: false,
+      shouldShowBanner: true,
+      shouldShowList: true,
+    }),
+  });
+}
 
 export interface AlarmConfig {
   alarmTime: Date;
@@ -34,6 +40,7 @@ class NotificationService {
 
   // Request notification permissions (with caching)
   async requestPermissions(): Promise<boolean> {
+    if (!isExpoNotificationsAvailable()) return false;
     try {
       // Return cached result if already granted
       if (this.permissionGranted === true) return true;
@@ -148,7 +155,9 @@ class NotificationService {
     try {
       const notificationId = await AsyncStorage.getItem('@alarm_notification_id');
       if (notificationId) {
-        await Notifications.cancelScheduledNotificationAsync(notificationId);
+        if (isExpoNotificationsAvailable()) {
+          await Notifications.cancelScheduledNotificationAsync(notificationId);
+        }
         await AsyncStorage.removeItem('@alarm_notification_id');
         await AsyncStorage.removeItem('@alarm_time');
         console.log('✅ Alarm cancelled');
@@ -208,7 +217,9 @@ class NotificationService {
     try {
       const notificationId = await AsyncStorage.getItem('@bedtime_reminder_id');
       if (notificationId) {
-        await Notifications.cancelScheduledNotificationAsync(notificationId);
+        if (isExpoNotificationsAvailable()) {
+          await Notifications.cancelScheduledNotificationAsync(notificationId);
+        }
         await AsyncStorage.removeItem('@bedtime_reminder_id');
       }
     } catch (error) {
@@ -299,6 +310,7 @@ class NotificationService {
 
   // Send sync success notification
   async sendSyncNotification(syncedCount: number): Promise<void> {
+    if (!isExpoNotificationsAvailable()) return;
     try {
       if (syncedCount === 0) return;
 
@@ -318,13 +330,21 @@ class NotificationService {
 
   // Add notification response listener
   addNotificationResponseListener(handler: (response: Notifications.NotificationResponse) => void) {
+    if (!isExpoNotificationsAvailable()) {
+      // Return a no-op "subscription" so callers that do
+      // `const sub = addNotificationResponseListener(...); sub.remove()`
+      // don't crash when they later clean up.
+      return { remove: () => {} };
+    }
     return Notifications.addNotificationResponseReceivedListener(handler);
   }
 
   // Cancel all notifications
   async cancelAllNotifications(): Promise<void> {
     try {
-      await Notifications.cancelAllScheduledNotificationsAsync();
+      if (isExpoNotificationsAvailable()) {
+        await Notifications.cancelAllScheduledNotificationsAsync();
+      }
       await AsyncStorage.removeItem('@alarm_notification_id');
       await AsyncStorage.removeItem('@alarm_time');
       console.log('✅ All notifications cancelled');

@@ -15,6 +15,7 @@ import welcomeService from '../services/welcomeService';
 import analyticsService from '../services/analyticsService';
 import countryService from '../services/countryService';
 import NetInfo from '@react-native-community/netinfo';
+import { isExpoNotificationsAvailable } from '../utils/notificationAvailability';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -203,6 +204,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   };
 
   const registerPushToken = async (userId: string) => {
+    if (!isExpoNotificationsAvailable()) return;
     try {
       // Request notification permissions first
       const { status: existingStatus } = await Notifications.getPermissionsAsync();

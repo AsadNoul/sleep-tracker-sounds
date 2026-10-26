@@ -15,6 +15,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAppTheme } from '../hooks/useAppTheme';
 import Constants from 'expo-constants';
 import { supabase } from '../lib/supabase';
+import { isExpoNotificationsAvailable } from '../utils/notificationAvailability';
 
 interface PushNotificationPromptProps {
   userId?: string;
@@ -58,11 +59,16 @@ export default function PushNotificationPrompt({
   }, [visible]);
 
   const checkAndShowPrompt = async () => {
+    // Don't even attempt to show this prompt when the native notification
+    // modules aren't available (e.g. Expo Go on Android since SDK 53) —
+    // there's nothing useful to enable, and every Notifications.* call below
+    // would otherwise be reachable from a live UI interaction.
+    if (!isExpoNotificationsAvailable()) return;
     try {
       // Check if already prompted
       const hasPrompted = await AsyncStorage.getItem(STORAGE_KEY);
       const hasDeclined = await AsyncStorage.getItem(STORAGE_DECLINED_KEY);
-      
+
       // Check current permission status
       const { status } = await Notifications.getPermissionsAsync();
       
@@ -92,6 +98,10 @@ export default function PushNotificationPrompt({
   };
 
   const handleEnable = async () => {
+    if (!isExpoNotificationsAvailable()) {
+      setVisible(false);
+      return;
+    }
     try {
       await AsyncStorage.setItem(STORAGE_KEY, Date.now().toString());
       await AsyncStorage.removeItem(STORAGE_DECLINED_KEY);

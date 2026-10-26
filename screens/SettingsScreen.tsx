@@ -62,6 +62,7 @@ import { useAppTheme } from '../hooks/useAppTheme';
 import GuestBanner from '../components/GuestBanner';
 import notificationService from '../services/notificationService';
 import * as Notifications from 'expo-notifications';
+import { isExpoNotificationsAvailable } from '../utils/notificationAvailability';
 import PushNotificationPrompt from '../components/PushNotificationPrompt';
 import { isPremiumActive } from '../utils/subscriptionHelpers';
 import revenueCatService from '../services/revenueCatService';
@@ -150,9 +151,14 @@ const SettingsScreen = () => {
                 setSleepReminder(savedSettings.sleepReminder ?? false);
             }
 
-            // Check push notification permission status
-            const { status } = await Notifications.getPermissionsAsync();
-            setPushPermissionStatus(status);
+            // Check push notification permission status (guarded: native
+            // notification modules aren't present in Expo Go on Android)
+            if (isExpoNotificationsAvailable()) {
+                const { status } = await Notifications.getPermissionsAsync();
+                setPushPermissionStatus(status);
+            } else {
+                setPushPermissionStatus('denied');
+            }
         };
         loadData();
     }, []);

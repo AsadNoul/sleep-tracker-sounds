@@ -1,6 +1,7 @@
 import { createAudioPlayer, setAudioModeAsync, type AudioPlayer } from 'expo-audio';
 import * as Notifications from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { isExpoNotificationsAvailable } from '../utils/notificationAvailability';
 
 class AlarmService {
   private sound: AudioPlayer | null = null;
@@ -67,17 +68,25 @@ class AlarmService {
     // Play alarm sound
     await this.playAlarmSound(alarm.soundUri);
 
-    // Send notification
-    await Notifications.scheduleNotificationAsync({
-      content: {
-        title: '⏰ Alarm!',
-        body: alarm.name || 'Wake up!',
-        sound: true,
-        priority: Notifications.AndroidNotificationPriority.MAX,
-        vibrate: [0, 250, 250, 250],
-      },
-      trigger: null, // Immediate
-    });
+    // Send notification (no-op when native notification modules aren't
+    // available, e.g. Expo Go on Android — the in-app sound above still plays
+    // while the app is foregrounded, so the alarm isn't entirely silent, but
+    // no system notification/alarm will fire in the background in that case).
+    if (!isExpoNotificationsAvailable()) return;
+    try {
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: '⏰ Alarm!',
+          body: alarm.name || 'Wake up!',
+          sound: true,
+          priority: Notifications.AndroidNotificationPriority.MAX,
+          vibrate: [0, 250, 250, 250],
+        },
+        trigger: null, // Immediate
+      });
+    } catch (error) {
+      console.error('Error scheduling alarm notification:', error);
+    }
   }
 
   async playAlarmSound(soundUri?: string) {
