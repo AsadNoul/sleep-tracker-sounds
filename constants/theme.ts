@@ -23,7 +23,12 @@ export const nightTheme = {
     backgroundTertiary: '#120B06',
     card: '#120B06',
     cardOverlay: 'rgba(18, 11, 6, 0.7)',
-    cardBorder: '#33200F',
+    // Was #33200F (contrast ratio ~1.3 against the #050302 background — a
+    // 1px border at that ratio is nearly invisible on a real screen).
+    // Brightened to #5A3A20 (~2.0 ratio) so card edges and row dividers
+    // actually read as a border rather than disappearing into the dark
+    // background, across every screen that uses this token.
+    cardBorder: '#5A3A20',
 
     accent: '#E8A35E',
     accentLight: 'rgba(232, 163, 94, 0.1)',
@@ -198,7 +203,12 @@ export const dayTheme = {
     backgroundTertiary: '#F6E2D3',
     card: '#FFFDF8',
     cardOverlay: 'rgba(255, 253, 248, 0.9)',
-    cardBorder: '#E6DCCB',
+    // Was #E6DCCB (contrast ratio ~1.2 against the #F6F1E7 background —
+    // same low-visibility issue as night mode's cardBorder, just less
+    // obvious to the eye on a light background). Brightened to #CDBFA8
+    // (~1.6 ratio), matching the canvas's own darker border tone used on
+    // bordered buttons in Day mode.
+    cardBorder: '#CDBFA8',
 
     accent: '#B8471C',
     accentLight: 'rgba(184, 71, 28, 0.1)',

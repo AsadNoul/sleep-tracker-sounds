@@ -27,6 +27,15 @@ import {
     Headphones,
     Heart,
     X,
+    CreditCard,
+    RotateCcw,
+    Shield,
+    LifeBuoy,
+    BadgeCheck,
+    RefreshCw,
+    Share2,
+    Download,
+    LayoutDashboard,
 } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -610,92 +619,128 @@ const SettingsScreen = () => {
                         )}
                     </View>
                     <View style={s.groupCard}>
-                        <TouchableOpacity style={s.row} onPress={navigateToProfile} activeOpacity={0.7}>
-                            <Text style={s.rowLabel}>Your Profile</Text>
-                            <ChevronRight size={16} color={theme.colors.textTertiary} />
+                        <TouchableOpacity style={s.row} onPress={navigateToProfile} activeOpacity={0.6}>
+                            <View style={s.rowIconChip}>
+                                <User size={16} color={theme.colors.accent} />
+                            </View>
+                            <Text style={[s.rowLabel, s.rowLabelGrow]}>Your Profile</Text>
+                            <ChevronRight size={18} color={theme.colors.textSecondary} />
                         </TouchableOpacity>
                         <View style={s.rowDivider} />
 
-                        <TouchableOpacity style={s.row} onPress={navigateToSubscription} activeOpacity={0.7}>
-                            <Text style={s.rowLabel}>Subscription</Text>
+                        <TouchableOpacity style={s.row} onPress={navigateToSubscription} activeOpacity={0.6}>
+                            <View style={s.rowIconChip}>
+                                <CreditCard size={16} color={theme.colors.accent} />
+                            </View>
+                            <Text style={[s.rowLabel, s.rowLabelGrow]}>Subscription</Text>
                             <View style={s.rowValueGroup}>
                                 <Text style={s.rowValue}>
                                     {isPremium ? (subscriptionExpiry ? `Renews ${subscriptionExpiry}` : 'VIP') : 'Free'}
                                 </Text>
-                                <ChevronRight size={16} color={theme.colors.textTertiary} />
+                                <ChevronRight size={18} color={theme.colors.textSecondary} />
                             </View>
                         </TouchableOpacity>
                         <View style={s.rowDivider} />
 
-                        <TouchableOpacity style={s.row} onPress={handleRestorePurchases} disabled={isRestoringPurchases} activeOpacity={0.7}>
-                            <Text style={s.rowLabel}>Restore Purchases</Text>
+                        <TouchableOpacity style={s.row} onPress={handleRestorePurchases} disabled={isRestoringPurchases} activeOpacity={0.6}>
+                            <View style={s.rowIconChip}>
+                                <RotateCcw size={16} color={theme.colors.accent} />
+                            </View>
+                            <Text style={[s.rowLabel, s.rowLabelGrow]}>Restore Purchases</Text>
                             {isRestoringPurchases ? (
                                 <ActivityIndicator size="small" color={theme.colors.accent} />
                             ) : (
-                                <ChevronRight size={16} color={theme.colors.textTertiary} />
+                                <ChevronRight size={18} color={theme.colors.textSecondary} />
                             )}
                         </TouchableOpacity>
                         <View style={s.rowDivider} />
 
-                        <TouchableOpacity style={s.row} onPress={navigateToPrivacySettings} activeOpacity={0.7}>
-                            <Text style={s.rowLabel}>Privacy & data</Text>
-                            <ChevronRight size={16} color={theme.colors.textTertiary} />
+                        <TouchableOpacity style={s.row} onPress={navigateToPrivacySettings} activeOpacity={0.6}>
+                            <View style={s.rowIconChip}>
+                                <Shield size={16} color={theme.colors.accent} />
+                            </View>
+                            <Text style={[s.rowLabel, s.rowLabelGrow]}>Privacy & data</Text>
+                            <ChevronRight size={18} color={theme.colors.textSecondary} />
                         </TouchableOpacity>
                         <View style={s.rowDivider} />
 
-                        <TouchableOpacity style={s.row} onPress={navigateToHelpSupport} activeOpacity={0.7}>
-                            <Text style={s.rowLabel}>Help & support</Text>
-                            <ChevronRight size={16} color={theme.colors.textTertiary} />
+                        <TouchableOpacity style={s.row} onPress={navigateToHelpSupport} activeOpacity={0.6}>
+                            <View style={s.rowIconChip}>
+                                <LifeBuoy size={16} color={theme.colors.accent} />
+                            </View>
+                            <Text style={[s.rowLabel, s.rowLabelGrow]}>Help & support</Text>
+                            <ChevronRight size={18} color={theme.colors.textSecondary} />
                         </TouchableOpacity>
                         <View style={s.rowDivider} />
 
-                        <TouchableOpacity style={s.row} onPress={() => setShowVipSupportModal(true)} activeOpacity={0.7}>
-                            <Text style={s.rowLabel}>VIP Support</Text>
-                            <ChevronRight size={16} color={theme.colors.textTertiary} />
+                        <TouchableOpacity style={s.row} onPress={() => setShowVipSupportModal(true)} activeOpacity={0.6}>
+                            <View style={s.rowIconChip}>
+                                <BadgeCheck size={16} color={theme.colors.accent} />
+                            </View>
+                            <Text style={[s.rowLabel, s.rowLabelGrow]}>VIP Support</Text>
+                            <ChevronRight size={18} color={theme.colors.textSecondary} />
                         </TouchableOpacity>
                         <View style={s.rowDivider} />
 
-                        <TouchableOpacity style={s.row} onPress={navigateToAbout} activeOpacity={0.7}>
-                            <Text style={s.rowLabel}>About</Text>
-                            <ChevronRight size={16} color={theme.colors.textTertiary} />
+                        <TouchableOpacity style={s.row} onPress={navigateToAbout} activeOpacity={0.6}>
+                            <View style={s.rowIconChip}>
+                                <Info size={16} color={theme.colors.accent} />
+                            </View>
+                            <Text style={[s.rowLabel, s.rowLabelGrow]}>About</Text>
+                            <ChevronRight size={18} color={theme.colors.textSecondary} />
                         </TouchableOpacity>
                         <View style={s.rowDivider} />
 
-                        <TouchableOpacity style={s.row} onPress={handleCheckUpdates} disabled={isCheckingUpdates} activeOpacity={0.7}>
-                            <Text style={s.rowLabel}>Check for updates</Text>
+                        <TouchableOpacity style={s.row} onPress={handleCheckUpdates} disabled={isCheckingUpdates} activeOpacity={0.6}>
+                            <View style={s.rowIconChip}>
+                                <RefreshCw size={16} color={theme.colors.accent} />
+                            </View>
+                            <Text style={[s.rowLabel, s.rowLabelGrow]}>Check for updates</Text>
                             {isCheckingUpdates ? (
                                 <ActivityIndicator size="small" color={theme.colors.accent} />
                             ) : (
-                                <ChevronRight size={16} color={theme.colors.textTertiary} />
+                                <ChevronRight size={18} color={theme.colors.textSecondary} />
                             )}
                         </TouchableOpacity>
                         <View style={s.rowDivider} />
 
-                        <TouchableOpacity style={s.row} onPress={handleShareApp} activeOpacity={0.7}>
-                            <Text style={s.rowLabel}>Share Application</Text>
-                            <ChevronRight size={16} color={theme.colors.textTertiary} />
+                        <TouchableOpacity style={s.row} onPress={handleShareApp} activeOpacity={0.6}>
+                            <View style={s.rowIconChip}>
+                                <Share2 size={16} color={theme.colors.accent} />
+                            </View>
+                            <Text style={[s.rowLabel, s.rowLabelGrow]}>Share Application</Text>
+                            <ChevronRight size={18} color={theme.colors.textSecondary} />
                         </TouchableOpacity>
                         <View style={s.rowDivider} />
 
-                        <TouchableOpacity style={s.row} onPress={handleExportData} activeOpacity={0.7}>
-                            <Text style={s.rowLabel}>Export My Data</Text>
-                            <ChevronRight size={16} color={theme.colors.textTertiary} />
+                        <TouchableOpacity style={s.row} onPress={handleExportData} activeOpacity={0.6}>
+                            <View style={s.rowIconChip}>
+                                <Download size={16} color={theme.colors.accent} />
+                            </View>
+                            <Text style={[s.rowLabel, s.rowLabelGrow]}>Export My Data</Text>
+                            <ChevronRight size={18} color={theme.colors.textSecondary} />
                         </TouchableOpacity>
 
                         {isAdmin && (
                             <>
                                 <View style={s.rowDivider} />
-                                <TouchableOpacity style={s.row} onPress={() => navigation.navigate('Admin' as never)} activeOpacity={0.7}>
-                                    <Text style={s.rowLabel}>Admin Dashboard</Text>
-                                    <ChevronRight size={16} color={theme.colors.textTertiary} />
+                                <TouchableOpacity style={s.row} onPress={() => navigation.navigate('Admin' as never)} activeOpacity={0.6}>
+                                    <View style={s.rowIconChip}>
+                                        <LayoutDashboard size={16} color={theme.colors.accent} />
+                                    </View>
+                                    <Text style={[s.rowLabel, s.rowLabelGrow]}>Admin Dashboard</Text>
+                                    <ChevronRight size={18} color={theme.colors.textSecondary} />
                                 </TouchableOpacity>
                             </>
                         )}
 
                         <View style={s.rowDivider} />
-                        <TouchableOpacity style={[s.row, s.rowLast]} onPress={handleDeleteAccount} activeOpacity={0.7}>
-                            <Text style={[s.rowLabel, { color: theme.colors.danger }]}>Delete Account</Text>
-                            <ChevronRight size={16} color={theme.colors.danger} />
+                        <TouchableOpacity style={[s.row, s.rowLast]} onPress={handleDeleteAccount} activeOpacity={0.6}>
+                            <View style={[s.rowIconChip, s.rowIconChipDanger]}>
+                                <Trash2 size={16} color={theme.colors.danger} />
+                            </View>
+                            <Text style={[s.rowLabel, s.rowLabelGrow, { color: theme.colors.danger }]}>Delete Account</Text>
+                            <ChevronRight size={18} color={theme.colors.danger} />
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -1117,16 +1162,31 @@ const styles = (theme: any) => StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'space-between',
         paddingVertical: 12,
+        columnGap: 12,
     },
     rowLast: {},
     rowDivider: {
         height: 1,
         backgroundColor: theme.colors.cardBorder,
     },
+    rowIconChip: {
+        width: 32,
+        height: 32,
+        borderRadius: 10,
+        backgroundColor: theme.colors.accentLight,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    rowIconChipDanger: {
+        backgroundColor: theme.colors.danger + '1F', // ~12% alpha, works on both themes
+    },
     rowLabel: {
         fontFamily: theme.typography.fontFamily.bodySemibold,
         fontSize: 15,
         color: theme.colors.textPrimary,
+    },
+    rowLabelGrow: {
+        flex: 1,
     },
     rowValueGroup: {
         flexDirection: 'row',
