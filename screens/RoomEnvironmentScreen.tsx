@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -6,144 +6,87 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
-  Dimensions,
-  Platform,
-  StatusBar,
-  Animated,
+  Modal,
+  TextInput,
+  ActivityIndicator,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
-import {
-  AudioModule,
-  createAudioPlayer,
-  setAudioModeAsync,
-  requestRecordingPermissionsAsync,
-  RecordingPresets,
-  type AudioPlayer,
-  type AudioRecorder,
-} from 'expo-audio';
-import * as FileSystem from 'expo-file-system/legacy';
-import * as Sharing from 'expo-sharing';
-import * as Haptics from 'expo-haptics';
 import { useNavigation } from '@react-navigation/native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import {
-  ChevronLeft,
-  Activity,
-  Circle,
-  Volume2,
-  Clock,
-  Info,
-  Play,
-  Mic,
-  Square,
-  Save,
-  Trash2,
-  Share2,
-  Heart
-} from 'lucide-react-native';
+import { ChevronLeft, Info } from 'lucide-react-native';
 import { useAuth } from '../contexts/AuthContext';
-import { useSleep } from '../contexts/SleepContext';
+import { useAppTheme } from '../hooks/useAppTheme';
 import { supabase } from '../lib/supabase';
-import LoadingSpinner from '../components/LoadingSpinner';
-import sleepTrackingService from '../services/sleepTrackingService';
+import EmptyState from '../components/EmptyState';
 
-const { width } = Dimensions.get('window');
+// Real manual-entry temperature/humidity/light/noise logging, matching
+// the canvas's Hl-Room.dc.html design. Readings are typed in by the user
+// (a thermometer/smart-home app for temp/humidity) or picked from a short
+// list (light/noise) — this is NOT a sensor integration, same approach the
+// canvas itself describes ("Enter readings from a thermometer...").
+// Backed by the new `room_environment_readings` table (see
+// supabase_tables.sql) — the user runs that SQL once in their own
+// Supabase project; this screen is written against that schema.
 
-interface RecordingEvent {
+interface RoomReading {
   id: string;
-  session_id: string;
-  user_id?: string;
-  timestamp: string;
-  event_type: 'snoring' | 'sleep_talk' | 'noise' | 'voice_note' | 'dreaming';
-  duration_seconds: number;
-  loudness_db: number;
-  audio_file_url?: string;
+  temperature_celsius: number | null;
+  humidity_percent: number | null;
+  light_level: 'dark' | 'dim' | 'bright' | null;
+  noise_db: number | null;
+  recorded_at: string;
 }
 
-const AnimatedWaveformBar = ({ index, meterLevel }: { index: number, meterLevel: number }) => {
-  const height = useRef(new Animated.Value(4)).current;
+const LIGHT_LEVELS: Array<{ value: 'dark' | 'dim' | 'bright'; label: string }> = [
+  { value: 'dark', label: 'Dark' },
+  { value: 'dim', label: 'Dim' },
+  { value: 'bright', label: 'Bright' },
+];
 
-  useEffect(() => {
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(height, {
-          toValue: 4 + (meterLevel * 40 * (Math.random() * 0.5 + 0.5)),
-          duration: 300 + (index * 50),
-          useNativeDriver: false,
-        }),
-        Animated.timing(height, {
-          toValue: 4,
-          duration: 300 + (index * 50),
-          useNativeDriver: false,
-        }),
-      ])
-    ).start();
-  }, [meterLevel]);
+function tempStatus(c: number | null): { label: string; ok: boolean } {
+  if (c === null) return { label: '—', ok: false };
+  if (c >= 16 && c <= 20) return { label: 'Ideal 16–20°C', ok: true };
+  if (c < 16) return { label: 'A bit cold', ok: false };
+  return { label: 'A bit warm', ok: false };
+}
 
-  return (
-    <Animated.View
-      style={{
-        width: 4,
-        height: height,
-        backgroundColor: '#00FFD1',
-        borderRadius: 2,
-        marginHorizontal: 3,
-      }}
-    />
-  );
-};
+function humidityStatus(h: number | null): { label: string; ok: boolean } {
+  if (h === null) return { label: '—', ok: false };
+  if (h >= 30 && h <= 50) return { label: 'Ideal', ok: true };
+  return h > 50 ? { label: 'A bit humid', ok: false } : { label: 'A bit dry', ok: false };
+}
+
+function lightStatus(l: RoomReading['light_level']): { label: string; ok: boolean } {
+  if (!l) return { label: '—', ok: false };
+  return l === 'dark' ? { label: 'Ideal', ok: true } : { label: 'Could be darker', ok: false };
+}
+
+function noiseStatus(db: number | null): { label: string; ok: boolean } {
+  if (db === null) return { label: '—', ok: false };
+  if (db <= 40) return { label: 'Quiet', ok: true };
+  return { label: 'A bit loud', ok: false };
+}
 
 export default function RoomEnvironmentScreen() {
   const navigation = useNavigation<any>();
-  const insets = useSafeAreaInsets();
+  const { theme } = useAppTheme();
   const { user } = useAuth();
+  const s = useMemo(() => styles(theme), [theme]);
 
-  const [recordings, setRecordings] = useState<RecordingEvent[]>([]);
+  const [latest, setLatest] = useState<RoomReading | null>(null);
+  const [history, setHistory] = useState<RoomReading[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [playingRecording, setPlayingRecording] = useState<string | null>(null);
-  const [sound, setSound] = useState<AudioPlayer | null>(null);
-  const [playbackPosition, setPlaybackPosition] = useState<Record<string, number>>({});
-  const [selectedType, setSelectedType] = useState<string>('all');
-
-  // Live Recording State
-  const [isRecording, setIsRecording] = useState(false);
-  const [recording, setRecording] = useState<AudioRecorder | null>(null);
-  const [meterLevel, setMeterLevel] = useState(0);
-  const [lastRecordingUri, setLastRecordingUri] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
-  const [voiceIdentity, setVoiceIdentity] = useState<string>('Silent');
-  const [recordingDuration, setRecordingDuration] = useState(0);
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
-  const meterIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const audioBuffer = useRef<number[]>([]);
+  const [showModal, setShowModal] = useState(false);
 
-  const analyzeAudioPattern = (currentLevel: number) => {
-    audioBuffer.current.push(currentLevel);
-    if (audioBuffer.current.length > 30) audioBuffer.current.shift();
-    if (audioBuffer.current.length < 10) return 'Analyzing...';
-
-    const avg = audioBuffer.current.reduce((a, b) => a + b, 0) / audioBuffer.current.length;
-    const max = Math.max(...audioBuffer.current);
-    const variance = max - Math.min(...audioBuffer.current);
-
-    if (avg > 0.4 && variance > 0.3) return 'Rhythmic Snoring';
-    if (variance > 0.5 && avg > 0.3) return 'Speech / Sleep Talk';
-    if (avg > 0.15 && variance < 0.2) return 'Steady Noise';
-    return avg < 0.1 ? 'Silence' : 'Normal';
-  };
+  const [formTemp, setFormTemp] = useState('');
+  const [formHumidity, setFormHumidity] = useState('');
+  const [formLight, setFormLight] = useState<'dark' | 'dim' | 'bright'>('dark');
+  const [formNoise, setFormNoise] = useState('');
 
   useEffect(() => {
-    fetchRecordings();
-    return () => {
-      if (sound) sound.remove();
-      if (recording) recording.stop().catch(() => {});
-      if (timerRef.current) clearInterval(timerRef.current);
-      if (meterIntervalRef.current) clearInterval(meterIntervalRef.current);
-    };
+    fetchReadings();
   }, [user]);
 
-  const fetchRecordings = async () => {
+  const fetchReadings = async () => {
     if (!user || user.id === 'guest') {
       setIsLoading(false);
       return;
@@ -151,258 +94,468 @@ export default function RoomEnvironmentScreen() {
     try {
       setIsLoading(true);
       const { data, error } = await supabase
-        .from('sleep_recordings')
+        .from('room_environment_readings')
         .select('*')
         .eq('user_id', user.id)
-        .order('timestamp', { ascending: false });
+        .order('recorded_at', { ascending: false })
+        .limit(14);
       if (error) throw error;
-      setRecordings(data || []);
+      setHistory(data || []);
+      setLatest(data && data.length > 0 ? data[0] : null);
     } catch (error) {
-      console.error('Fetch error:', error);
+      console.error('Failed to load room readings:', error);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const startRecording = async () => {
-    try {
-      const permission = await requestRecordingPermissionsAsync();
-      if (permission.status !== 'granted') return Alert.alert('Mic required');
-      await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+  const openForm = () => {
+    setFormTemp(latest?.temperature_celsius != null ? String(latest.temperature_celsius) : '');
+    setFormHumidity(latest?.humidity_percent != null ? String(latest.humidity_percent) : '');
+    setFormLight(latest?.light_level || 'dark');
+    setFormNoise(latest?.noise_db != null ? String(latest.noise_db) : '');
+    setShowModal(true);
+  };
 
-      const newRecording = new AudioModule.AudioRecorder({
-        ...RecordingPresets.HIGH_QUALITY,
-        isMeteringEnabled: true,
-      });
-
-      // Poll metering at 100ms, same cadence as the old progressUpdateInterval,
-      // for a smooth live waveform.
-      meterIntervalRef.current = setInterval(() => {
-        const status = newRecording.getStatus();
-        if (status.metering !== undefined) {
-          const normalized = Math.max(0, (status.metering + 160) / 160);
-          setMeterLevel(normalized);
-          setVoiceIdentity(analyzeAudioPattern(normalized));
-        }
-      }, 100);
-
-      await newRecording.prepareToRecordAsync();
-      newRecording.record();
-
-      setRecording(newRecording);
-      setIsRecording(true);
-      setRecordingDuration(0);
-      timerRef.current = setInterval(() => setRecordingDuration(p => p + 1), 1000);
-    } catch (e) {
-      console.error(e);
+  const saveReading = async () => {
+    if (!user || user.id === 'guest') {
+      Alert.alert('Log in required', 'Sign in to save your room readings.');
+      return;
     }
-  };
+    const temp = formTemp.trim() ? parseFloat(formTemp) : null;
+    const humidity = formHumidity.trim() ? parseFloat(formHumidity) : null;
+    const noise = formNoise.trim() ? parseFloat(formNoise) : null;
 
-  const stopRecording = async () => {
-    if (!recording) return;
-    setIsRecording(false);
-    if (timerRef.current) clearInterval(timerRef.current);
-    if (meterIntervalRef.current) clearInterval(meterIntervalRef.current);
-    await recording.stop();
-    setLastRecordingUri(recording.uri);
-    setRecording(null);
-    setMeterLevel(0);
-    setVoiceIdentity('Ready');
-    await setAudioModeAsync({ allowsRecording: false });
-  };
-
-  const saveLiveRecording = async () => {
-    if (!lastRecordingUri || !user || user.id === 'guest') return Alert.alert('Log in required');
     setIsSaving(true);
     try {
-      const recordingsDir = `${FileSystem.documentDirectory}recordings/`;
-      await FileSystem.makeDirectoryAsync(recordingsDir, { intermediates: true });
-      const fileName = `voice_${Date.now()}.m4a`;
-      const localUri = `${recordingsDir}${fileName}`;
-      await FileSystem.moveAsync({ from: lastRecordingUri, to: localUri });
-
-      const { error } = await supabase.from('sleep_recordings').insert({
-        user_id: user.id, event_type: 'voice_note', timestamp: new Date().toISOString(),
-        duration_seconds: Math.round(recordingDuration), loudness_db: 80, audio_file_url: localUri, session_id: 'local'
+      const { error } = await supabase.from('room_environment_readings').insert({
+        user_id: user.id,
+        temperature_celsius: temp,
+        humidity_percent: humidity,
+        light_level: formLight,
+        noise_db: noise,
+        recorded_at: new Date().toISOString(),
       });
       if (error) throw error;
-      setLastRecordingUri(null);
-      fetchRecordings();
-    } catch (e) {
-      console.error(e);
+      setShowModal(false);
+      fetchReadings();
+    } catch (error) {
+      console.error('Failed to save room reading:', error);
+      Alert.alert('Error', 'Could not save your reading. Please try again.');
     } finally {
       setIsSaving(false);
     }
   };
 
-  const deleteRecording = (id: string, fileUrl?: string) => {
-    Alert.alert('Delete?', 'Delete this recording forever?', [
-      { text: 'Cancel' },
-      {
-        text: 'Delete', style: 'destructive', onPress: async () => {
-          const { error } = await supabase.from('sleep_recordings').delete().eq('id', id);
-          if (!error) {
-            if (fileUrl?.startsWith('file://')) await FileSystem.deleteAsync(fileUrl).catch(() => { });
-            setRecordings(prev => prev.filter(r => r.id !== id));
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          }
-        }
-      }
-    ]);
-  };
+  const tiles = [
+    { name: 'Temperature', value: latest?.temperature_celsius != null ? `${latest.temperature_celsius}°C` : '—', ...tempStatus(latest?.temperature_celsius ?? null) },
+    { name: 'Humidity', value: latest?.humidity_percent != null ? `${latest.humidity_percent}%` : '—', ...humidityStatus(latest?.humidity_percent ?? null) },
+    { name: 'Light', value: latest?.light_level ? latest.light_level[0].toUpperCase() + latest.light_level.slice(1) : '—', ...lightStatus(latest?.light_level ?? null) },
+    { name: 'Noise', value: latest?.noise_db != null ? `${latest.noise_db} dB` : '—', ...noiseStatus(latest?.noise_db ?? null) },
+  ];
 
-  const shareRecording = async (url?: string) => {
-    if (url && (await Sharing.isAvailableAsync())) await Sharing.shareAsync(url);
-  };
+  const loggedAtLabel = latest
+    ? `Logged ${new Date(latest.recorded_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} at ${new Date(latest.recorded_at).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`
+    : 'No readings yet';
 
-  const playRecording = async (rec: RecordingEvent) => {
-    if (sound) sound.remove();
-    if (!rec.audio_file_url) return;
-    const newSound = createAudioPlayer({ uri: rec.audio_file_url });
-    newSound.addListener('playbackStatusUpdate', (status) => {
-      if (status.isLoaded) {
-        setPlaybackPosition(p => ({ ...p, [rec.id]: status.currentTime / (status.duration || 1) }));
-        if (status.didJustFinish) setPlayingRecording(null);
-      }
-    });
-    newSound.play();
-    setSound(newSound);
-    setPlayingRecording(rec.id);
-  };
-
-  const stats = {
-    total: recordings.length,
-    vol: recordings.length ? (recordings.reduce((s, r) => s + r.loudness_db, 0) / recordings.length).toFixed(0) : 0,
-    time: recordings.reduce((s, r) => s + r.duration_seconds, 0)
-  };
-
-  const filtered = selectedType === 'all' ? recordings : recordings.filter(r => r.event_type === selectedType);
+  if (isLoading) {
+    return (
+      <View style={[s.container, s.centered]}>
+        <ActivityIndicator color={theme.colors.accent} size="large" />
+      </View>
+    );
+  }
 
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="light-content" />
-      <LinearGradient colors={['#0F111A', '#1B1D2A']} style={styles.gradient}>
-        <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
-          <TouchableOpacity onPress={() => navigation.goBack()}><ChevronLeft size={24} color="#FFF" /></TouchableOpacity>
-          <Text style={styles.headerTitle}>Environment</Text>
-          <View style={{ width: 24 }} />
+    <View style={s.container}>
+      <View style={s.header}>
+        <TouchableOpacity style={s.backButton} onPress={() => navigation.goBack()} accessibilityLabel="Back">
+          <ChevronLeft size={20} color={theme.colors.textPrimary} />
+        </TouchableOpacity>
+        <View style={s.headerTextBlock}>
+          <Text style={s.headerTitle}>Your bedroom</Text>
+          <Text style={s.headerSubtitle}>{loggedAtLabel}</Text>
+        </View>
+      </View>
+
+      <ScrollView contentContainerStyle={s.scrollContent} showsVerticalScrollIndicator={false}>
+        {!latest ? (
+          <EmptyState
+            title="No readings logged yet"
+            description="Log your bedroom's temperature, humidity, light and noise to see how they affect your sleep score."
+            actionLabel="Log first reading"
+            onAction={openForm}
+          />
+        ) : (
+          <>
+            <View style={s.tileGrid}>
+              {tiles.map((t) => (
+                <View key={t.name} style={s.tile}>
+                  <Text style={s.tileLabel}>{t.name}</Text>
+                  <Text style={s.tileValue}>{t.value}</Text>
+                  <View style={[s.tileStatus, t.ok ? s.tileStatusOk : s.tileStatusWarn]}>
+                    <Text style={[s.tileStatusText, t.ok ? s.tileStatusTextOk : s.tileStatusTextWarn]}>
+                      {t.label}
+                    </Text>
+                  </View>
+                </View>
+              ))}
+            </View>
+
+            {history.length >= 2 && (
+              <View style={s.chartCard}>
+                <View style={s.chartHeader}>
+                  <Text style={s.chartTitle}>Recent readings</Text>
+                  <Text style={s.chartSubtitle}>Last {history.length} nights</Text>
+                </View>
+                {history.slice(0, 5).map((r) => (
+                  <View key={r.id} style={s.chartRow}>
+                    <Text style={s.chartRowDate}>
+                      {new Date(r.recorded_at).toLocaleDateString(undefined, { weekday: 'short' })}
+                    </Text>
+                    <Text style={s.chartRowValue}>
+                      {r.temperature_celsius != null ? `${r.temperature_celsius}°C` : '—'}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            )}
+          </>
+        )}
+
+        <View style={s.infoRow}>
+          <Info size={16} color={theme.colors.textTertiary} />
+          <Text style={s.infoText}>
+            Enter readings from a thermometer or smart home app. Noise level comes from your phone's microphone, if available.
+          </Text>
         </View>
 
-        <ScrollView style={styles.content} contentContainerStyle={{ padding: 20 }}>
-          <BlurView intensity={30} tint="dark" style={styles.liveCard}>
-            <View style={styles.liveHeader}>
-              <View style={[styles.dot, isRecording && styles.dotActive]} />
-              <Text style={styles.cardTitle}>Live Monitor</Text>
-              {isRecording && <Text style={styles.timer}>{recordingDuration}s</Text>}
-            </View>
-            <View style={styles.viz}>
-              {/* Animated Waveform */}
-              {isRecording ? (
-                <View style={styles.waveformContainer}>
-                  {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
-                    <AnimatedWaveformBar key={i} index={i} meterLevel={meterLevel} />
-                  ))}
-                </View>
-              ) : (
-                <Text style={[styles.identity, { color: '#A0AEC0' }]}>{voiceIdentity}</Text>
-              )}
-            </View>
-            <View style={styles.controls}>
-              {!isRecording ? (
-                <TouchableOpacity onPress={startRecording} style={styles.recBtn}>
-                  <Mic size={20} color="#FFF" /><Text style={styles.btnText}>Start</Text>
-                </TouchableOpacity>
-              ) : (
-                <TouchableOpacity onPress={stopRecording} style={styles.stopBtn}>
-                  <Square size={20} color="#FF6B6B" fill="#FF6B6B" /><Text style={styles.btnText}>Stop</Text>
-                </TouchableOpacity>
-              )}
-              {lastRecordingUri && !isRecording && (
-                <View style={styles.postRec}>
-                  <TouchableOpacity onPress={saveLiveRecording} style={styles.saveBtn}><Save size={18} color="#00FFD1" /><Text style={styles.btnText}>Save</Text></TouchableOpacity>
-                  <TouchableOpacity onPress={() => setLastRecordingUri(null)}><Trash2 size={18} color="#FF6B6B" /></TouchableOpacity>
-                </View>
-              )}
-            </View>
-          </BlurView>
+        {latest && (
+          <TouchableOpacity style={s.updateButton} onPress={openForm} activeOpacity={0.85}>
+            <Text style={s.updateButtonText}>Update readings</Text>
+          </TouchableOpacity>
+        )}
+      </ScrollView>
 
-          <View style={styles.statsRow}>
-            <View style={styles.stat}><Activity size={20} color="#00FFD1" /><Text style={styles.statVal}>{stats.total}</Text><Text style={styles.statLab}>Events</Text></View>
-            <View style={styles.stat}><Volume2 size={20} color="#FFD700" /><Text style={styles.statVal}>{stats.vol}%</Text><Text style={styles.statLab}>Avg Vol</Text></View>
-            <View style={styles.stat}><Clock size={20} color="#33C6FF" /><Text style={styles.statVal}>{stats.time}s</Text><Text style={styles.statLab}>Duration</Text></View>
-          </View>
+      <Modal visible={showModal} animationType="slide" transparent onRequestClose={() => setShowModal(false)}>
+        <View style={s.modalOverlay}>
+          <View style={s.modalCard}>
+            <Text style={s.modalTitle}>Log your bedroom</Text>
 
-          <View style={styles.filters}>
-            {['all', 'snoring', 'sleep_talk', 'voice_note'].map(t => (
-              <TouchableOpacity key={t} onPress={() => setSelectedType(t)} style={[styles.filter, selectedType === t && styles.filterActive]}>
-                <Text style={[styles.filterText, selectedType === t && styles.filterTextActive]}>{t === 'voice_note' ? 'Voices' : t.toUpperCase()}</Text>
+            <Text style={s.fieldLabel}>Temperature (°C)</Text>
+            <TextInput
+              style={s.input}
+              value={formTemp}
+              onChangeText={setFormTemp}
+              keyboardType="decimal-pad"
+              placeholder="e.g. 19"
+              placeholderTextColor={theme.colors.textTertiary}
+            />
+
+            <Text style={s.fieldLabel}>Humidity (%)</Text>
+            <TextInput
+              style={s.input}
+              value={formHumidity}
+              onChangeText={setFormHumidity}
+              keyboardType="decimal-pad"
+              placeholder="e.g. 45"
+              placeholderTextColor={theme.colors.textTertiary}
+            />
+
+            <Text style={s.fieldLabel}>Light</Text>
+            <View style={s.pillRow}>
+              {LIGHT_LEVELS.map((l) => (
+                <TouchableOpacity
+                  key={l.value}
+                  style={[s.pill, formLight === l.value && s.pillSelected]}
+                  onPress={() => setFormLight(l.value)}
+                >
+                  <Text style={[s.pillText, formLight === l.value && s.pillTextSelected]}>{l.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <Text style={s.fieldLabel}>Noise (dB)</Text>
+            <TextInput
+              style={s.input}
+              value={formNoise}
+              onChangeText={setFormNoise}
+              keyboardType="decimal-pad"
+              placeholder="e.g. 32"
+              placeholderTextColor={theme.colors.textTertiary}
+            />
+
+            <View style={s.modalActions}>
+              <TouchableOpacity style={s.modalCancel} onPress={() => setShowModal(false)} disabled={isSaving}>
+                <Text style={s.modalCancelText}>Cancel</Text>
               </TouchableOpacity>
-            ))}
+              <TouchableOpacity style={s.modalSave} onPress={saveReading} disabled={isSaving} activeOpacity={0.85}>
+                {isSaving ? (
+                  <ActivityIndicator color={theme.colors.ctaText} />
+                ) : (
+                  <Text style={s.modalSaveText}>Save</Text>
+                )}
+              </TouchableOpacity>
+            </View>
           </View>
-
-          {filtered.length > 0 ? filtered.map(r => (
-            <BlurView key={r.id} intensity={20} tint="dark" style={styles.recItem}>
-              <View style={styles.recInfo}>
-                <Text style={styles.recType}>{r.event_type.toUpperCase()}</Text>
-                <Text style={styles.recTime}>{new Date(r.timestamp).toLocaleTimeString()}</Text>
-              </View>
-              <View style={styles.actions}>
-                <TouchableOpacity onPress={() => playingRecording === r.id ? setSound(null) : playRecording(r)} style={styles.playBtn}>
-                  {playingRecording === r.id ? <Square size={16} color="#000" fill="#000" /> : <Play size={16} color="#000" fill="#000" />}
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => shareRecording(r.audio_file_url)}><Share2 size={20} color="rgba(255,255,255,0.6)" /></TouchableOpacity>
-                <TouchableOpacity onPress={() => deleteRecording(r.id, r.audio_file_url)}><Trash2 size={20} color="#FF6B6B" /></TouchableOpacity>
-              </View>
-            </BlurView>
-          )) : (
-            <View style={styles.empty}><Info size={32} color="rgba(255,255,255,0.2)" /><Text style={styles.emptyText}>No recordings yet</Text></View>
-          )}
-        </ScrollView>
-      </LinearGradient>
+        </View>
+      </Modal>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1 },
-  gradient: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20 },
-  headerTitle: { fontSize: 20, fontWeight: '800', color: '#FFF' },
-  content: { flex: 1 },
-  liveCard: { padding: 20, borderRadius: 24, marginBottom: 20, borderWidth: 1, borderColor: 'rgba(0,255,209,0.3)' },
-  liveHeader: { flexDirection: 'row', alignItems: 'center', rowGap: 10, columnGap: 10, marginBottom: 15 },
-  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: 'rgba(255,255,255,0.2)' },
-  dotActive: { backgroundColor: '#FF6B6B' },
-  cardTitle: { color: '#FFF', fontWeight: '700', flex: 1 },
-  timer: { color: '#FF6B6B', fontWeight: '800' },
-  viz: { height: 80, justifyContent: 'center', alignItems: 'center' },
-  waveformContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    height: 60,
-  },
-  identity: { fontSize: 18, fontWeight: '800' },
-  controls: { flexDirection: 'row', alignItems: 'center', columnGap: 15, rowGap: 15 },
-  recBtn: { flexDirection: 'row', alignItems: 'center', rowGap: 8, columnGap: 8, backgroundColor: '#FF6B6B', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 20 },
-  stopBtn: { flexDirection: 'row', alignItems: 'center', rowGap: 8, columnGap: 8, backgroundColor: 'rgba(255,255,255,0.1)', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 20 },
-  postRec: { flexDirection: 'row', alignItems: 'center', rowGap: 15, columnGap: 15, flex: 1 },
-  saveBtn: { flexDirection: 'row', alignItems: 'center', rowGap: 8, columnGap: 8, backgroundColor: 'rgba(0,255,209,0.1)', paddingHorizontal: 15, paddingVertical: 10, borderRadius: 20 },
-  btnText: { color: '#FFF', fontWeight: '700' },
-  statsRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 },
-  stat: { flex: 1, alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.05)', padding: 15, borderRadius: 20, marginHorizontal: 4 },
-  statVal: { color: '#FFF', fontSize: 18, fontWeight: '800', marginTop: 5 },
-  statLab: { color: 'rgba(255,255,255,0.4)', fontSize: 10 },
-  filters: { flexDirection: 'row', rowGap: 10, columnGap: 10, marginBottom: 20 },
-  filter: { paddingHorizontal: 15, paddingVertical: 8, borderRadius: 15, backgroundColor: 'rgba(255,255,255,0.05)' },
-  filterActive: { backgroundColor: '#33C6FF' },
-  filterText: { color: 'rgba(255,255,255,0.4)', fontSize: 12, fontWeight: '700' },
-  filterTextActive: { color: '#FFF' },
-  recItem: { flexDirection: 'row', padding: 15, borderRadius: 20, marginBottom: 10, alignItems: 'center' },
-  recInfo: { flex: 1 },
-  recType: { color: '#FFF', fontWeight: '800', fontSize: 12 },
-  recTime: { color: 'rgba(255,255,255,0.4)', fontSize: 11 },
-  actions: { flexDirection: 'row', alignItems: 'center', columnGap: 15, rowGap: 15 },
-  playBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#00FFD1', justifyContent: 'center', alignItems: 'center' },
-  empty: { alignItems: 'center', padding: 40 },
-  emptyText: { color: 'rgba(255,255,255,0.2)', marginTop: 10 }
-});
+const styles = (theme: any) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: theme.colors.background,
+    },
+    centered: {
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      columnGap: 12,
+      paddingTop: 24,
+      paddingHorizontal: 20,
+      paddingBottom: 8,
+    },
+    backButton: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      borderWidth: 1,
+      borderColor: theme.colors.cardBorder,
+      backgroundColor: theme.colors.card,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    headerTextBlock: {
+      flex: 1,
+    },
+    headerTitle: {
+      fontFamily: theme.typography.fontFamily.displaySemibold,
+      fontSize: 24,
+      color: theme.colors.textPrimary,
+    },
+    headerSubtitle: {
+      fontFamily: theme.typography.fontFamily.body,
+      fontSize: 14,
+      color: theme.colors.textSecondary,
+    },
+    scrollContent: {
+      paddingHorizontal: 20,
+      paddingBottom: 40,
+      rowGap: 16,
+    },
+    tileGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      columnGap: 12,
+      rowGap: 12,
+    },
+    tile: {
+      width: '47%',
+      minHeight: 132,
+      borderRadius: theme.borderRadius.card,
+      borderWidth: 1,
+      borderColor: theme.colors.cardBorder,
+      backgroundColor: theme.colors.card,
+      padding: 16,
+      justifyContent: 'space-between',
+      rowGap: 8,
+    },
+    tileLabel: {
+      fontFamily: theme.typography.fontFamily.bodySemibold,
+      fontSize: 14,
+      color: theme.colors.textSecondary,
+    },
+    tileValue: {
+      fontFamily: theme.typography.fontFamily.display,
+      fontSize: 34,
+      color: theme.colors.textPrimary,
+    },
+    tileStatus: {
+      alignSelf: 'flex-start',
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      borderRadius: 99,
+      borderWidth: 1,
+    },
+    tileStatusOk: {
+      backgroundColor: theme.colors.navActiveBackground,
+      borderColor: theme.colors.cardBorder,
+    },
+    tileStatusWarn: {
+      backgroundColor: theme.colors.premiumBadgeBackground,
+      borderColor: theme.colors.premiumBadgeBorder,
+    },
+    tileStatusText: {
+      fontFamily: theme.typography.fontFamily.bodyBold,
+      fontSize: 13,
+    },
+    tileStatusTextOk: {
+      color: theme.colors.textPrimary,
+    },
+    tileStatusTextWarn: {
+      color: theme.colors.premiumBadgeText,
+    },
+    chartCard: {
+      borderRadius: theme.borderRadius.card,
+      borderWidth: 1,
+      borderColor: theme.colors.cardBorder,
+      backgroundColor: theme.colors.card,
+      padding: 16,
+      rowGap: 10,
+    },
+    chartHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'baseline',
+    },
+    chartTitle: {
+      fontFamily: theme.typography.fontFamily.bodyBold,
+      fontSize: 16,
+      color: theme.colors.textPrimary,
+    },
+    chartSubtitle: {
+      fontFamily: theme.typography.fontFamily.body,
+      fontSize: 13,
+      color: theme.colors.textTertiary,
+    },
+    chartRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      paddingVertical: 4,
+    },
+    chartRowDate: {
+      fontFamily: theme.typography.fontFamily.body,
+      fontSize: 14,
+      color: theme.colors.textSecondary,
+    },
+    chartRowValue: {
+      fontFamily: theme.typography.fontFamily.bodySemibold,
+      fontSize: 14,
+      color: theme.colors.textPrimary,
+    },
+    infoRow: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      columnGap: 10,
+    },
+    infoText: {
+      flex: 1,
+      fontFamily: theme.typography.fontFamily.body,
+      fontSize: 13,
+      lineHeight: 19,
+      color: theme.colors.textTertiary,
+    },
+    updateButton: {
+      height: 60,
+      borderRadius: 20,
+      backgroundColor: theme.colors.ctaBackground,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    updateButtonText: {
+      fontFamily: theme.typography.fontFamily.bodyBold,
+      fontSize: 17,
+      color: theme.colors.ctaText,
+    },
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: theme.colors.cardOverlay,
+      justifyContent: 'flex-end',
+    },
+    modalCard: {
+      backgroundColor: theme.colors.background,
+      borderTopLeftRadius: 28,
+      borderTopRightRadius: 28,
+      borderWidth: 1,
+      borderColor: theme.colors.cardBorder,
+      padding: 24,
+      rowGap: 12,
+    },
+    modalTitle: {
+      fontFamily: theme.typography.fontFamily.displaySemibold,
+      fontSize: 22,
+      color: theme.colors.textPrimary,
+      marginBottom: 4,
+    },
+    fieldLabel: {
+      fontFamily: theme.typography.fontFamily.bodySemibold,
+      fontSize: 14,
+      color: theme.colors.textSecondary,
+    },
+    input: {
+      height: 48,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: theme.colors.cardBorder,
+      backgroundColor: theme.colors.card,
+      paddingHorizontal: 14,
+      fontFamily: theme.typography.fontFamily.body,
+      fontSize: 16,
+      color: theme.colors.textPrimary,
+    },
+    pillRow: {
+      flexDirection: 'row',
+      columnGap: 8,
+    },
+    pill: {
+      flex: 1,
+      height: 44,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: theme.colors.cardBorder,
+      backgroundColor: theme.colors.card,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    pillSelected: {
+      backgroundColor: theme.colors.accent,
+      borderColor: theme.colors.accent,
+    },
+    pillText: {
+      fontFamily: theme.typography.fontFamily.bodySemibold,
+      fontSize: 14,
+      color: theme.colors.textPrimary,
+    },
+    pillTextSelected: {
+      color: theme.colors.background,
+    },
+    modalActions: {
+      flexDirection: 'row',
+      columnGap: 12,
+      marginTop: 8,
+    },
+    modalCancel: {
+      flex: 1,
+      height: 52,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: theme.colors.cardBorder,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    modalCancelText: {
+      fontFamily: theme.typography.fontFamily.bodySemibold,
+      fontSize: 15,
+      color: theme.colors.textSecondary,
+    },
+    modalSave: {
+      flex: 1,
+      height: 52,
+      borderRadius: 16,
+      backgroundColor: theme.colors.ctaBackground,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    modalSaveText: {
+      fontFamily: theme.typography.fontFamily.bodyBold,
+      fontSize: 15,
+      color: theme.colors.ctaText,
+    },
+  });
