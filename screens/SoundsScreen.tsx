@@ -1,4 +1,4 @@
-﻿import { useAppTheme } from '../hooks/useAppTheme';
+import { useAppTheme } from '../hooks/useAppTheme';
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import {
   View,
@@ -62,7 +62,8 @@ import {
   Sparkles,
   VolumeX,
   Repeat,
-  Lock
+  Lock,
+  Plus,
 } from 'lucide-react-native';
 import { Share } from 'react-native';
 import { useAudio } from '../contexts/AudioContext';
@@ -137,21 +138,6 @@ const FEATURED_COLLECTIONS = [
   { id: 'rainy-evening', name: 'Autumn Rain', subtitle: 'Deep relaxation', image: 'https://images.unsplash.com/photo-1519692933481-e162a57d6721?w=800&q=80', sounds: ['light-rain', 'heavy-rain'] },
   { id: 'ocean-drift', name: 'Midnight Coast', subtitle: 'Gentle waves', image: 'https://images.unsplash.com/photo-1505118380757-91f5f5632de0?w=800&q=80', sounds: ['ocean-waves', 'gentle-surf'] },
 ];
-
-const GlassView = ({ style, children, intensity = 20, tint = "dark" }: any) => {
-  if (Platform.OS === 'android') {
-    return (
-      <View style={[style, { backgroundColor: 'rgba(255, 255, 255, 0.05)', overflow: 'hidden' }]}>
-        {children}
-      </View>
-    );
-  }
-  return (
-    <BlurView intensity={intensity} tint={tint} style={[style, { overflow: 'hidden' }]}>
-      {children}
-    </BlurView>
-  );
-};
 
 export default function SoundsScreen() {
   const { theme, isDark } = useAppTheme();
@@ -257,26 +243,26 @@ export default function SoundsScreen() {
 
   return (
     <View style={themedStyles.container}>
-      <StatusBar barStyle="light-content" />
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
 
-      {/* Massive Sounds Header */}
+      {/* Header */}
       <Animated.View style={[themedStyles.header, {
         paddingTop: insets.top + 10,
         backgroundColor: scrollY.interpolate({
           inputRange: [0, 80],
-          outputRange: ['transparent', 'rgba(15, 15, 30, 0.98)'],
+          outputRange: ['transparent', theme.colors.background],
           extrapolate: 'clamp'
         })
       }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={themedStyles.iconButton}>
-          <ChevronLeft size={24} color="#FFF" />
+          <ChevronLeft size={24} color={theme.colors.textPrimary} />
         </TouchableOpacity>
         <View style={themedStyles.headerContent}>
           <Text style={themedStyles.headerTitle}>Sounds</Text>
           <Text style={themedStyles.headerSubtitle}>SLEEP LIBRARY</Text>
         </View>
         <TouchableOpacity onPress={() => isMixing ? stopMixing() : startMixing()} style={[themedStyles.iconButton, isMixing && themedStyles.activeIconButton]}>
-          <Activity size={20} color={isMixing ? "#000" : "#FFF"} />
+          <Activity size={20} color={isMixing ? theme.colors.background : theme.colors.textPrimary} />
         </TouchableOpacity>
       </Animated.View>
 
@@ -286,17 +272,49 @@ export default function SoundsScreen() {
         contentContainerStyle={{ paddingBottom: bottomMargin + 100 }}
       >
         <View style={themedStyles.searchBox}>
-          <GlassView intensity={10} style={themedStyles.searchInner}>
-            <Search size={20} color="rgba(255,255,255,0.4)" />
+          <View style={themedStyles.searchInner}>
+            <Search size={20} color={theme.colors.textTertiary} />
             <TextInput
               placeholder="Search library..."
-              placeholderTextColor="rgba(255,255,255,0.4)"
+              placeholderTextColor={theme.colors.textTertiary}
               style={themedStyles.searchInput}
               value={searchQuery}
               onChangeText={setSearchQuery}
             />
-          </GlassView>
+          </View>
         </View>
+
+        {/* Active Mix — shown when mixing with sounds selected (canvas-style mixer card) */}
+        {isMixing && Object.keys(activeMix).length > 0 && (
+          <View style={themedStyles.section}>
+            <View style={themedStyles.mixerCard}>
+              <View style={themedStyles.mixerTopRow}>
+                <View style={themedStyles.mixerPlayRow}>
+                  <TouchableOpacity onPress={handlePlayCurrentSound} style={themedStyles.mixerPlayBtn}>
+                    {isPlaying ? (
+                      <Pause size={22} color={theme.colors.background} fill={theme.colors.background} />
+                    ) : (
+                      <Play size={22} color={theme.colors.background} fill={theme.colors.background} />
+                    )}
+                  </TouchableOpacity>
+                  <View>
+                    <Text style={themedStyles.mixerTitle}>Active Mix</Text>
+                    <Text style={themedStyles.mixerSubtitle}>{Object.keys(activeMix).length} sound{Object.keys(activeMix).length === 1 ? '' : 's'} playing</Text>
+                  </View>
+                </View>
+              </View>
+              <View style={themedStyles.mixerDivider} />
+              {Object.entries(activeMix).map(([soundId, s]: [string, any]) => (
+                <View key={soundId} style={themedStyles.mixerRow}>
+                  <Text style={themedStyles.mixerRowName} numberOfLines={1}>{s.name}</Text>
+                  <TouchableOpacity onPress={() => removeSoundFromMix(soundId)} style={themedStyles.mixerRemoveBtn}>
+                    <X size={14} color={theme.colors.error} />
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
 
         {/* Featured Collections */}
         {!searchQuery && (
@@ -321,9 +339,9 @@ export default function SoundsScreen() {
                   }}
                   style={themedStyles.featuredCard}
                 >
-                  <ImageBackground source={{ uri: item.image }} style={themedStyles.featuredImage} imageStyle={{ borderRadius: 32 }}>
-                    <LinearGradient colors={['rgba(0,0,0,0.1)', 'rgba(0,0,0,0.7)']} style={themedStyles.featuredOverlay}>
-                      <View style={themedStyles.featuredBadge}><Sparkles size={12} color="#F59E0B" /><Text style={themedStyles.featuredBadgeText}>FEATURED</Text></View>
+                  <ImageBackground source={{ uri: item.image }} style={themedStyles.featuredImage} imageStyle={{ borderRadius: theme.borderRadius.card }}>
+                    <LinearGradient colors={['rgba(0,0,0,0.1)', 'rgba(0,0,0,0.72)']} style={themedStyles.featuredOverlay}>
+                      <View style={themedStyles.featuredBadge}><Sparkles size={12} color={theme.colors.premiumBadgeText} /><Text style={themedStyles.featuredBadgeText}>FEATURED</Text></View>
                       <View><Text style={themedStyles.featuredTitle}>{item.name}</Text><Text style={themedStyles.featuredSubtitle}>{item.subtitle}</Text></View>
                     </LinearGradient>
                   </ImageBackground>
@@ -350,46 +368,49 @@ export default function SoundsScreen() {
           ))}
         </ScrollView>
 
-        {/* 2x2 Grid for EVERYTHING */}
+        {/* Sound list — canvas-style rows (icon chip + name/category + play or unlock) */}
         <View style={themedStyles.section}>
           <View style={themedStyles.sectionHeader}>
             <Text style={themedStyles.sectionLabel}>{selectedCategory.toUpperCase()} COLLECTION</Text>
           </View>
-          <View style={themedStyles.grid}>
-            {displayedSounds.map(sound => {
+          <View style={themedStyles.listCard}>
+            {displayedSounds.map((sound, index) => {
               const isLocked = !isPremium && !FREE_SOUND_IDS.has(sound.id);
+              const isActive = currentSound === sound.id;
+              const SoundIcon = sound.icon || Music;
               return (
                 <TouchableOpacity
                   key={sound.id}
                   onPress={() => toggleSound(sound)}
-                  style={themedStyles.gridItem}
+                  activeOpacity={0.7}
+                  style={[
+                    themedStyles.soundRow,
+                    index < displayedSounds.length - 1 && themedStyles.soundRowDivided,
+                  ]}
                 >
-                  <GlassView intensity={12} style={[themedStyles.gridInner, currentSound === sound.id && { borderColor: '#8B5CF6', borderWidth: 1.5 }]}>
-                    {failedImages.has(sound.id) ? (
-                      <View style={[themedStyles.gridImage, { backgroundColor: '#1E1B4B' }, isLocked && { opacity: 0.4 }]} />
-                    ) : (
-                      <Image
-                        source={{ uri: SOUND_IMAGES[sound.id] || 'https://images.unsplash.com/photo-1511379938547-c1f69419868d?w=400&q=80' }}
-                        style={[themedStyles.gridImage, isLocked && { opacity: 0.4 }]}
-                        onError={() => setFailedImages(prev => new Set([...prev, sound.id]))}
-                      />
-                    )}
-                    <View style={themedStyles.gridOverlay}>
-                      <Text style={themedStyles.gridName} numberOfLines={1}>{sound.name}</Text>
+                  <View style={[themedStyles.soundIconChip, isLocked && themedStyles.soundIconChipLocked]}>
+                    <SoundIcon size={20} color={isLocked ? theme.colors.premiumBadgeText : theme.colors.accent} strokeWidth={2} />
+                  </View>
+                  <View style={themedStyles.soundRowText}>
+                    <Text style={themedStyles.soundRowName} numberOfLines={1}>{sound.name}</Text>
+                    <Text style={[themedStyles.soundRowSub, isLocked && themedStyles.soundRowSubLocked]}>
+                      {isLocked ? `Premium · ${sound.duration}` : sound.duration}
+                    </Text>
+                  </View>
+                  {isLocked ? (
+                    <View style={themedStyles.unlockBadge}>
+                      <Lock size={13} color={theme.colors.premiumBadgeText} />
+                      <Text style={themedStyles.unlockBadgeText}>Unlock</Text>
                     </View>
-                    {isLocked && (
-                      <View style={themedStyles.gridLockOverlay}>
-                        <View style={themedStyles.lockBadge}>
-                          <Lock size={16} color="#FFF" />
-                        </View>
-                      </View>
-                    )}
-                    {currentSound === sound.id && isPlaying && (
-                      <View style={themedStyles.gridActiveIndicator}>
-                        <Pause size={20} color="#FFF" />
-                      </View>
-                    )}
-                  </GlassView>
+                  ) : isActive && isPlaying ? (
+                    <View style={themedStyles.playingBadge}>
+                      <Pause size={16} color={theme.colors.accent} />
+                    </View>
+                  ) : (
+                    <View style={themedStyles.playBadge}>
+                      <Play size={14} color={theme.colors.accent} fill={theme.colors.accent} />
+                    </View>
+                  )}
                 </TouchableOpacity>
               );
             })}
@@ -397,37 +418,31 @@ export default function SoundsScreen() {
         </View>
       </Animated.ScrollView>
 
-      {/* Prominent Music Player - Floating well above navigation */}
+      {/* Mini Player */}
       {currentSound && currentPlayingSound && (
         <View style={[themedStyles.playerContainer, { bottom: bottomMargin + 10 }]}>
-          <TouchableOpacity activeOpacity={0.9} onPress={() => setShowFullPlayer(true)}>
-            <View style={themedStyles.playerInner}>
-              <BlurView intensity={90} tint="dark" style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(15, 23, 42, 0.4)' }]} />
-              {/* Blue tint overlay for visibility */}
-              <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(59, 130, 246, 0.15)' }]} />
-
-              {currentSound && failedImages.has(currentSound) ? (
-                <View style={[themedStyles.miniArtwork, { backgroundColor: '#1E1B4B' }]} />
-              ) : (
-                <Image
-                  source={{ uri: (currentSound ? SOUND_IMAGES[currentSound] : null) || 'https://images.unsplash.com/photo-1511379938547-c1f69419868d?w=100' }}
-                  style={themedStyles.miniArtwork}
-                  onError={() => currentSound && setFailedImages(prev => new Set([...prev, currentSound]))}
-                />
-              )}
-              <View style={themedStyles.playerControls}>
-                <View style={themedStyles.playerInfo}>
-                  <Text style={themedStyles.playerName} numberOfLines={1}>{currentPlayingSound?.name || 'Unknown'}</Text>
-                  <Text style={themedStyles.playerStatus}>Now playing</Text>
-                </View>
-                <View style={themedStyles.playerButtons}>
-                  <TouchableOpacity onPress={handlePlayCurrentSound} style={themedStyles.mainPlayBtn}>
-                    {isPlaying ? <Pause size={22} color="#000" /> : <Play size={22} color="#000" />}
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={() => stopSound()} style={themedStyles.stopBtn}>
-                    <X size={18} color="#FFF" />
-                  </TouchableOpacity>
-                </View>
+          <TouchableOpacity activeOpacity={0.9} onPress={() => setShowFullPlayer(true)} style={themedStyles.playerInner}>
+            {currentSound && failedImages.has(currentSound) ? (
+              <View style={[themedStyles.miniArtwork, { backgroundColor: theme.colors.backgroundTertiary }]} />
+            ) : (
+              <Image
+                source={{ uri: (currentSound ? SOUND_IMAGES[currentSound] : null) || 'https://images.unsplash.com/photo-1511379938547-c1f69419868d?w=100' }}
+                style={themedStyles.miniArtwork}
+                onError={() => currentSound && setFailedImages(prev => new Set([...prev, currentSound]))}
+              />
+            )}
+            <View style={themedStyles.playerControls}>
+              <View style={themedStyles.playerInfo}>
+                <Text style={themedStyles.playerName} numberOfLines={1}>{currentPlayingSound?.name || 'Unknown'}</Text>
+                <Text style={themedStyles.playerStatus}>Now playing</Text>
+              </View>
+              <View style={themedStyles.playerButtons}>
+                <TouchableOpacity onPress={handlePlayCurrentSound} style={themedStyles.mainPlayBtn}>
+                  {isPlaying ? <Pause size={22} color={theme.colors.background} /> : <Play size={22} color={theme.colors.background} />}
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => stopSound()} style={themedStyles.stopBtn}>
+                  <X size={18} color={theme.colors.textPrimary} />
+                </TouchableOpacity>
               </View>
             </View>
           </TouchableOpacity>
@@ -437,28 +452,28 @@ export default function SoundsScreen() {
       {/* Full Player Modal */}
       <Modal visible={showFullPlayer} animationType="slide" transparent>
         <View style={themedStyles.fullPlayerBg}>
-          <ImageBackground source={{ uri: (currentSound ? SOUND_IMAGES[currentSound] : null) || 'https://images.unsplash.com/photo-1511379938547-c1f69419868d?w=800' }} style={themedStyles.playerBgImage} blurRadius={10}>
-            <LinearGradient colors={['rgba(15,23,42,0.6)', 'rgba(10,10,20,0.95)']} style={StyleSheet.absoluteFill} />
+          <ImageBackground source={{ uri: (currentSound ? SOUND_IMAGES[currentSound] : null) || 'https://images.unsplash.com/photo-1511379938547-c1f69419868d?w=800' }} style={themedStyles.playerBgImage} blurRadius={14}>
+            <LinearGradient colors={[theme.colors.gradients.background[0] + '99', theme.colors.background]} style={StyleSheet.absoluteFill} />
 
             <View style={[themedStyles.playerHeader, { paddingTop: insets.top + 20 }]}>
               <TouchableOpacity onPress={() => setShowFullPlayer(false)} style={themedStyles.closePlayerBtn}>
-                <ChevronDown size={28} color="#FFF" />
+                <ChevronDown size={28} color={theme.colors.textPrimary} />
               </TouchableOpacity>
               <Text style={themedStyles.playerHeaderTitle}>Now Playing</Text>
               <TouchableOpacity
                 style={themedStyles.playerActionBtn}
                 onPress={async () => {
                   try {
-                    await Share.share({ message: `I'm listening to "${currentPlayingSound?.name}" to sleep better with the Sleep App 🌙` });
+                    await Share.share({ message: `I'm listening to "${currentPlayingSound?.name}" to sleep better with Sleep Architect.` });
                   } catch {}
                 }}
-              ><Share2 size={24} color="#FFF" /></TouchableOpacity>
+              ><Share2 size={24} color={theme.colors.textPrimary} /></TouchableOpacity>
             </View>
 
             <View style={themedStyles.playerMainContent}>
               <View style={themedStyles.artworkContainer}>
                 {currentSound && failedImages.has(currentSound) ? (
-                  <View style={[themedStyles.largeArtwork, { backgroundColor: '#1E1B4B' }]} />
+                  <View style={[themedStyles.largeArtwork, { backgroundColor: theme.colors.backgroundTertiary }]} />
                 ) : (
                   <Image
                     source={{ uri: (currentSound ? SOUND_IMAGES[currentSound] : null) || 'https://images.unsplash.com/photo-1511379938547-c1f69419868d?w=400' }}
@@ -474,7 +489,7 @@ export default function SoundsScreen() {
               </View>
 
               <View style={themedStyles.playbackControlsContainer}>
-                <TouchableOpacity onPress={() => {/* repeat is ambient, always looping */}}><Repeat size={24} color="#8B5CF6" /></TouchableOpacity>
+                <TouchableOpacity onPress={() => {/* repeat is ambient, always looping */}}><Repeat size={24} color={theme.colors.accent} /></TouchableOpacity>
                 <TouchableOpacity
                   style={themedStyles.skipBtn}
                   onPress={() => {
@@ -491,9 +506,9 @@ export default function SoundsScreen() {
                     }
                     playSound(prev.id, prev.uri, prev.name);
                   }}
-                ><SkipBack size={32} color="#FFF" /></TouchableOpacity>
+                ><SkipBack size={32} color={theme.colors.textPrimary} /></TouchableOpacity>
                 <TouchableOpacity onPress={handlePlayCurrentSound} style={themedStyles.largePlayBtn}>
-                  {isPlaying ? <Pause size={42} color="#000" fill="#000" /> : <Play size={42} color="#000" fill="#000" />}
+                  {isPlaying ? <Pause size={42} color={theme.colors.background} fill={theme.colors.background} /> : <Play size={42} color={theme.colors.background} fill={theme.colors.background} />}
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={themedStyles.skipBtn}
@@ -511,8 +526,8 @@ export default function SoundsScreen() {
                     }
                     playSound(next.id, next.uri, next.name);
                   }}
-                ><SkipForward size={32} color="#FFF" /></TouchableOpacity>
-                <TouchableOpacity onPress={() => stopSound()}><VolumeX size={24} color="rgba(255,255,255,0.7)" /></TouchableOpacity>
+                ><SkipForward size={32} color={theme.colors.textPrimary} /></TouchableOpacity>
+                <TouchableOpacity onPress={() => stopSound()}><VolumeX size={24} color={theme.colors.textSecondary} /></TouchableOpacity>
               </View>
 
               {isMixing && Object.keys(activeMix).length > 0 && (
@@ -521,7 +536,7 @@ export default function SoundsScreen() {
                   {Object.entries(activeMix).map(([soundId, s]: [string, any]) => (
                     <View key={soundId} style={themedStyles.mixItem}>
                       <Text style={themedStyles.mixItemName}>{s.name}</Text>
-                      <TouchableOpacity onPress={() => removeSoundFromMix(soundId)}><X size={16} color="#EF4444" /></TouchableOpacity>
+                      <TouchableOpacity onPress={() => removeSoundFromMix(soundId)}><X size={16} color={theme.colors.error} /></TouchableOpacity>
                     </View>
                   ))}
                 </View>
@@ -545,7 +560,7 @@ export default function SoundsScreen() {
                     ]
                   );
                 }}
-              ><Timer size={20} color="#8B5CF6" /><Text style={themedStyles.timerText}>Sleep Timer</Text></TouchableOpacity>
+              ><Timer size={20} color={theme.colors.accent} /><Text style={themedStyles.timerText}>Sleep Timer</Text></TouchableOpacity>
             </View>
           </ImageBackground>
         </View>
@@ -555,7 +570,7 @@ export default function SoundsScreen() {
 }
 
 const createStyles = (theme: any, width: number) => StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0A0A14' },
+  container: { flex: 1, backgroundColor: theme.colors.background },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -571,102 +586,385 @@ const createStyles = (theme: any, width: number) => StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: theme.colors.card,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.15)'
+    borderColor: theme.colors.cardBorder
   },
-  activeIconButton: { backgroundColor: '#8B5CF6', borderColor: '#8B5CF6' },
+  activeIconButton: { backgroundColor: theme.colors.accent, borderColor: theme.colors.accent },
   headerContent: { flex: 1, alignItems: 'center' },
-  headerTitle: { color: '#FFF', fontSize: 34, fontWeight: '900', letterSpacing: -0.8 },
-  headerSubtitle: { color: '#8B5CF6', fontSize: 10, fontWeight: '900', letterSpacing: 3, marginTop: 4 },
-  searchBox: { paddingHorizontal: 20, marginTop: 165, marginBottom: 24 },
+  headerTitle: {
+    fontFamily: theme.typography.fontFamily.displaySemibold,
+    color: theme.colors.textPrimary,
+    fontSize: 30,
+    letterSpacing: -0.6,
+  },
+  headerSubtitle: {
+    fontFamily: theme.typography.fontFamily.bodyBold,
+    color: theme.colors.accent,
+    fontSize: 10,
+    letterSpacing: 3,
+    marginTop: 4,
+  },
+  searchBox: { paddingHorizontal: 20, marginTop: 155, marginBottom: 24 },
   searchInner: {
-    height: 60,
-    borderRadius: 30,
+    height: 56,
+    borderRadius: theme.borderRadius.card,
+    backgroundColor: theme.colors.card,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 24,
+    paddingHorizontal: 20,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)'
+    borderColor: theme.colors.cardBorder,
+    columnGap: 14,
   },
-  searchInput: { flex: 1, color: '#FFF', fontSize: 16, marginLeft: 16 },
-  section: { marginBottom: 32 },
-  sectionHeader: { paddingHorizontal: 25, marginBottom: 16 },
-  sectionLabel: { color: 'rgba(255,255,255,0.3)', fontSize: 12, fontWeight: '900', letterSpacing: 2 },
-  featuredCard: { width: width * 0.75, height: 180, borderRadius: 32, overflow: 'hidden' },
+  searchInput: {
+    flex: 1,
+    fontFamily: theme.typography.fontFamily.body,
+    color: theme.colors.textPrimary,
+    fontSize: 15,
+  },
+  section: { marginBottom: 28 },
+  sectionHeader: { paddingHorizontal: 20, marginBottom: 14 },
+  sectionLabel: {
+    fontFamily: theme.typography.fontFamily.bodyBold,
+    color: theme.colors.textTertiary,
+    fontSize: 11,
+    letterSpacing: 2,
+  },
+
+  // Active mix card
+  mixerCard: {
+    marginHorizontal: 20,
+    backgroundColor: theme.colors.card,
+    borderWidth: 1,
+    borderColor: theme.colors.cardBorder,
+    borderRadius: theme.borderRadius.card,
+    padding: 18,
+  },
+  mixerTopRow: { flexDirection: 'row', alignItems: 'center' },
+  mixerPlayRow: { flexDirection: 'row', alignItems: 'center', columnGap: 14 },
+  mixerPlayBtn: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: theme.colors.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  mixerTitle: {
+    fontFamily: theme.typography.fontFamily.displaySemibold,
+    color: theme.colors.textPrimary,
+    fontSize: 18,
+  },
+  mixerSubtitle: {
+    fontFamily: theme.typography.fontFamily.body,
+    color: theme.colors.textSecondary,
+    fontSize: 13,
+    marginTop: 2,
+  },
+  mixerDivider: { height: 1, backgroundColor: theme.colors.cardBorder, marginVertical: 14 },
+  mixerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 8,
+  },
+  mixerRowName: {
+    flex: 1,
+    fontFamily: theme.typography.fontFamily.bodyMedium,
+    color: theme.colors.textPrimary,
+    fontSize: 14,
+  },
+  mixerRemoveBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: theme.colors.backgroundTertiary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 12,
+  },
+
+  // Featured
+  featuredCard: { width: width * 0.75, height: 170, borderRadius: theme.borderRadius.card, overflow: 'hidden' },
   featuredImage: { width: '100%', height: '100%' },
-  featuredOverlay: { flex: 1, padding: 24, justifyContent: 'space-between' },
-  featuredBadge: { flexDirection: 'row', alignItems: 'center', rowGap: 6, columnGap: 6, alignSelf: 'flex-start', backgroundColor: 'rgba(0,0,0,0.5)', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 15 },
-  featuredBadgeText: { color: '#FFF', fontSize: 9, fontWeight: '900' },
-  featuredTitle: { color: '#FFF', fontSize: 24, fontWeight: '900' },
-  featuredSubtitle: { color: 'rgba(255,255,255,0.6)', fontSize: 13, fontWeight: '600' },
-  categoryRow: { paddingHorizontal: 20, rowGap: 10, columnGap: 10, marginBottom: 24 },
-  categoryPill: { paddingHorizontal: 20, paddingVertical: 12, borderRadius: 25, backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' },
-  activeCategoryPill: { backgroundColor: '#8B5CF6', borderColor: '#8B5CF6' },
-  categoryText: { color: 'rgba(255,255,255,0.5)', fontSize: 13, fontWeight: '700' },
-  activeCategoryText: { color: '#FFF' },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 15, columnGap: 10, rowGap: 10 },
-  gridItem: { width: (width - 40) / 2 },
-  gridInner: {
-    height: 140,
-    borderRadius: 28,
-    overflow: 'hidden',
-    backgroundColor: 'rgba(255,255,255,0.03)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.05)'
+  featuredOverlay: { flex: 1, padding: 22, justifyContent: 'space-between' },
+  featuredBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    columnGap: 6,
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 15,
   },
-  gridImage: { width: '100%', height: '100%', opacity: 0.78 },
-  gridOverlay: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: 15, backgroundColor: 'rgba(0,0,0,0.52)' },
-  gridName: { color: '#FFF', fontSize: 14, fontWeight: '800', textAlign: 'center' },
-  gridActiveIndicator: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(139, 92, 246, 0.4)', justifyContent: 'center', alignItems: 'center' },
-  gridLockOverlay: { ...StyleSheet.absoluteFillObject, justifyContent: 'flex-start', alignItems: 'flex-end', padding: 10 },
-  lockBadge: { width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)' },
+  featuredBadgeText: {
+    fontFamily: theme.typography.fontFamily.bodyBold,
+    color: '#FFF',
+    fontSize: 9,
+  },
+  featuredTitle: {
+    fontFamily: theme.typography.fontFamily.displaySemibold,
+    color: '#FFF',
+    fontSize: 22,
+  },
+  featuredSubtitle: {
+    fontFamily: theme.typography.fontFamily.bodyMedium,
+    color: 'rgba(255,255,255,0.75)',
+    fontSize: 13,
+    marginTop: 2,
+  },
+
+  // Category pills
+  categoryRow: { paddingHorizontal: 20, columnGap: 10, marginBottom: 24 },
+  categoryPill: {
+    paddingHorizontal: 18,
+    paddingVertical: 11,
+    borderRadius: theme.borderRadius.full,
+    backgroundColor: theme.colors.card,
+    borderWidth: 1,
+    borderColor: theme.colors.cardBorder,
+  },
+  activeCategoryPill: { backgroundColor: theme.colors.accent, borderColor: theme.colors.accent },
+  categoryText: {
+    fontFamily: theme.typography.fontFamily.bodySemibold,
+    color: theme.colors.textSecondary,
+    fontSize: 13,
+  },
+  activeCategoryText: { color: theme.colors.background },
+
+  // Sound list (canvas-style rows)
+  listCard: {
+    marginHorizontal: 20,
+    backgroundColor: theme.colors.card,
+    borderWidth: 1,
+    borderColor: theme.colors.cardBorder,
+    borderRadius: theme.borderRadius.card,
+    paddingHorizontal: 16,
+  },
+  soundRow: {
+    minHeight: 68,
+    flexDirection: 'row',
+    alignItems: 'center',
+    columnGap: 14,
+  },
+  soundRowDivided: {
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.cardBorder,
+  },
+  soundIconChip: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    backgroundColor: theme.colors.accentLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  soundIconChipLocked: {
+    backgroundColor: theme.colors.premiumBadgeBackground,
+  },
+  soundRowText: { flex: 1 },
+  soundRowName: {
+    fontFamily: theme.typography.fontFamily.bodyBold,
+    color: theme.colors.textPrimary,
+    fontSize: 15,
+  },
+  soundRowSub: {
+    fontFamily: theme.typography.fontFamily.body,
+    color: theme.colors.textTertiary,
+    fontSize: 13,
+    marginTop: 1,
+  },
+  soundRowSubLocked: {
+    fontFamily: theme.typography.fontFamily.bodySemibold,
+    color: theme.colors.premiumBadgeText,
+  },
+  unlockBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    columnGap: 6,
+    height: 36,
+    paddingHorizontal: 14,
+    borderRadius: theme.borderRadius.full,
+    backgroundColor: theme.colors.premiumBadgeBackground,
+    borderWidth: 1,
+    borderColor: theme.colors.premiumBadgeBorder,
+  },
+  unlockBadgeText: {
+    fontFamily: theme.typography.fontFamily.bodyBold,
+    color: theme.colors.premiumBadgeText,
+    fontSize: 13,
+  },
+  playBadge: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: theme.colors.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  playingBadge: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: theme.colors.accentLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  // Mini player
   playerContainer: { position: 'absolute', left: 15, right: 15, zIndex: 10000 },
   playerInner: {
-    height: 84,
-    borderRadius: 32,
+    height: 80,
+    borderRadius: theme.borderRadius.card,
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 12,
-    borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.2)',
+    backgroundColor: theme.colors.card,
+    borderWidth: 1,
+    borderColor: theme.colors.cardBorder,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.9,
-    shadowRadius: 35,
-    elevation: 25,
-    overflow: 'hidden'
+    shadowOpacity: 0.3,
+    shadowRadius: 30,
+    elevation: 20,
+    overflow: 'hidden',
   },
-  miniArtwork: { width: 60, height: 60, borderRadius: 22 },
-  playerControls: { flex: 1, flexDirection: 'row', alignItems: 'center', marginLeft: 16, marginRight: 8 },
+  miniArtwork: { width: 56, height: 56, borderRadius: theme.borderRadius.md },
+  playerControls: { flex: 1, flexDirection: 'row', alignItems: 'center', marginLeft: 14, marginRight: 8 },
   playerInfo: { flex: 1 },
-  playerName: { color: '#FFF', fontSize: 16, fontWeight: '800' },
-  playerStatus: { color: '#8B5CF6', fontSize: 10, fontWeight: '800', marginTop: 2, letterSpacing: 0.5 },
-  playerButtons: { flexDirection: 'row', alignItems: 'center', columnGap: 12, rowGap: 12 },
-  mainPlayBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#FFF', justifyContent: 'center', alignItems: 'center' },
-  stopBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' },
-  fullPlayerBg: { flex: 1, backgroundColor: '#000' },
+  playerName: {
+    fontFamily: theme.typography.fontFamily.bodyBold,
+    color: theme.colors.textPrimary,
+    fontSize: 15,
+  },
+  playerStatus: {
+    fontFamily: theme.typography.fontFamily.bodyBold,
+    color: theme.colors.accent,
+    fontSize: 10,
+    marginTop: 2,
+    letterSpacing: 0.5,
+  },
+  playerButtons: { flexDirection: 'row', alignItems: 'center', columnGap: 12 },
+  mainPlayBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: theme.colors.accent,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  stopBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: theme.colors.backgroundTertiary,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  // Full player modal
+  fullPlayerBg: { flex: 1, backgroundColor: theme.colors.background },
   playerBgImage: { flex: 1, paddingHorizontal: 30 },
   playerHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   closePlayerBtn: { width: 50, height: 50, justifyContent: 'center', alignItems: 'center' },
-  playerHeaderTitle: { color: '#FFF', fontSize: 14, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 2, opacity: 0.6 },
+  playerHeaderTitle: {
+    fontFamily: theme.typography.fontFamily.bodyBold,
+    color: theme.colors.textPrimary,
+    fontSize: 13,
+    textTransform: 'uppercase',
+    letterSpacing: 2,
+    opacity: 0.7,
+  },
   playerActionBtn: { width: 50, height: 50, justifyContent: 'center', alignItems: 'center' },
   playerMainContent: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  artworkContainer: { width: width - 80, aspectRatio: 1, borderRadius: 40, borderBottomLeftRadius: 100, borderTopRightRadius: 100, overflow: 'hidden', elevation: 30, shadowColor: '#000', shadowOffset: { width: 0, height: 20 }, shadowOpacity: 0.8, shadowRadius: 30 },
+  artworkContainer: {
+    width: width - 80,
+    aspectRatio: 1,
+    borderRadius: 40,
+    borderBottomLeftRadius: 100,
+    borderTopRightRadius: 100,
+    overflow: 'hidden',
+    elevation: 30,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 20 },
+    shadowOpacity: 0.5,
+    shadowRadius: 30,
+  },
   largeArtwork: { width: '100%', height: '100%' },
   trackInfoContainer: { alignItems: 'center', marginTop: 40 },
-  trackName: { color: '#FFF', fontSize: 32, fontWeight: '900', textAlign: 'center' },
-  trackCategory: { color: '#8B5CF6', fontSize: 12, fontWeight: '800', letterSpacing: 2, marginTop: 8 },
-  playbackControlsContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: '100%', marginTop: 50 },
+  trackName: {
+    fontFamily: theme.typography.fontFamily.displaySemibold,
+    color: theme.colors.textPrimary,
+    fontSize: 30,
+    textAlign: 'center',
+  },
+  trackCategory: {
+    fontFamily: theme.typography.fontFamily.bodyBold,
+    color: theme.colors.accent,
+    fontSize: 12,
+    letterSpacing: 2,
+    marginTop: 8,
+  },
+  playbackControlsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+    marginTop: 50,
+  },
   skipBtn: { padding: 10 },
-  largePlayBtn: { width: 90, height: 90, borderRadius: 45, backgroundColor: '#FFF', justifyContent: 'center', alignItems: 'center', elevation: 15 },
-  mixContainer: { marginTop: 40, width: '100%', rowGap: 10, columnGap: 10 },
-  mixTitle: { color: 'rgba(255,255,255,0.4)', fontSize: 11, fontWeight: '900', letterSpacing: 1, textAlign: 'center' },
-  mixItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.05)', padding: 12, borderRadius: 15 },
-  mixItemName: { color: '#FFF', fontSize: 14, fontWeight: '600' },
+  largePlayBtn: {
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    backgroundColor: theme.colors.accent,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 15,
+  },
+  mixContainer: { marginTop: 40, width: '100%', rowGap: 10 },
+  mixTitle: {
+    fontFamily: theme.typography.fontFamily.bodyBold,
+    color: theme.colors.textSecondary,
+    fontSize: 11,
+    letterSpacing: 1,
+    textAlign: 'center',
+  },
+  mixItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: theme.colors.card,
+    borderWidth: 1,
+    borderColor: theme.colors.cardBorder,
+    padding: 12,
+    borderRadius: theme.borderRadius.lg,
+  },
+  mixItemName: {
+    fontFamily: theme.typography.fontFamily.bodyMedium,
+    color: theme.colors.textPrimary,
+    fontSize: 14,
+  },
   playerFooter: { alignItems: 'center' },
-  timerBtn: { flexDirection: 'row', alignItems: 'center', rowGap: 10, columnGap: 10, backgroundColor: 'rgba(139, 92, 246, 0.1)', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 25, borderWidth: 1, borderColor: 'rgba(139, 92, 246, 0.3)' },
-  timerText: { color: '#FFF', fontSize: 14, fontWeight: '700' },
+  timerBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    columnGap: 10,
+    backgroundColor: theme.colors.accentLight,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: theme.borderRadius.full,
+    borderWidth: 1,
+    borderColor: theme.colors.accentBorder,
+  },
+  timerText: {
+    fontFamily: theme.typography.fontFamily.bodySemibold,
+    color: theme.colors.textPrimary,
+    fontSize: 14,
+  },
 });
