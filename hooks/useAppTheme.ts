@@ -1,12 +1,12 @@
 import { useTheme } from '../contexts/ThemeContext';
-import { darkTheme, lightTheme } from '../constants/theme';
 
 /**
  * Custom hook that provides the current theme based on user's theme mode selection
  *
- * @returns {Object} theme - The current theme object (dark or light)
- * @returns {boolean} isDark - Whether dark mode is active
- * @returns {string} themeMode - Current theme mode ('dark' | 'light' | 'auto')
+ * @returns {Object} theme - The current theme object (night or day), already
+ *   resolved by ThemeContext (including real sunrise/sunset logic for 'sunset' mode)
+ * @returns {boolean} isDark - Whether night/dark mode is active (deprecated alias of isNight)
+ * @returns {string} themeMode - Current theme mode ('sunset' | 'night' | 'day')
  * @returns {Function} setThemeMode - Function to change theme mode
  *
  * @example
@@ -17,14 +17,16 @@ import { darkTheme, lightTheme } from '../constants/theme';
  * </View>
  */
 export const useAppTheme = () => {
-  const { isDark, themeMode, setThemeMode } = useTheme();
-  const theme = isDark ? darkTheme : lightTheme;
+  const { theme, isDark, isNight, themeMode, setThemeMode, nextSwitchLabel, nextSwitchAt } = useTheme();
 
   return {
     theme,
     isDark,
+    isNight,
     themeMode,
     setThemeMode,
+    nextSwitchLabel,
+    nextSwitchAt,
   };
 };
 

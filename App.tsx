@@ -14,6 +14,7 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
+import useAppTheme from './hooks/useAppTheme';
 import { SleepProvider } from './contexts/SleepContext';
 import { AudioProvider } from './contexts/AudioContext';
 import { ToastProvider } from './contexts/ToastContext';
@@ -115,14 +116,15 @@ function MainNavigator() {
   const insets = useSafeAreaInsets();
   const tabBarHeight = getTabBarHeight(insets.bottom);
   const tabBarPaddingBottom = getTabBarPaddingBottom(insets.bottom);
+  const { theme } = useAppTheme();
 
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: '#0F0F1E',
-          borderTopColor: 'rgba(255, 255, 255, 0.1)',
+          backgroundColor: theme.colors.navBackground,
+          borderTopColor: theme.colors.cardBorder,
           borderTopWidth: 1,
           height: tabBarHeight,
           paddingBottom: tabBarPaddingBottom,
@@ -137,8 +139,8 @@ function MainNavigator() {
           shadowOpacity: 0.1,
           shadowRadius: 3,
         },
-        tabBarActiveTintColor: '#8B5CF6',
-        tabBarInactiveTintColor: '#94A3B8',
+        tabBarActiveTintColor: theme.colors.accent,
+        tabBarInactiveTintColor: theme.colors.inactive,
         tabBarShowLabel: true,
         tabBarLabelStyle: {
           fontSize: 12,
@@ -146,8 +148,8 @@ function MainNavigator() {
           marginBottom: Platform.OS === 'android' ? 2 : 0,
         },
         tabBarBadgeStyle: {
-          backgroundColor: '#F59E0B',
-          color: '#FFFFFF',
+          backgroundColor: theme.colors.warning,
+          color: theme.colors.textPrimary,
           fontSize: 10,
           fontWeight: '700',
           minWidth: 18,
@@ -297,7 +299,8 @@ function AppNavigator() {
 }
 
 export default function App() {
-  // Load Poppins fonts
+  // Load Poppins fonts (legacy, still used by un-migrated screens)
+  // + Fraunces / DM Sans (redesign v3 theme typography — see constants/theme.ts)
   const [fontsLoaded, fontError] = useFonts({
     'Poppins-Light': require('./assets/fonts/Poppins-Light.ttf'),
     'Poppins-Regular': require('./assets/fonts/Poppins-Regular.ttf'),
@@ -306,6 +309,12 @@ export default function App() {
     'Poppins-Bold': require('./assets/fonts/Poppins-Bold.ttf'),
     'Poppins-ExtraBold': require('./assets/fonts/Poppins-ExtraBold.ttf'),
     'Poppins-Black': require('./assets/fonts/Poppins-Black.ttf'),
+    'Fraunces-Regular': require('./assets/fonts/Fraunces-Regular.ttf'),
+    'Fraunces-SemiBold': require('./assets/fonts/Fraunces-SemiBold.ttf'),
+    'DMSans-Regular': require('./assets/fonts/DMSans-Regular.ttf'),
+    'DMSans-Medium': require('./assets/fonts/DMSans-Medium.ttf'),
+    'DMSans-SemiBold': require('./assets/fonts/DMSans-SemiBold.ttf'),
+    'DMSans-Bold': require('./assets/fonts/DMSans-Bold.ttf'),
   });
 
   // Log font loading status

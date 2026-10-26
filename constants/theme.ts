@@ -1,32 +1,63 @@
-// Dark Theme Colors
-export const darkTheme = {
+// ============================================================================
+// Sleep Architect — Theme Tokens
+// ============================================================================
+// Checkpoint A (redesign/ui-ux-v3): introduces the real "Night" / "Day" theme
+// pair that backs the new 3-way mode system ('sunset' | 'night' | 'day').
+// `darkTheme` / `lightTheme` are kept as exported aliases of `nightTheme` /
+// `dayTheme` so the ~30 existing screens that import them directly keep
+// working unchanged in this checkpoint.
+//
+// Shape note: every existing key from the old darkTheme/lightTheme is kept
+// (colors, sleepQuality, spacing, borderRadius, typography, shadows,
+// gradients, tabBar) — nothing was removed or renamed. New tokens needed by
+// the redesign (ctaBackground, premium badge colors, nav colors, secondary
+// accent, new radii) are ADDED as extra keys alongside the old ones.
+// ============================================================================
+
+// Night Theme (formerly "dark") — exact palette from design files
+export const nightTheme = {
   colors: {
-    background: '#0F0F1E',
-    backgroundSecondary: '#161632',
-    backgroundTertiary: '#0A0A14',
-    card: '#1B1B3A',
-    cardOverlay: 'rgba(27, 27, 58, 0.7)',
-    cardBorder: 'rgba(139, 92, 246, 0.2)',
+    // --- existing keys (kept for backwards compatibility) ---
+    background: '#050302',
+    backgroundSecondary: '#0C0704',
+    backgroundTertiary: '#120B06',
+    card: '#120B06',
+    cardOverlay: 'rgba(18, 11, 6, 0.7)',
+    cardBorder: '#33200F',
 
-    accent: '#8B5CF6',
-    accentLight: 'rgba(139, 92, 246, 0.1)',
-    accentBorder: 'rgba(139, 92, 246, 0.3)',
+    accent: '#E8A35E',
+    accentLight: 'rgba(232, 163, 94, 0.1)',
+    accentBorder: 'rgba(232, 163, 94, 0.3)',
 
-    highlight: '#6366F1',
-    highlightLight: 'rgba(99, 102, 241, 0.1)',
+    highlight: '#F06A2E',
+    highlightLight: 'rgba(240, 106, 46, 0.1)',
 
-    textPrimary: '#FFFFFF',
-    textSecondary: '#BCCDE7',  // 4.6:1 contrast - passes WCAG AA
+    textPrimary: '#FFF3E6',
+    textSecondary: '#EBD3BA',
 
     success: '#7EC8A3',
     warning: '#E8C547',
     error: '#E57373',
     danger: '#E57373',
 
-    premium: '#D4AF37',
+    premium: '#FFD27A',
 
-    inactive: '#5A6B7D',
-    disabled: '#2C3E50',
+    inactive: '#CBB096',
+    disabled: '#33200F',
+
+    // --- new tokens for the redesign ---
+    // Accent (icons/highlights) and CTA (buttons) are intentionally distinct
+    // in night mode — do not collapse into one token.
+    textTertiary: '#CBB096',
+    ctaBackground: '#F06A2E',
+    ctaText: '#FFF3E6',
+
+    premiumBadgeBackground: '#2A2009',
+    premiumBadgeBorder: '#5A4A20',
+    premiumBadgeText: '#FFD27A',
+
+    navBackground: '#0C0704',
+    navActiveBackground: '#24160B',
   },
 
   // Sleep Quality Color System - single source of truth
@@ -54,10 +85,18 @@ export const darkTheme = {
     lg: 16,
     xl: 20,
     full: 9999,
+    // New tokens needed by the redesign's card/glass-panel surfaces.
+    // (Screen-root 44px radius is NOT added here — that value in the design
+    // files is a design-canvas mockup-frame convention, not a real RN
+    // screen-container radius; see commit message for the investigation.)
+    card: 22,
+    glass: 22,
   },
 
   typography: {
     fontFamily: {
+      // Legacy Poppins keys kept as-is so any un-migrated screen reading
+      // these specific keys still resolves to a loaded font.
       light: 'Poppins-Light',
       regular: 'Poppins-Regular',
       medium: 'Poppins-Medium',
@@ -65,6 +104,14 @@ export const darkTheme = {
       bold: 'Poppins-Bold',
       extrabold: 'Poppins-ExtraBold',
       black: 'Poppins-Black',
+
+      // New redesign typography: Fraunces (display/headings) + DM Sans (body/UI)
+      display: 'Fraunces-Regular',
+      displaySemibold: 'Fraunces-SemiBold',
+      body: 'DMSans-Regular',
+      bodyMedium: 'DMSans-Medium',
+      bodySemibold: 'DMSans-SemiBold',
+      bodyBold: 'DMSans-Bold',
     },
     sizes: {
       xs: 10,
@@ -112,11 +159,11 @@ export const darkTheme = {
   },
 
   gradients: {
-    primary: ['#8B5CF6', '#6366F1'],
-    background: ['#0F0F1E', '#161632'],
-    backgroundAlt: ['#0F0F1E', '#161632', '#0F0F1E'],
-    premium: ['#8B5CF6', '#D4AF37'],
-    disabled: ['#5A6B7D', '#5A6B7D'],
+    primary: ['#E8A35E', '#F06A2E'],
+    background: ['#050302', '#120B06'],
+    backgroundAlt: ['#050302', '#120B06', '#050302'],
+    premium: ['#E8A35E', '#FFD27A'],
+    disabled: ['#33200F', '#33200F'],
   },
 
   tabBar: {
@@ -126,35 +173,53 @@ export const darkTheme = {
   },
 } as const;
 
-// Light Theme Colors
-export const lightTheme = {
+// Day Theme (formerly "light") — exact palette from design files
+export const dayTheme = {
   colors: {
-    background: '#F5F7FA',
-    backgroundSecondary: '#FFFFFF',
-    backgroundTertiary: '#E8EDF3',
-    card: '#FFFFFF',
-    cardOverlay: 'rgba(255, 255, 255, 0.9)',
-    cardBorder: 'rgba(13, 27, 42, 0.1)',
+    // --- existing keys (kept for backwards compatibility) ---
+    background: '#F6F1E7',
+    backgroundSecondary: '#FFFDF8',
+    backgroundTertiary: '#F6E2D3',
+    card: '#FFFDF8',
+    cardOverlay: 'rgba(255, 253, 248, 0.9)',
+    cardBorder: '#E6DCCB',
 
-    accent: '#B8941F',
-    accentLight: 'rgba(184, 148, 31, 0.1)',
-    accentBorder: 'rgba(184, 148, 31, 0.3)',
+    accent: '#B8471C',
+    accentLight: 'rgba(184, 71, 28, 0.1)',
+    accentBorder: 'rgba(184, 71, 28, 0.3)',
 
-    highlight: '#7B5FC7',
-    highlightLight: 'rgba(123, 95, 199, 0.1)',
+    highlight: '#4F6B4A',
+    highlightLight: 'rgba(79, 107, 74, 0.1)',
 
-    textPrimary: '#0D1B2A',
-    textSecondary: '#4A5568',
+    textPrimary: '#1F1A14',
+    textSecondary: '#574C40',
 
-    success: '#5BA87C',
+    success: '#4F6B4A',
     warning: '#D4A72E',
     error: '#D64545',
     danger: '#D64545',
 
-    premium: '#C9A227',
+    premium: '#B8471C',
 
-    inactive: '#8A9AAD',
-    disabled: '#C5D0DD',
+    inactive: '#5E5347',
+    disabled: '#E6DCCB',
+
+    // --- new tokens for the redesign ---
+    // Day mode uses a single accent for both icon-highlights and CTAs
+    // (unlike night mode's split accent/CTA) — both point at the same hex.
+    textTertiary: '#5E5347',
+    ctaBackground: '#B8471C',
+    ctaText: '#FFFDF8',
+
+    // Secondary green accent, used for positive/good indicators
+    secondaryAccent: '#4F6B4A',
+
+    premiumBadgeBackground: '#F6E2D3',
+    premiumBadgeBorder: '#B8471C',
+    premiumBadgeText: '#B8471C',
+
+    navBackground: '#FFFDF8',
+    navActiveBackground: '#F6E2D3',
   },
 
   // Sleep Quality Color System - single source of truth
@@ -182,6 +247,8 @@ export const lightTheme = {
     lg: 16,
     xl: 20,
     full: 9999,
+    card: 22,
+    glass: 22,
   },
 
   typography: {
@@ -193,6 +260,13 @@ export const lightTheme = {
       bold: 'Poppins-Bold',
       extrabold: 'Poppins-ExtraBold',
       black: 'Poppins-Black',
+
+      display: 'Fraunces-Regular',
+      displaySemibold: 'Fraunces-SemiBold',
+      body: 'DMSans-Regular',
+      bodyMedium: 'DMSans-Medium',
+      bodySemibold: 'DMSans-SemiBold',
+      bodyBold: 'DMSans-Bold',
     },
     sizes: {
       xs: 10,
@@ -240,11 +314,11 @@ export const lightTheme = {
   },
 
   gradients: {
-    primary: ['#B8941F', '#7B5FC7'],
-    background: ['#F5F7FA', '#FFFFFF'],
-    backgroundAlt: ['#F5F7FA', '#FFFFFF', '#F5F7FA'],
-    premium: ['#C9A227', '#B8941F'],
-    disabled: ['#C5D0DD', '#C5D0DD'],
+    primary: ['#B8471C', '#4F6B4A'],
+    background: ['#F6F1E7', '#FFFDF8'],
+    backgroundAlt: ['#F6F1E7', '#FFFDF8', '#F6F1E7'],
+    premium: ['#B8471C', '#B8471C'],
+    disabled: ['#E6DCCB', '#E6DCCB'],
   },
 
   tabBar: {
@@ -254,7 +328,12 @@ export const lightTheme = {
   },
 } as const;
 
-// Default export (dark theme for backwards compatibility)
-export const theme = darkTheme;
+// Backwards-compatible aliases — kept so existing imports of darkTheme /
+// lightTheme across ~30 screens continue to work unchanged in this checkpoint.
+export const darkTheme = nightTheme;
+export const lightTheme = dayTheme;
 
-export type Theme = typeof darkTheme | typeof lightTheme;
+// Default export (night theme for backwards compatibility)
+export const theme = nightTheme;
+
+export type Theme = typeof nightTheme | typeof dayTheme;

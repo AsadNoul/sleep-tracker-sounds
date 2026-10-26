@@ -42,7 +42,8 @@
         "android.permission.INTERNET",
         "android.permission.RECORD_AUDIO",
         "android.permission.MODIFY_AUDIO_SETTINGS",
-        "android.permission.POST_NOTIFICATIONS"
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.ACCESS_COARSE_LOCATION"
       ],
       "adaptiveIcon": {
         "foregroundImage": "./assets/app_logo.png",
@@ -98,6 +99,12 @@
       "expo-notifications",
       "expo-file-system",
       "expo-av",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "We use your location to switch the app's theme automatically based on local sunrise/sunset times."
+        }
+      ],
       [
         "expo-build-properties",
         {

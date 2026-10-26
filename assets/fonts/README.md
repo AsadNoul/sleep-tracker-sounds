@@ -1,5 +1,15 @@
 # Poppins Font Installation Guide
 
+> **Redesign v3 note:** `Fraunces-Regular.ttf`, `Fraunces-SemiBold.ttf`,
+> `DMSans-Regular.ttf`, `DMSans-Medium.ttf`, `DMSans-SemiBold.ttf`, and
+> `DMSans-Bold.ttf` were added alongside Poppins for the new theme system
+> (see `constants/theme.ts` → `typography.fontFamily.display*` / `.body*`).
+> They were extracted from the `@expo-google-fonts/fraunces` and
+> `@expo-google-fonts/dm-sans` npm packages (correctly licensed OFL .ttf
+> assets) and bundled as static files the same way Poppins is — those npm
+> packages are NOT runtime dependencies, they were only used as a one-time
+> source for the .ttf files.
+
 ## Required Font Files
 
 Download the following Poppins font files from Google Fonts (https://fonts.google.com/specimen/Poppins) and place them in the `assets/fonts/` directory:
