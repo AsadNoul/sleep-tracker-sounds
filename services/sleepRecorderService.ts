@@ -1,4 +1,10 @@
-import { Audio } from 'expo-av';
+import {
+  AudioModule,
+  setAudioModeAsync,
+  requestRecordingPermissionsAsync,
+  AudioQuality,
+  type AudioRecorder,
+} from 'expo-audio';
 import * as FileSystem from 'expo-file-system/legacy';
 import { Platform } from 'react-native';
 import { supabase } from '../lib/supabase';
@@ -25,7 +31,7 @@ export interface RecordingSession {
 
 class SleepRecorderService {
   private static instance: SleepRecorderService;
-  private recording: Audio.Recording | null = null;
+  private recording: AudioRecorder | null = null;
   private isRecording: boolean = false;
   private events: RecordingEvent[] = [];
   private monitoringInterval: NodeJS.Timeout | null = null;
@@ -47,7 +53,7 @@ class SleepRecorderService {
   // Request microphone permissions
   async requestPermissions(): Promise<boolean> {
     try {
-      const { status } = await Audio.requestPermissionsAsync();
+      const { status } = await requestRecordingPermissionsAsync();
       if (status !== 'granted') {
         console.log('Microphone permissions not granted');
         return false;
@@ -74,33 +80,29 @@ class SleepRecorderService {
       }
 
       // Configure audio mode
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: true,
-        playsInSilentModeIOS: true,
-        staysActiveInBackground: true,
-        shouldDuckAndroid: true,
-        playThroughEarpieceAndroid: false,
+      await setAudioModeAsync({
+        allowsRecording: true,
+        playsInSilentMode: true,
+        shouldPlayInBackground: true,
+        allowsBackgroundRecording: true,
+        interruptionMode: 'duckOthers',
+        shouldRouteThroughEarpiece: false,
       });
 
-      // Create new recording
-      this.recording = new Audio.Recording();
-
-      // Configure recording options - OPTIMIZED for battery life
-      await this.recording.prepareToRecordAsync({
+      // Create new recording - OPTIMIZED for battery life
+      this.recording = new AudioModule.AudioRecorder({
+        extension: '.m4a',
+        sampleRate: 16000, // ✅ Reduced from 44100 to 16000 (saves 30% battery)
+        numberOfChannels: 1,
+        bitRate: 64000, // ✅ Reduced from 128000 (saves storage)
         android: {
-          extension: '.m4a',
-          outputFormat: Audio.AndroidOutputFormat.MPEG_4,
-          audioEncoder: Audio.AndroidAudioEncoder.AAC,
-          sampleRate: 16000, // ✅ Reduced from 44100 to 16000 (saves 30% battery)
-          numberOfChannels: 1,
-          bitRate: 64000, // ✅ Reduced from 128000 (saves storage)
+          outputFormat: 'mpeg4',
+          audioEncoder: 'aac',
         },
         ios: {
           extension: '.m4a',
-          audioQuality: Audio.IOSAudioQuality.MEDIUM, // ✅ Changed from HIGH
-          sampleRate: 16000, // ✅ Reduced from 44100 to 16000
-          numberOfChannels: 1,
-          bitRate: 64000, // ✅ Reduced from 128000
+          audioQuality: AudioQuality.MEDIUM,
+          sampleRate: 16000,
           linearPCMBitDepth: 16,
           linearPCMIsBigEndian: false,
           linearPCMIsFloat: false,
@@ -109,25 +111,25 @@ class SleepRecorderService {
           mimeType: 'audio/webm',
           bitsPerSecond: 64000, // ✅ Reduced from 128000
         },
-        keepAudioActiveHint: true,
         isMeteringEnabled: true,
       });
 
-      // Enable metering for sound detection (Optimized for battery)
-      await this.recording.setProgressUpdateInterval(1000);
-      this.recording.setOnRecordingStatusUpdate((status) => {
-        if (status.isRecording && status.metering !== undefined) {
+      await this.recording.prepareToRecordAsync();
+
+      // Enable metering for sound detection (Optimized for battery).
+      // recordingStatusUpdate fires on start/stop/error; live metering is read via
+      // getStatus() below in the 1-second monitoring interval, same cadence as before.
+      this.recording.addListener('recordingStatusUpdate', () => {
+        const status = this.recording?.getStatus();
+        if (status?.isRecording && status.metering !== undefined) {
           const volume = this.normalizeVolume(status.metering);
           this.lastVolume = volume;
           this.lastActivityLevel = volume;
-
-          // We still use the interval for duration and event detection 
-          // to keep it consistent at 1-second ticks
         }
       });
 
       // Start recording
-      await this.recording.startAsync();
+      this.recording.record();
 
       this.isRecording = true;
       this.sessionStartTime = new Date();
@@ -155,7 +157,7 @@ class SleepRecorderService {
 
       try {
         // Get current recording status (includes metering data)
-        const status = await this.recording.getStatusAsync();
+        const status = this.recording.getStatus();
 
         if (status.isRecording && status.metering !== undefined) {
           const volume = this.normalizeVolume(status.metering);
@@ -289,12 +291,12 @@ class SleepRecorderService {
       }
 
       // Stop recording
-      await this.recording.stopAndUnloadAsync();
+      await this.recording.stop();
 
       this.isRecording = false;
 
       // Get recording URI
-      const uri = this.recording.getURI();
+      const uri = this.recording.uri;
       console.log('📁 Recording saved to:', uri);
 
       // Move recording to permanent storage
@@ -407,7 +409,7 @@ class SleepRecorderService {
       }
 
       if (this.recording && this.isRecording) {
-        await this.recording.stopAndUnloadAsync();
+        await this.recording.stop();
       }
 
       this.recording = null;

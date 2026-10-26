@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Platform } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Audio } from 'expo-av';
+import { AudioModule, setAudioModeAsync, requestRecordingPermissionsAsync, RecordingPresets, type AudioRecorder } from 'expo-audio';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAppTheme } from '../hooks/useAppTheme';
 import * as FileSystem from 'expo-file-system';
@@ -21,7 +21,7 @@ export default function SnoreDetectionScreen() {
   const { theme } = useAppTheme();
   const navigation = useNavigation();
   const [isRecording, setIsRecording] = useState(false);
-  const [recording, setRecording] = useState<Audio.Recording | null>(null);
+  const [recording, setRecording] = useState<AudioRecorder | null>(null);
   const [snoreEvents, setSnoreEvents] = useState<SnoreEvent[]>([]);
   const [totalSnores, setTotalSnores] = useState(0);
   const lastSnoreTimeRef = useRef(0);
@@ -32,10 +32,10 @@ export default function SnoreDetectionScreen() {
   }, []);
 
   const setupAudio = async () => {
-    await Audio.requestPermissionsAsync();
-    await Audio.setAudioModeAsync({
-      allowsRecordingIOS: true,
-      playsInSilentModeIOS: true,
+    await requestRecordingPermissionsAsync();
+    await setAudioModeAsync({
+      allowsRecording: true,
+      playsInSilentMode: true,
     });
   };
 
@@ -60,16 +60,16 @@ export default function SnoreDetectionScreen() {
 
   const startRecording = async () => {
     try {
-      const { recording: newRecording } = await Audio.Recording.createAsync(
-        Audio.RecordingOptionsPresets.HIGH_QUALITY
-      );
-      setRecording(newRecording);
-      setIsRecording(true);
+      const newRecording = new AudioModule.AudioRecorder({
+        ...RecordingPresets.HIGH_QUALITY,
+        isMeteringEnabled: true,
+      });
 
       // Monitor audio levels
-      newRecording.setOnRecordingStatusUpdate((status) => {
-        if (status.isRecording && status.metering) {
-          const level = status.metering;
+      newRecording.addListener('recordingStatusUpdate', (status) => {
+        const metering = newRecording.getStatus().metering;
+        if (newRecording.isRecording && metering !== undefined) {
+          const level = metering;
           const now = Date.now();
           // useRef instead of useState to avoid stale closure
           if (level > -20 && now - lastSnoreTimeRef.current > 5000) {
@@ -78,6 +78,12 @@ export default function SnoreDetectionScreen() {
           }
         }
       });
+
+      await newRecording.prepareToRecordAsync();
+      newRecording.record();
+
+      setRecording(newRecording);
+      setIsRecording(true);
     } catch (error) {
       console.error('Failed to start recording:', error);
       Alert.alert('Error', 'Failed to start snore detection');
@@ -88,7 +94,7 @@ export default function SnoreDetectionScreen() {
     if (!recording) return;
 
     try {
-      await recording.stopAndUnloadAsync();
+      await recording.stop();
       setIsRecording(false);
       setRecording(null);
     } catch (error) {

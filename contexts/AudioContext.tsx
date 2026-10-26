@@ -1,5 +1,5 @@
 import React, { createContext, useState, useContext, useEffect, ReactNode, useMemo } from 'react';
-import { Audio } from 'expo-av';
+import { createAudioPlayer, setAudioModeAsync, type AudioPlayer } from 'expo-audio';
 import { Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -10,7 +10,7 @@ interface AudioError {
 }
 
 interface MixedSound {
-  sound: Audio.Sound;
+  sound: AudioPlayer;
   name: string;
   volume: number;
   source: any;
@@ -62,8 +62,49 @@ interface AudioContextType {
 
 const AudioContext = createContext<AudioContextType | undefined>(undefined);
 
+/**
+ * Creates an AudioPlayer for `source` and resolves once it has finished loading
+ * (or rejects on load error / after `timeoutMs`). expo-audio's createAudioPlayer()
+ * is synchronous and loads in the background, unlike expo-av's Sound.createAsync()
+ * which returned a promise - this bridges back to promise-based call sites so the
+ * existing timeout + retry UX (network error alerts, etc.) keeps working unchanged.
+ */
+function createAndWaitForLoad(source: any, timeoutMs: number): Promise<AudioPlayer> {
+  const soundSource = typeof source === 'string' ? { uri: source } : source;
+  const player = createAudioPlayer(soundSource, { updateInterval: 500 });
+
+  return new Promise<AudioPlayer>((resolve, reject) => {
+    let settled = false;
+
+    const finish = (fn: () => void) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeoutId);
+      subscription.remove();
+      fn();
+    };
+
+    const timeoutId = setTimeout(() => {
+      finish(() => reject(new Error('timeout')));
+    }, timeoutMs);
+
+    const subscription = player.addListener('playbackStatusUpdate', (status) => {
+      if (status.error) {
+        finish(() => reject(new Error(status.error as string)));
+      } else if (status.isLoaded) {
+        finish(() => resolve(player));
+      }
+    });
+
+    // Some local/cached sources resolve synchronously before the listener attaches.
+    if (player.isLoaded) {
+      finish(() => resolve(player));
+    }
+  });
+}
+
 export function AudioProvider({ children }: { children: ReactNode }) {
-  const [sound, setSound] = useState<Audio.Sound | null>(null);
+  const [sound, setSound] = useState<AudioPlayer | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentSound, setCurrentSound] = useState<string | null>(null);
   const [currentSoundName, setCurrentSoundName] = useState<string | null>(null);
@@ -95,23 +136,23 @@ export function AudioProvider({ children }: { children: ReactNode }) {
     loadPresets();
     return () => {
       if (sound) {
-        sound.unloadAsync();
+        sound.remove();
       }
       // Cleanup all mixed sounds using the ref to avoid stale closure
       Object.values(activeMixRef.current).forEach(mixedSound => {
-        mixedSound.sound.unloadAsync();
+        mixedSound.sound.remove();
       });
     };
   }, []);
 
   const configureAudio = async () => {
     try {
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: true, // Always allow so recorder can work alongside music
-        staysActiveInBackground: true,
-        playsInSilentModeIOS: true,
-        shouldDuckAndroid: true,
-        playThroughEarpieceAndroid: false,
+      await setAudioModeAsync({
+        allowsRecording: true, // Always allow so recorder can work alongside music
+        shouldPlayInBackground: true,
+        playsInSilentMode: true,
+        interruptionMode: 'duckOthers',
+        shouldRouteThroughEarpiece: false,
       });
     } catch (error) {
       console.error('Error configuring audio:', error);
@@ -141,30 +182,29 @@ export function AudioProvider({ children }: { children: ReactNode }) {
       // If there's already a sound playing, stop it first
       if (sound) {
         try {
-          await sound.unloadAsync();
+          sound.remove();
         } catch (e) {
           console.warn('Error unloading previous sound:', e);
         }
         setSound(null);
       }
 
-      // Create and load new sound with timeout
-      const soundSource = typeof source === 'string' ? { uri: source } : source;
-      const soundPromise = Audio.Sound.createAsync(
-        soundSource,
-        { shouldPlay: true, volume, isLooping: true },
-        onPlaybackStatusUpdate
-      );
-
-      // Add 15 second timeout for loading
-      const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(
-          () => reject(new Error('Sound loading timeout - network may be slow')),
-          15000
+      // Create and load new sound with timeout (15s - network may be slow)
+      let newSound: AudioPlayer;
+      try {
+        newSound = await createAndWaitForLoad(source, 15000);
+      } catch (loadError: any) {
+        throw new Error(
+          loadError?.message === 'timeout'
+            ? 'Sound loading timeout - network may be slow'
+            : (loadError?.message || 'Unknown error')
         );
-      });
+      }
 
-      const { sound: newSound } = await Promise.race([soundPromise, timeoutPromise]);
+      newSound.loop = true;
+      newSound.volume = volume;
+      newSound.play();
+      newSound.addListener('playbackStatusUpdate', onPlaybackStatusUpdate);
 
       setSound(newSound);
       setCurrentSound(soundId);
@@ -239,7 +279,7 @@ export function AudioProvider({ children }: { children: ReactNode }) {
   const pauseSound = async () => {
     try {
       if (sound) {
-        await sound.pauseAsync();
+        sound.pause();
         setIsPlaying(false);
       }
     } catch (error) {
@@ -250,7 +290,7 @@ export function AudioProvider({ children }: { children: ReactNode }) {
   const resumeSound = async () => {
     try {
       if (sound) {
-        await sound.playAsync();
+        sound.play();
         setIsPlaying(true);
       }
     } catch (error) {
@@ -262,8 +302,8 @@ export function AudioProvider({ children }: { children: ReactNode }) {
     try {
       if (sound) {
         console.log('Stopping sound...');
-        await sound.stopAsync();
-        await sound.unloadAsync();
+        sound.pause();
+        sound.remove();
         setSound(null);
         setCurrentSound(null);
         setCurrentSoundName(null);
@@ -284,7 +324,7 @@ export function AudioProvider({ children }: { children: ReactNode }) {
     try {
       setVolumeState(newVolume);
       if (sound) {
-        await sound.setVolumeAsync(newVolume);
+        sound.volume = newVolume;
       }
     } catch (error) {
       console.error('Error setting volume:', error);
@@ -293,7 +333,7 @@ export function AudioProvider({ children }: { children: ReactNode }) {
 
   const onPlaybackStatusUpdate = (status: any) => {
     if (status.isLoaded) {
-      setIsPlaying(status.isPlaying);
+      setIsPlaying(status.playing);
     } else if (status.error) {
       console.error('Playback error:', status.error);
       const audioError: AudioError = {
@@ -352,10 +392,9 @@ export function AudioProvider({ children }: { children: ReactNode }) {
   const stopMixing = async () => {
     try {
       // Unload all mixed sounds
-      const unloadPromises = Object.values(activeMix).map(mixedSound =>
-        mixedSound.sound.unloadAsync()
-      );
-      await Promise.all(unloadPromises);
+      Object.values(activeMix).forEach(mixedSound => {
+        mixedSound.sound.remove();
+      });
 
       setActiveMix({});
       setIsMixing(false);
@@ -376,18 +415,10 @@ export function AudioProvider({ children }: { children: ReactNode }) {
       }
 
       // Create new sound with timeout
-      const soundSource = typeof source === 'string' ? { uri: source } : source;
-
-      const soundPromise = Audio.Sound.createAsync(
-        soundSource,
-        { shouldPlay: true, volume: 0.5, isLooping: true }
-      );
-
-      const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error('timeout')), 12000);
-      });
-
-      const { sound: newSound } = await Promise.race([soundPromise, timeoutPromise]);
+      const newSound = await createAndWaitForLoad(source, 12000);
+      newSound.loop = true;
+      newSound.volume = 0.5;
+      newSound.play();
 
       setActiveMix(prev => ({
         ...prev,
@@ -425,7 +456,7 @@ export function AudioProvider({ children }: { children: ReactNode }) {
     try {
       const mixedSound = activeMix[soundId];
       if (mixedSound) {
-        await mixedSound.sound.unloadAsync();
+        mixedSound.sound.remove();
 
         const newMix = { ...activeMix };
         delete newMix[soundId];
@@ -442,7 +473,7 @@ export function AudioProvider({ children }: { children: ReactNode }) {
     try {
       const mixedSound = activeMix[soundId];
       if (mixedSound) {
-        await mixedSound.sound.setVolumeAsync(volume);
+        mixedSound.sound.volume = volume;
 
         setActiveMix(prev => ({
           ...prev,
