@@ -17,8 +17,6 @@ import {
   UIManager,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSafeBottomMargin } from '../hooks/useSafeBottomMargin';
 import {
@@ -118,23 +116,6 @@ export default function JournalScreen() {
       UIManager.setLayoutAnimationEnabledExperimental?.(true);
     }
   }, []);
-
-  // Dynamic Display Mode & Backgrounds
-  const displayMode = useMemo(() => {
-    const hour = new Date().getHours();
-    if (hour >= 5 && hour < 11) return 'morning';
-    if (hour >= 11 && hour < 17) return 'daytime';
-    return 'evening';
-  }, []);
-
-  const bgColors = useMemo((): [string, string, ...string[]] => {
-    switch (displayMode) {
-      case 'morning': return ['#0F172A', '#1E1B4B', '#312E81'];
-      case 'daytime': return ['#0F172A', '#1E293B', '#334155'];
-      case 'evening': return ['#0F0F1E', '#1E1B4B', '#2E1065'];
-      default: return ['#0F0F1E', '#1B1B2F'];
-    }
-  }, [displayMode]);
 
   // Build available dates from history (fallback to last 14 days)
   const availableDates = useMemo(() => {
@@ -633,23 +614,23 @@ export default function JournalScreen() {
 
   return (
     <View style={styles(theme).container}>
-      <LinearGradient colors={bgColors} style={StyleSheet.absoluteFillObject} />
-      <StatusBar barStyle="light-content" />
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
 
-      <View style={styles(theme).header}>
-        <View style={{ paddingTop: insets.top + 10 }}>
-          <Text style={styles(theme).headerLargeTitle}>Dream Journal</Text>
-          <View style={styles(theme).headerSubtitleRow}>
-            <View style={styles(theme).statusIndicator} />
-            <Text style={styles(theme).headerSubtitleText}>PERSONAL DREAM DATA</Text>
-          </View>
-        </View>
+      <View style={[styles(theme).header, { paddingTop: insets.top + 14 }]}>
         <TouchableOpacity
           style={styles(theme).headerActionFab}
           onPress={() => setShowDatePicker(true)}
+          accessibilityRole="button"
+          accessibilityLabel="Choose date"
         >
-          <Calendar size={22} color="#FFFFFF" strokeWidth={2.5} />
+          <Calendar size={20} color={theme.colors.textPrimary} strokeWidth={2.2} />
         </TouchableOpacity>
+        <View style={styles(theme).headerTitleBlock}>
+          <Text style={styles(theme).headerLargeTitle}>Dream journal</Text>
+          <Text style={styles(theme).headerSubtitleText}>
+            {journalEntries.length > 0 ? `${journalEntries.length} entries recorded` : 'Personal sleep data'}
+          </Text>
+        </View>
 
         {showDatePicker && (
           <DateTimePicker
@@ -668,7 +649,7 @@ export default function JournalScreen() {
       </View>
 
       {/* Persistent Tab Switcher */}
-      <View style={[styles(theme).persistentTabSwitcher, { marginTop: 10 }]}>
+      <View style={styles(theme).persistentTabSwitcher}>
         <View style={styles(theme).tabSwitcher}>
           <TouchableOpacity
             style={[styles(theme).tabButton, activeTab === 'entries' && styles(theme).activeTabButton]}
@@ -745,21 +726,19 @@ export default function JournalScreen() {
             })}
           </ScrollView>
 
-          {/* Premium Sleep Score Dashboard */}
-          <BlurView intensity={30} tint="dark" style={styles(theme).scoreCard}>
+          {/* Sleep Score Dashboard */}
+          <View style={styles(theme).scoreCard}>
             <View style={styles(theme).scoreWheelContainer}>
-              {/* Score Glow */}
-              {selectedDaySession && <View style={[styles(theme).scoreGlow, { backgroundColor: '#8B5CF6' }]} />}
               {selectedDaySession ? (
                 <CircularProgress
-                  size={160}
-                  strokeWidth={14}
+                  size={150}
+                  strokeWidth={12}
                   score={displayScore}
                   showText={false}
-                  color="#8B5CF6"
+                  color={theme.colors.accent}
                 />
               ) : (
-                <View style={{ width: 160, height: 160, borderRadius: 80, borderWidth: 14, borderColor: 'rgba(255, 255, 255, 0.1)' }} />
+                <View style={[styles(theme).emptyWheel]} />
               )}
               <View style={[StyleSheet.absoluteFill, styles(theme).wheelContent]}>
                 <Text style={styles(theme).wheelScore}>{selectedDaySession ? displayScore : '—'}</Text>
@@ -768,96 +747,94 @@ export default function JournalScreen() {
               </View>
             </View>
             <View style={styles(theme).scoreFooter}>
-              <Calendar size={14} color="#94A3B8" />
+              <Calendar size={14} color={theme.colors.textTertiary} />
               <Text style={styles(theme).scoreDate}>
                 {selectedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
               </Text>
             </View>
-          </BlurView>
+          </View>
 
           {/* Sleep Stages Chart */}
-          <BlurView intensity={20} tint="dark" style={styles(theme).chartCard}>
+          <View style={styles(theme).chartCard}>
             <View style={styles(theme).sectionHeader}>
-              <TrendingUp size={20} color="#8B5CF6" />
-              <Text style={styles(theme).sectionTitle}>Sleep Stages</Text>
+              <TrendingUp size={18} color={theme.colors.accent} strokeWidth={2.2} />
+              <Text style={styles(theme).sectionTitle}>Sleep stages</Text>
             </View>
             {!selectedDaySession ? (
-              <View style={{ paddingVertical: 40, alignItems: 'center' }}>
-                <Moon size={48} color="#64748B" style={{ marginBottom: 16, opacity: 0.5 }} />
+              <View style={styles(theme).chartEmptyWrap}>
+                <Moon size={44} color={theme.colors.textTertiary} style={{ opacity: 0.6 }} />
                 <Text style={styles(theme).noResultsText}>No sleep data recorded for this date</Text>
                 <Text style={[styles(theme).noResultsText, { fontSize: 12, marginTop: 4 }]}>Select a date with sleep data or record a new session</Text>
               </View>
             ) : (
-              <>
-                <View style={styles(theme).barChartContainer}>
-                  <View style={styles(theme).yAxis}>
-                    <Text style={styles(theme).yAxisText}>Awake</Text>
-                    <Text style={styles(theme).yAxisText}>REM</Text>
-                    <Text style={styles(theme).yAxisText}>Light</Text>
-                    <Text style={styles(theme).yAxisText}>Deep</Text>
-                  </View>
-                  <View style={styles(theme).barsContainer}>
-                    {architectureData?.map((bar, i) => (
-                      <View key={i} style={[styles(theme).chartBar, { height: bar.h, backgroundColor: bar.c }]} />
-                    ))}
-                  </View>
+              <View style={styles(theme).barChartContainer}>
+                <View style={styles(theme).yAxis}>
+                  <Text style={styles(theme).yAxisText}>Awake</Text>
+                  <Text style={styles(theme).yAxisText}>REM</Text>
+                  <Text style={styles(theme).yAxisText}>Light</Text>
+                  <Text style={styles(theme).yAxisText}>Deep</Text>
                 </View>
-              </>
+                <View style={styles(theme).barsContainer}>
+                  {architectureData?.map((bar, i) => (
+                    <View key={i} style={[styles(theme).chartBar, { height: bar.h, backgroundColor: bar.c }]} />
+                  ))}
+                </View>
+              </View>
             )}
             {selectedDaySession && (
               <View style={styles(theme).chartLegend}>
-                <View style={styles(theme).legendItem}><View style={[styles(theme).legendDot, { backgroundColor: '#EF4444' }]} /><Text style={styles(theme).legendText}>Awake</Text></View>
-                <View style={styles(theme).legendItem}><View style={[styles(theme).legendDot, { backgroundColor: '#8B5CF6' }]} /><Text style={styles(theme).legendText}>REM</Text></View>
-                <View style={styles(theme).legendItem}><View style={[styles(theme).legendDot, { backgroundColor: '#6366F1' }]} /><Text style={styles(theme).legendText}>Light</Text></View>
-                <View style={styles(theme).legendItem}><View style={[styles(theme).legendDot, { backgroundColor: '#4F46E5' }]} /><Text style={styles(theme).legendText}>Deep</Text></View>
+                <View style={styles(theme).legendItem}><View style={[styles(theme).legendDot, { backgroundColor: theme.sleepPrintMark.awake }]} /><Text style={styles(theme).legendText}>Awake</Text></View>
+                <View style={styles(theme).legendItem}><View style={[styles(theme).legendDot, { backgroundColor: theme.sleepPrintMark.rem }]} /><Text style={styles(theme).legendText}>REM</Text></View>
+                <View style={styles(theme).legendItem}><View style={[styles(theme).legendDot, { backgroundColor: theme.sleepPrintMark.light }]} /><Text style={styles(theme).legendText}>Light</Text></View>
+                <View style={styles(theme).legendItem}><View style={[styles(theme).legendDot, { backgroundColor: theme.sleepPrintMark.deep }]} /><Text style={styles(theme).legendText}>Deep</Text></View>
               </View>
             )}
-          </BlurView>
+          </View>
 
-          {/* Stats Grid - Premium 2x2 */}
+          {/* Stats Grid - 2x2 */}
           <View style={styles(theme).statsGrid}>
-            <BlurView intensity={20} tint="dark" style={styles(theme).statCard}>
+            <View style={styles(theme).statCard}>
               <View style={styles(theme).statIconWrapper}>
-                <Clock size={16} color="#F59E0B" />
+                <Clock size={16} color={theme.colors.accent} strokeWidth={2.2} />
               </View>
               <Text style={styles(theme).statValue}>{sessionStats.timeToFallAsleep}</Text>
-              <Text style={styles(theme).statLabel}>Fall Asleep</Text>
-            </BlurView>
+              <Text style={styles(theme).statLabel}>Fall asleep</Text>
+            </View>
 
-            <BlurView intensity={20} tint="dark" style={styles(theme).statCard}>
+            <View style={styles(theme).statCard}>
               <View style={styles(theme).statIconWrapper}>
-                <Moon size={16} color="#8B5CF6" />
+                <Moon size={16} color={theme.colors.accent} strokeWidth={2.2} />
               </View>
               <Text style={styles(theme).statValue}>{sessionStats.totalSleep}</Text>
-              <Text style={styles(theme).statLabel}>Total Rest</Text>
-            </BlurView>
+              <Text style={styles(theme).statLabel}>Total rest</Text>
+            </View>
 
-            <BlurView intensity={20} tint="dark" style={styles(theme).statCard}>
+            <View style={styles(theme).statCard}>
               <View style={styles(theme).statIconWrapper}>
-                <Activity size={16} color="#10B981" />
+                <Activity size={16} color={theme.colors.accent} strokeWidth={2.2} />
               </View>
               <Text style={styles(theme).statValue}>{sessionStats.sleepEfficiency}</Text>
               <Text style={styles(theme).statLabel}>Efficiency</Text>
-            </BlurView>
+            </View>
 
-            <BlurView intensity={20} tint="dark" style={styles(theme).statCard}>
+            <View style={styles(theme).statCard}>
               <View style={styles(theme).statIconWrapper}>
-                <RefreshCw size={16} color="#EC4899" />
+                <RefreshCw size={16} color={theme.colors.accent} strokeWidth={2.2} />
               </View>
               <Text style={styles(theme).statValue}>{sessionStats.restlessness}</Text>
               <Text style={styles(theme).statLabel}>Restlessness</Text>
-            </BlurView>
+            </View>
           </View>
 
           {/* Disruptions */}
           {disruptions.length > 0 && (
-            <BlurView intensity={20} tint="dark" style={styles(theme).disruptionsCard}>
+            <View style={styles(theme).disruptionsCard}>
               <View style={styles(theme).sectionHeader}>
-                <Bell size={20} color="#F59E0B" />
+                <Bell size={18} color={theme.colors.accent} strokeWidth={2.2} />
                 <Text style={styles(theme).sectionTitle}>Disruptions ({disruptions.length})</Text>
               </View>
               <View style={styles(theme).disruptionsList}>
-                {disruptions.map((disruption) => {
+                {disruptions.map((disruption, idx) => {
                   const timestamp = new Date(disruption.timestamp);
                   const time = timestamp.toLocaleTimeString('en-US', {
                     hour: 'numeric',
@@ -867,64 +844,68 @@ export default function JournalScreen() {
 
                   let icon = Volume2;
                   let title = 'Noise detected';
-                  let color = '#F59E0B';
 
                   if (disruption.event_type === 'snoring') {
                     icon = Volume2;
                     title = 'Snoring detected';
-                    color = '#F59E0B';
                   } else if (disruption.event_type === 'sleep_talk') {
                     icon = Volume2;
                     title = 'Sleep talking';
-                    color = '#33C6FF';
                   } else if (disruption.event_type === 'dreaming') {
                     icon = Cloud;
                     title = 'Dreaming (REM)';
-                    color = '#BE4BDB';
                   } else if (disruption.event_type === 'noise') {
                     icon = Volume2;
                     title = 'Noise detected';
-                    color = '#FFD700';
                   }
+
+                  const isLast = idx === disruptions.length - 1;
 
                   return (
                     <View key={disruption.id} style={styles(theme).disruptionItem}>
-                      <View style={[styles(theme).disruptionIcon, { backgroundColor: color + '20' }]}>
-                        {React.createElement(icon, { size: 18, color })}
+                      <View style={styles(theme).disruptionTimeline}>
+                        <View style={[styles(theme).disruptionLineSeg, idx === 0 && styles(theme).lineHidden]} />
+                        <View style={styles(theme).disruptionDot} />
+                        <View style={[styles(theme).disruptionLineSeg, { flex: 1 }, isLast && styles(theme).lineHidden]} />
                       </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles(theme).disruptionTitle}>{title}</Text>
-                        <Text style={styles(theme).disruptionTime}>{time}</Text>
+                      <View style={[styles(theme).disruptionRow, !isLast && styles(theme).disruptionRowDivided]}>
+                        <View style={styles(theme).disruptionIcon}>
+                          {React.createElement(icon, { size: 16, color: theme.colors.accent })}
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles(theme).disruptionTitle}>{title}</Text>
+                          <Text style={styles(theme).disruptionTime}>{time}</Text>
+                        </View>
+                        {disruption.loudness_db > 0 && (
+                          <Text style={styles(theme).disruptionVolume}>
+                            {Math.round(disruption.loudness_db)}%
+                          </Text>
+                        )}
+                        {disruption.audio_file_url && (
+                          <TouchableOpacity
+                            onPress={() => playAudio(disruption)}
+                            style={styles(theme).playButton}
+                          >
+                            {playingAudioId === disruption.id ? (
+                              <Pause size={18} color={theme.colors.accent} />
+                            ) : (
+                              <Play size={18} color={theme.colors.accent} />
+                            )}
+                          </TouchableOpacity>
+                        )}
                       </View>
-                      {disruption.loudness_db > 0 && (
-                        <Text style={[styles(theme).disruptionVolume, { color }]}>
-                          {Math.round(disruption.loudness_db)}%
-                        </Text>
-                      )}
-                      {disruption.audio_file_url && (
-                        <TouchableOpacity
-                          onPress={() => playAudio(disruption)}
-                          style={styles(theme).playButton}
-                        >
-                          {playingAudioId === disruption.id ? (
-                            <Pause size={20} color={color} />
-                          ) : (
-                            <Play size={20} color={color} />
-                          )}
-                        </TouchableOpacity>
-                      )}
                     </View>
                   );
                 })}
               </View>
-            </BlurView>
+            </View>
           )}
 
           {/* Journal Entry */}
-          <BlurView intensity={20} tint="dark" style={styles(theme).journalEntryCard}>
+          <View style={styles(theme).journalEntryCard}>
             <View style={styles(theme).sectionHeader}>
-              <BookOpen size={20} color="#EC4899" />
-              <Text style={styles(theme).sectionTitle}>Journal Entry</Text>
+              <BookOpen size={18} color={theme.colors.accent} strokeWidth={2.2} />
+              <Text style={styles(theme).sectionTitle}>Journal entry</Text>
             </View>
 
             <Text style={styles(theme).inputLabel}>How do you feel?</Text>
@@ -946,7 +927,7 @@ export default function JournalScreen() {
             <TextInput
               style={styles(theme).journalInput}
               placeholder="Write about your sleep experience, dreams, or how you're feeling..."
-              placeholderTextColor="#A0AEC0"
+              placeholderTextColor={theme.colors.textTertiary}
               multiline
               value={journalEntry}
               onChangeText={setJournalEntry}
@@ -974,25 +955,20 @@ export default function JournalScreen() {
               style={styles(theme).saveButton}
               onPress={saveJournal}
               disabled={isSaving}
+              activeOpacity={0.9}
             >
-              <LinearGradient
-                colors={['#8B5CF6', '#EC4899']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles(theme).buttonGradient}
-              />
               <Text style={styles(theme).saveButtonText}>
-                {isSaving ? 'Saving...' : 'Save Entry'}
+                {isSaving ? 'Saving...' : 'Save entry'}
               </Text>
             </TouchableOpacity>
-          </BlurView>
+          </View>
 
           {/* Previous Journal Entries */}
           {journalEntries.length > 0 && (
-            <BlurView intensity={20} tint="dark" style={styles(theme).chartCard}>
+            <View style={styles(theme).chartCard}>
               <View style={styles(theme).sectionHeader}>
-                <BookOpen size={20} color="#8B5CF6" />
-                <Text style={styles(theme).sectionTitle}>Your Journal Entries</Text>
+                <BookOpen size={18} color={theme.colors.accent} strokeWidth={2.2} />
+                <Text style={styles(theme).sectionTitle}>Your journal entries</Text>
                 <TouchableOpacity onPress={() => setShowAllEntries(!showAllEntries)} style={{ marginLeft: 'auto' }}>
                   <Text style={styles(theme).seeAllText}>
                     {showAllEntries ? 'Showing all' : 'Showing day'}
@@ -1004,11 +980,17 @@ export default function JournalScreen() {
                 <Text style={styles(theme).noResultsText}>No entries for this date.</Text>
               )}
 
-              {filteredEntries.map((entry) => (
-                <View key={entry.id} style={styles(theme).savedEntryCard}>
+              {filteredEntries.map((entry, idx) => (
+                <View
+                  key={entry.id}
+                  style={[
+                    styles(theme).savedEntryCard,
+                    idx < filteredEntries.length - 1 && styles(theme).savedEntryCardDivided,
+                  ]}
+                >
                   <View style={styles(theme).savedEntryHeader}>
                     <View style={styles(theme).entryDateBadge}>
-                      <Calendar size={14} color="#8B5CF6" />
+                      <Calendar size={13} color={theme.colors.accent} strokeWidth={2.2} />
                       <Text style={styles(theme).entryDateText}>
                         {new Date(entry.entry_date).toLocaleDateString('en-US', {
                           month: 'short',
@@ -1030,18 +1012,16 @@ export default function JournalScreen() {
 
                   {entry.tags && entry.tags.length > 0 && (
                     <View style={styles(theme).savedTagsContainer}>
-                      {entry.tags.map((tag, idx) => (
-                        <View key={idx} style={styles(theme).savedTag}>
+                      {entry.tags.map((tag, tagIdx) => (
+                        <View key={tagIdx} style={styles(theme).savedTag}>
                           <Text style={styles(theme).savedTagText}>{tag}</Text>
                         </View>
                       ))}
                     </View>
                   )}
-
-                  <View style={styles(theme).entryDivider} />
                 </View>
               ))}
-            </BlurView>
+            </View>
           )}
         </ScrollView>
       ) : (
@@ -1061,88 +1041,64 @@ function createStyles(theme: any, SCREEN_WIDTH: number, CHART_HEIGHT: number) {
     },
     header: {
       flexDirection: 'row',
-      justifyContent: 'space-between',
       alignItems: 'center',
-      paddingHorizontal: 24,
-      paddingBottom: 20,
+      columnGap: 14,
+      paddingHorizontal: 20,
+      paddingBottom: 16,
       zIndex: 10,
     },
-    headerLargeTitle: {
-      fontSize: 34,
-      fontWeight: '900',
-      color: theme.colors.textPrimary,
-      letterSpacing: -1,
-    },
-    headerSubtitleRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      marginTop: 4,
-      rowGap: 8, columnGap: 8,
-    },
-    statusIndicator: {
-      width: 8,
-      height: 8,
-      borderRadius: 4,
-      backgroundColor: '#10B981',
-      shadowColor: '#10B981',
-      shadowOffset: { width: 0, height: 0 },
-      shadowOpacity: 0.8,
-      shadowRadius: 4,
-    },
-    headerSubtitleText: {
-      fontSize: 14,
-      color: theme.colors.textSecondary,
-      fontWeight: '600',
-      letterSpacing: 0.5,
-      opacity: 0.8,
-    },
     headerActionFab: {
-      width: 48,
-      height: 48,
-      borderRadius: 24,
-      backgroundColor: theme.colors.cardOverlay,
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      backgroundColor: theme.colors.card,
       justifyContent: 'center',
       alignItems: 'center',
       borderWidth: 1,
       borderColor: theme.colors.cardBorder,
-      marginTop: 10,
+    },
+    headerTitleBlock: {
+      flex: 1,
+    },
+    headerLargeTitle: {
+      fontFamily: theme.typography.fontFamily.displaySemibold,
+      fontSize: 24,
+      color: theme.colors.textPrimary,
+      letterSpacing: -0.3,
+    },
+    headerSubtitleText: {
+      fontFamily: theme.typography.fontFamily.body,
+      fontSize: 14,
+      color: theme.colors.textTertiary,
+      marginTop: 2,
     },
     scrollView: {
       flex: 1,
     },
     scrollContent: {
-      paddingHorizontal: 24,
+      paddingHorizontal: 20,
       paddingTop: 12,
-    },
-    statsFab: {
-      width: 48,
-      height: 48,
-      borderRadius: 24,
-      backgroundColor: 'rgba(139, 92, 246, 0.3)',
-      justifyContent: 'center',
-      alignItems: 'center',
-      borderWidth: 1,
-      borderColor: 'rgba(139, 92, 246, 0.5)',
-      marginTop: 10,
     },
     dateIndicatorDot: {
       width: 4,
       height: 4,
       borderRadius: 2,
-      backgroundColor: '#8B5CF6',
+      backgroundColor: theme.colors.accent,
       marginTop: 4,
     },
     selectedDateIndicatorDot: {
-      backgroundColor: '#FFFFFF',
+      backgroundColor: theme.colors.ctaText,
     },
     persistentTabSwitcher: {
-      paddingHorizontal: 24,
+      paddingHorizontal: 20,
+      marginTop: 6,
+      marginBottom: 4,
       zIndex: 100,
     },
     tabSwitcher: {
       flexDirection: 'row',
-      backgroundColor: theme.colors.cardOverlay,
-      borderRadius: 16,
+      backgroundColor: theme.colors.card,
+      borderRadius: theme.borderRadius.lg,
       padding: 4,
       borderWidth: 1,
       borderColor: theme.colors.cardBorder,
@@ -1151,161 +1107,148 @@ function createStyles(theme: any, SCREEN_WIDTH: number, CHART_HEIGHT: number) {
       flex: 1,
       paddingVertical: 10,
       alignItems: 'center',
-      borderRadius: 14,
+      borderRadius: theme.borderRadius.md,
     },
     activeTabButton: {
-      backgroundColor: '#8B5CF6',
-      shadowColor: '#8B5CF6',
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.3,
-      shadowRadius: 8,
+      backgroundColor: theme.colors.ctaBackground,
     },
     tabText: {
+      fontFamily: theme.typography.fontFamily.bodySemibold,
       fontSize: 14,
-      fontWeight: '600',
-      color: '#94A3B8',
+      color: theme.colors.textTertiary,
     },
     activeTabText: {
-      color: '#FFFFFF',
+      color: theme.colors.ctaText,
     },
     datePickerScroll: {
-      marginBottom: 28,
-      marginHorizontal: -24,
+      marginTop: 20,
+      marginBottom: 20,
+      marginHorizontal: -20,
     },
     datePickerContent: {
-      paddingHorizontal: 24,
+      paddingHorizontal: 20,
     },
     dateCard: {
-      width: 60,
-      height: 80,
-      borderRadius: 20,
-      backgroundColor: 'rgba(15, 23, 42, 0.4)',
+      width: 58,
+      height: 76,
+      borderRadius: theme.borderRadius.lg,
+      backgroundColor: theme.colors.card,
       borderWidth: 1,
-      borderColor: 'rgba(255, 255, 255, 0.05)',
+      borderColor: theme.colors.cardBorder,
       alignItems: 'center',
       justifyContent: 'center',
-      marginRight: 12,
+      marginRight: 10,
     },
     selectedDateCard: {
-      backgroundColor: '#8B5CF6',
-      borderColor: '#8B5CF6',
-      shadowColor: '#8B5CF6',
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.3,
-      shadowRadius: 10,
+      backgroundColor: theme.colors.ctaBackground,
+      borderColor: theme.colors.ctaBackground,
     },
     dateDay: {
+      fontFamily: theme.typography.fontFamily.bodySemibold,
       fontSize: 12,
-      color: '#94A3B8',
-      fontWeight: '600',
+      color: theme.colors.textTertiary,
       marginBottom: 4,
     },
     dateNumber: {
-      fontSize: 20,
-      fontWeight: '700',
-      color: '#FFFFFF',
+      fontFamily: theme.typography.fontFamily.displaySemibold,
+      fontSize: 19,
+      color: theme.colors.textPrimary,
     },
     selectedDateText: {
-      color: '#FFFFFF',
+      color: theme.colors.ctaText,
     },
     scoreCard: {
-      borderRadius: 32,
-      padding: 28,
+      borderRadius: theme.borderRadius.card,
+      padding: 24,
       alignItems: 'center',
-      marginBottom: 28,
+      marginBottom: 20,
       borderWidth: 1,
       borderColor: theme.colors.cardBorder,
-      backgroundColor: theme.colors.cardOverlay,
+      backgroundColor: theme.colors.card,
     },
     scoreWheelContainer: {
-      width: 160,
-      height: 160,
+      width: 150,
+      height: 150,
       alignItems: 'center',
       justifyContent: 'center',
       marginBottom: 16,
+    },
+    emptyWheel: {
+      width: 150,
+      height: 150,
+      borderRadius: 75,
+      borderWidth: 12,
+      borderColor: theme.colors.cardBorder,
     },
     wheelContent: {
       alignItems: 'center',
       justifyContent: 'center',
     },
     wheelScore: {
-      fontSize: 52,
-      fontWeight: '800',
-      color: '#FFFFFF',
-      ...Platform.select({
-        android: {
-          textShadowColor: 'rgba(139, 92, 246, 0.8)',
-          textShadowOffset: { width: 0, height: 2 },
-          textShadowRadius: 8,
-        },
-        ios: {
-          textShadowColor: 'rgba(139, 92, 246, 0.6)',
-          textShadowOffset: { width: 0, height: 4 },
-          textShadowRadius: 10,
-        },
-      }),
+      fontFamily: theme.typography.fontFamily.displaySemibold,
+      fontSize: 46,
+      color: theme.colors.textPrimary,
     },
     wheelLabel: {
+      fontFamily: theme.typography.fontFamily.bodyBold,
       fontSize: 10,
-      color: '#94A3B8',
-      fontWeight: '800',
-      letterSpacing: 1.5,
-      marginTop: 8,
+      color: theme.colors.textTertiary,
+      letterSpacing: 1.3,
+      marginTop: 6,
     },
     wheelSubLabel: {
-      fontSize: 16,
-      color: '#FFFFFF',
-      fontWeight: '700',
+      fontFamily: theme.typography.fontFamily.bodySemibold,
+      fontSize: 15,
+      color: theme.colors.textPrimary,
       marginTop: 2,
     },
     scoreFooter: {
       flexDirection: 'row',
       alignItems: 'center',
-      rowGap: 8, columnGap: 8,
-      backgroundColor: 'rgba(255, 255, 255, 0.05)',
+      columnGap: 8,
+      backgroundColor: theme.colors.backgroundSecondary,
       paddingHorizontal: 16,
       paddingVertical: 8,
-      borderRadius: 16,
+      borderRadius: theme.borderRadius.lg,
     },
     scoreDate: {
+      fontFamily: theme.typography.fontFamily.bodySemibold,
       fontSize: 13,
-      color: '#94A3B8',
-      fontWeight: '600',
-    },
-    scoreGlow: {
-      position: 'absolute',
-      width: 120,
-      height: 120,
-      borderRadius: 60,
-      opacity: 0.1,
+      color: theme.colors.textTertiary,
     },
     chartCard: {
-      borderRadius: 32,
-      padding: 24,
-      marginBottom: 24,
+      borderRadius: theme.borderRadius.card,
+      padding: 20,
+      marginBottom: 20,
       borderWidth: 1,
-      borderColor: 'rgba(255, 255, 255, 0.08)',
+      borderColor: theme.colors.cardBorder,
+      backgroundColor: theme.colors.card,
     },
     sectionHeader: {
       flexDirection: 'row',
       alignItems: 'center',
-      rowGap: 10, columnGap: 10,
-      marginBottom: 20,
+      columnGap: 10,
+      marginBottom: 18,
     },
     sectionTitle: {
-      fontSize: 18,
-      fontWeight: '700',
-      color: '#FFFFFF',
+      fontFamily: theme.typography.fontFamily.displaySemibold,
+      fontSize: 17,
+      color: theme.colors.textPrimary,
     },
     seeAllText: {
+      fontFamily: theme.typography.fontFamily.bodySemibold,
       fontSize: 14,
-      color: '#8B5CF6',
-      fontWeight: '600',
+      color: theme.colors.accent,
+    },
+    chartEmptyWrap: {
+      paddingVertical: 36,
+      alignItems: 'center',
+      rowGap: 12,
     },
     barChartContainer: {
       flexDirection: 'row',
       height: CHART_HEIGHT,
-      marginBottom: 20,
+      marginBottom: 18,
     },
     yAxis: {
       justifyContent: 'space-between',
@@ -1313,15 +1256,15 @@ function createStyles(theme: any, SCREEN_WIDTH: number, CHART_HEIGHT: number) {
       paddingVertical: 4,
     },
     yAxisText: {
+      fontFamily: theme.typography.fontFamily.bodySemibold,
       fontSize: 10,
-      color: '#64748B',
-      fontWeight: '600',
+      color: theme.colors.textTertiary,
     },
     barsContainer: {
       flex: 1,
       flexDirection: 'row',
       alignItems: 'flex-end',
-      rowGap: 4, columnGap: 4,
+      columnGap: 4,
       paddingBottom: 10,
     },
     chartBar: {
@@ -1331,15 +1274,16 @@ function createStyles(theme: any, SCREEN_WIDTH: number, CHART_HEIGHT: number) {
     chartLegend: {
       flexDirection: 'row',
       flexWrap: 'wrap',
-      rowGap: 16, columnGap: 16,
+      rowGap: 12,
+      columnGap: 16,
       paddingTop: 12,
       borderTopWidth: 1,
-      borderTopColor: 'rgba(255, 255, 255, 0.05)',
+      borderTopColor: theme.colors.cardBorder,
     },
     legendItem: {
       flexDirection: 'row',
       alignItems: 'center',
-      rowGap: 6, columnGap: 6,
+      columnGap: 6,
     },
     legendDot: {
       width: 8,
@@ -1347,253 +1291,278 @@ function createStyles(theme: any, SCREEN_WIDTH: number, CHART_HEIGHT: number) {
       borderRadius: 4,
     },
     legendText: {
+      fontFamily: theme.typography.fontFamily.bodyMedium,
       fontSize: 12,
-      color: '#94A3B8',
-      fontWeight: '500',
+      color: theme.colors.textTertiary,
     },
     statIconWrapper: {
       width: 32,
       height: 32,
       borderRadius: 16,
-      backgroundColor: 'rgba(255, 255, 255, 0.05)',
+      backgroundColor: theme.colors.accentLight,
       justifyContent: 'center',
       alignItems: 'center',
       marginBottom: 12,
     },
     noResultsText: {
+      fontFamily: theme.typography.fontFamily.body,
       fontSize: 14,
-      color: '#94A3B8',
-      marginBottom: 12,
+      color: theme.colors.textTertiary,
+      marginBottom: 0,
       textAlign: 'center',
     },
     statsGrid: {
       flexDirection: 'row',
       flexWrap: 'wrap',
-      rowGap: 12, columnGap: 12,
-      marginBottom: 24,
+      rowGap: 12,
+      columnGap: 12,
+      marginBottom: 20,
     },
     statCard: {
-      width: (SCREEN_WIDTH - 60) / 2,
-      borderRadius: 24,
+      width: (SCREEN_WIDTH - 52) / 2,
+      borderRadius: theme.borderRadius.card,
       padding: 16,
       borderWidth: 1,
-      borderColor: 'rgba(255, 255, 255, 0.08)',
-    },
-    statHeader: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      rowGap: 8, columnGap: 8,
-      marginBottom: 12,
+      borderColor: theme.colors.cardBorder,
+      backgroundColor: theme.colors.card,
     },
     statLabel: {
-      fontSize: 11,
-      color: '#94A3B8',
-      fontWeight: '600',
+      fontFamily: theme.typography.fontFamily.body,
+      fontSize: 12,
+      color: theme.colors.textTertiary,
     },
     statValue: {
-      fontSize: 24,
-      fontWeight: '800',
-      color: '#FFFFFF',
+      fontFamily: theme.typography.fontFamily.displaySemibold,
+      fontSize: 22,
+      color: theme.colors.textPrimary,
     },
     disruptionsCard: {
-      borderRadius: 32,
-      padding: 24,
-      marginBottom: 24,
+      borderRadius: theme.borderRadius.card,
+      padding: 20,
+      marginBottom: 20,
       borderWidth: 1,
-      borderColor: 'rgba(255, 255, 255, 0.08)',
+      borderColor: theme.colors.cardBorder,
+      backgroundColor: theme.colors.card,
     },
     disruptionsList: {
-      rowGap: 12, columnGap: 12,
+      rowGap: 0,
     },
     disruptionItem: {
       flexDirection: 'row',
+      columnGap: 12,
+    },
+    disruptionTimeline: {
+      width: 14,
       alignItems: 'center',
-      rowGap: 16, columnGap: 16,
-      padding: 12,
-      backgroundColor: 'rgba(255, 255, 255, 0.03)',
-      borderRadius: 20,
+    },
+    disruptionLineSeg: {
+      width: 2,
+      height: 18,
+      backgroundColor: theme.colors.cardBorder,
+    },
+    lineHidden: {
+      backgroundColor: 'transparent',
+    },
+    disruptionDot: {
+      width: 10,
+      height: 10,
+      borderRadius: 5,
+      backgroundColor: theme.colors.accent,
+      flexShrink: 0,
+    },
+    disruptionRow: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      columnGap: 12,
+      paddingVertical: 12,
+    },
+    disruptionRowDivided: {
+      borderBottomWidth: 1,
+      borderBottomColor: theme.colors.cardBorder,
     },
     disruptionIcon: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      backgroundColor: theme.colors.accentLight,
       alignItems: 'center',
       justifyContent: 'center',
     },
     disruptionTitle: {
+      fontFamily: theme.typography.fontFamily.bodySemibold,
       fontSize: 14,
-      fontWeight: '600',
-      color: '#FFFFFF',
+      color: theme.colors.textPrimary,
     },
     disruptionTime: {
+      fontFamily: theme.typography.fontFamily.body,
       fontSize: 12,
-      color: '#94A3B8',
+      color: theme.colors.textTertiary,
       marginTop: 2,
     },
     disruptionVolume: {
+      fontFamily: theme.typography.fontFamily.bodyBold,
       fontSize: 12,
-      fontWeight: '700',
-      marginRight: 8,
+      color: theme.colors.accent,
+      marginRight: 4,
     },
     playButton: {
-      width: 36,
-      height: 36,
-      borderRadius: 18,
-      backgroundColor: 'rgba(255, 255, 255, 0.08)',
+      width: 34,
+      height: 34,
+      borderRadius: 17,
+      backgroundColor: theme.colors.backgroundSecondary,
       alignItems: 'center',
       justifyContent: 'center',
       borderWidth: 1,
-      borderColor: 'rgba(255, 255, 255, 0.1)',
+      borderColor: theme.colors.cardBorder,
     },
     journalEntryCard: {
-      borderRadius: 32,
-      padding: 24,
-      marginBottom: 24,
+      borderRadius: theme.borderRadius.card,
+      padding: 20,
+      marginBottom: 20,
       borderWidth: 1,
-      borderColor: 'rgba(255, 255, 255, 0.08)',
+      borderColor: theme.colors.cardBorder,
+      backgroundColor: theme.colors.card,
     },
     inputLabel: {
-      fontSize: 12,
-      color: '#94A3B8',
-      fontWeight: '600',
+      fontFamily: theme.typography.fontFamily.bodySemibold,
+      fontSize: 13,
+      color: theme.colors.textSecondary,
       marginBottom: 12,
     },
     moodGrid: {
       flexDirection: 'row',
       justifyContent: 'space-between',
-      marginBottom: 24,
+      marginBottom: 22,
     },
     moodButton: {
-      width: 48,
-      height: 48,
-      borderRadius: 24,
-      backgroundColor: 'rgba(255, 255, 255, 0.03)',
+      width: 46,
+      height: 46,
+      borderRadius: 23,
+      backgroundColor: theme.colors.backgroundSecondary,
       alignItems: 'center',
       justifyContent: 'center',
-      borderWidth: 2,
-      borderColor: 'transparent',
+      borderWidth: 1.5,
+      borderColor: theme.colors.cardBorder,
     },
     selectedMoodButton: {
-      borderColor: '#8B5CF6',
-      backgroundColor: 'rgba(139, 92, 246, 0.1)',
-      shadowColor: '#8B5CF6',
-      shadowOffset: { width: 0, height: 0 },
-      shadowOpacity: 0.5,
-      shadowRadius: 10,
+      borderColor: theme.colors.accent,
+      backgroundColor: theme.colors.selectedBackground,
     },
     moodEmoji: {
-      fontSize: 24,
+      fontSize: 22,
     },
     journalInput: {
-      backgroundColor: 'rgba(255, 255, 255, 0.03)',
-      borderRadius: 20,
+      backgroundColor: theme.colors.backgroundSecondary,
+      borderRadius: theme.borderRadius.lg,
       padding: 16,
-      color: '#FFFFFF',
-      fontSize: 14,
+      color: theme.colors.textPrimary,
+      fontFamily: theme.typography.fontFamily.body,
+      fontSize: 15,
+      lineHeight: 22,
       height: 120,
       textAlignVertical: 'top',
       borderWidth: 1,
-      borderColor: 'rgba(255, 255, 255, 0.05)',
-      marginBottom: 24,
+      borderColor: theme.colors.cardBorder,
+      marginBottom: 22,
     },
     tagsGrid: {
       flexDirection: 'row',
       flexWrap: 'wrap',
-      rowGap: 8, columnGap: 8,
-      marginBottom: 24,
+      rowGap: 8,
+      columnGap: 8,
+      marginBottom: 22,
     },
     tagButton: {
       paddingHorizontal: 12,
       paddingVertical: 8,
-      borderRadius: 20,
-      backgroundColor: 'rgba(255, 255, 255, 0.03)',
+      borderRadius: theme.borderRadius.lg,
+      backgroundColor: theme.colors.backgroundSecondary,
       borderWidth: 1,
-      borderColor: 'rgba(255, 255, 255, 0.05)',
+      borderColor: theme.colors.cardBorder,
     },
     selectedTagButton: {
-      backgroundColor: 'rgba(139, 92, 246, 0.2)',
-      borderColor: '#8B5CF6',
+      backgroundColor: theme.colors.selectedBackground,
+      borderColor: theme.colors.accent,
     },
     tagText: {
+      fontFamily: theme.typography.fontFamily.bodyMedium,
       fontSize: 12,
-      color: '#94A3B8',
-      fontWeight: '500',
+      color: theme.colors.textTertiary,
     },
     selectedTagText: {
-      color: '#8B5CF6',
+      color: theme.colors.accent,
     },
     saveButton: {
       height: 56,
-      borderRadius: 20,
+      borderRadius: theme.borderRadius.lg,
       alignItems: 'center',
       justifyContent: 'center',
-      overflow: 'hidden',
-    },
-    buttonGradient: {
-      ...StyleSheet.absoluteFillObject,
+      backgroundColor: theme.colors.ctaBackground,
     },
     saveButtonText: {
-      color: '#FFFFFF',
+      fontFamily: theme.typography.fontFamily.bodyBold,
+      color: theme.colors.ctaText,
       fontSize: 16,
-      fontWeight: '700',
     },
     savedEntryCard: {
-      marginBottom: 20,
+      paddingBottom: 18,
+      marginBottom: 18,
+    },
+    savedEntryCardDivided: {
+      borderBottomWidth: 1,
+      borderBottomColor: theme.colors.cardBorder,
     },
     savedEntryHeader: {
       flexDirection: 'row',
       justifyContent: 'space-between',
       alignItems: 'center',
-      marginBottom: 12,
+      marginBottom: 10,
     },
     entryDateBadge: {
       flexDirection: 'row',
       alignItems: 'center',
-      rowGap: 6, columnGap: 6,
-      backgroundColor: 'rgba(139, 92, 246, 0.1)',
+      columnGap: 6,
+      backgroundColor: theme.colors.accentLight,
       paddingHorizontal: 12,
       paddingVertical: 6,
-      borderRadius: 12,
+      borderRadius: theme.borderRadius.md,
       borderWidth: 1,
-      borderColor: 'rgba(139, 92, 246, 0.3)',
+      borderColor: theme.colors.accentBorder,
     },
     entryDateText: {
+      fontFamily: theme.typography.fontFamily.bodySemibold,
       fontSize: 12,
-      color: '#8B5CF6',
-      fontWeight: '600',
+      color: theme.colors.accent,
     },
     savedMoodEmoji: {
-      fontSize: 28,
+      fontSize: 26,
     },
     savedEntryText: {
+      fontFamily: theme.typography.fontFamily.body,
       fontSize: 14,
-      color: '#FFFFFF',
-      lineHeight: 22,
-      marginBottom: 12,
+      color: theme.colors.textSecondary,
+      lineHeight: 21,
+      marginBottom: 10,
     },
     savedTagsContainer: {
       flexDirection: 'row',
       flexWrap: 'wrap',
-      rowGap: 8, columnGap: 8,
-      marginBottom: 12,
+      rowGap: 8,
+      columnGap: 8,
     },
     savedTag: {
-      backgroundColor: 'rgba(139, 92, 246, 0.15)',
+      backgroundColor: theme.colors.accentLight,
       paddingHorizontal: 10,
       paddingVertical: 5,
-      borderRadius: 12,
+      borderRadius: theme.borderRadius.md,
       borderWidth: 1,
-      borderColor: 'rgba(139, 92, 246, 0.3)',
+      borderColor: theme.colors.accentBorder,
     },
     savedTagText: {
+      fontFamily: theme.typography.fontFamily.bodyMedium,
       fontSize: 11,
-      color: '#8B5CF6',
-      fontWeight: '500',
-    },
-    entryDivider: {
-      height: 1,
-      backgroundColor: 'rgba(255, 255, 255, 0.05)',
-      marginTop: 8,
+      color: theme.colors.accent,
     },
   });
 }
