@@ -9,13 +9,29 @@ import { Platform, Alert } from 'react-native';
 import Constants from 'expo-constants';
 import { getErrorMessage } from '../utils/errorMessages';
 import revenueCatService from '../services/revenueCatService';
-import * as Notifications from 'expo-notifications';
+// Do NOT statically import expo-notifications — the import itself crashes
+// Expo Go on Android (see utils/notificationAvailability.ts). Lazy-load it.
+import type * as NotificationsType from 'expo-notifications';
 import notificationService from '../services/notificationService';
 import welcomeService from '../services/welcomeService';
 import analyticsService from '../services/analyticsService';
 import countryService from '../services/countryService';
 import NetInfo from '@react-native-community/netinfo';
 import { isExpoNotificationsAvailable } from '../utils/notificationAvailability';
+
+let Notifications: typeof NotificationsType | null = null;
+
+function getNotifications(): typeof NotificationsType | null {
+  if (Notifications) return Notifications;
+  if (!isExpoNotificationsAvailable()) return null;
+  try {
+    Notifications = require('expo-notifications');
+  } catch (error) {
+    console.warn('[notifications] Failed to load expo-notifications module:', error);
+    Notifications = null;
+  }
+  return Notifications;
+}
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -204,14 +220,15 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   };
 
   const registerPushToken = async (userId: string) => {
-    if (!isExpoNotificationsAvailable()) return;
+    const N = getNotifications();
+    if (!N) return;
     try {
       // Request notification permissions first
-      const { status: existingStatus } = await Notifications.getPermissionsAsync();
+      const { status: existingStatus } = await N.getPermissionsAsync();
       let finalStatus = existingStatus;
 
       if (existingStatus !== 'granted') {
-        const { status } = await Notifications.requestPermissionsAsync();
+        const { status } = await N.requestPermissionsAsync();
         finalStatus = status;
       }
 
@@ -221,7 +238,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       }
 
       // Get Expo push token
-      const pushTokenData = await Notifications.getExpoPushTokenAsync({
+      const pushTokenData = await N.getExpoPushTokenAsync({
         projectId: Constants.expoConfig?.extra?.eas?.projectId,
       });
 

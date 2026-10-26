@@ -1,22 +1,51 @@
-import * as Notifications from 'expo-notifications';
+// IMPORTANT: Do NOT statically `import * as Notifications from 'expo-notifications'`.
+// That import statement alone (not any function call) crashes Expo Go on
+// Android: expo-notifications' own entry file re-exports from
+// NotificationsHandler.ts, which runs `subscribe(defaultNotificationHandler)`
+// at module-evaluation time, which calls `NotificationsHandlerModule.addListener`
+// on a module object produced by `requireNativeModule('ExpoNotificationsHandlerModule')`
+// (the throwing variant) — all before any of our own guard code ever runs.
+// See utils/notificationAvailability.ts for the full trace.
+//
+// Fix: lazily `require()` the package only after confirming the native module
+// is actually registered. `import type` is erased at compile time (zero
+// runtime code), so it's safe to use for typing while avoiding the real import.
+import type * as NotificationsType from 'expo-notifications';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { isExpoNotificationsAvailable } from '../utils/notificationAvailability';
+
+let Notifications: typeof NotificationsType | null = null;
+
+function getNotifications(): typeof NotificationsType | null {
+  if (Notifications) return Notifications;
+  if (!isExpoNotificationsAvailable()) return null;
+  try {
+    Notifications = require('expo-notifications');
+  } catch (error) {
+    console.warn('[notifications] Failed to load expo-notifications module:', error);
+    Notifications = null;
+  }
+  return Notifications;
+}
 
 // Configure how notifications should behave.
 // Guarded: this used to run unconditionally at module scope, which crashes
 // the whole app in Expo Go on Android (native module missing since SDK 53).
 // See utils/notificationAvailability.ts for details.
-if (isExpoNotificationsAvailable()) {
-  Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-      shouldShowAlert: true,
-      shouldPlaySound: true,
-      shouldSetBadge: false,
-      shouldShowBanner: true,
-      shouldShowList: true,
-    }),
-  });
+{
+  const N = getNotifications();
+  if (N) {
+    N.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowAlert: true,
+        shouldPlaySound: true,
+        shouldSetBadge: false,
+        shouldShowBanner: true,
+        shouldShowList: true,
+      }),
+    });
+  }
 }
 
 export interface AlarmConfig {
@@ -40,16 +69,17 @@ class NotificationService {
 
   // Request notification permissions (with caching)
   async requestPermissions(): Promise<boolean> {
-    if (!isExpoNotificationsAvailable()) return false;
+    const N = getNotifications();
+    if (!N) return false;
     try {
       // Return cached result if already granted
       if (this.permissionGranted === true) return true;
 
-      const { status: existingStatus } = await Notifications.getPermissionsAsync();
+      const { status: existingStatus } = await N.getPermissionsAsync();
       let finalStatus = existingStatus;
 
       if (existingStatus !== 'granted') {
-        const { status } = await Notifications.requestPermissionsAsync();
+        const { status } = await N.requestPermissionsAsync();
         finalStatus = status;
       }
 
@@ -63,16 +93,16 @@ class NotificationService {
 
       // Configure notification channel for Android
       if (Platform.OS === 'android') {
-        await Notifications.setNotificationChannelAsync('alarm', {
+        await N.setNotificationChannelAsync('alarm', {
           name: 'Sleep Alarms',
-          importance: Notifications.AndroidImportance.MAX,
+          importance: N.AndroidImportance.MAX,
           vibrationPattern: [0, 250, 250, 250],
           sound: 'default',
         });
 
-        await Notifications.setNotificationChannelAsync('reminders', {
+        await N.setNotificationChannelAsync('reminders', {
           name: 'Sleep Reminders',
-          importance: Notifications.AndroidImportance.DEFAULT,
+          importance: N.AndroidImportance.DEFAULT,
           sound: 'default',
         });
       }
@@ -89,8 +119,10 @@ class NotificationService {
     try {
       const hasPermission = await this.requestPermissions();
       if (!hasPermission) return null;
+      const N = getNotifications();
+      if (!N) return null;
 
-      return await Notifications.scheduleNotificationAsync({
+      return await N.scheduleNotificationAsync({
         content: {
           title,
           body,
@@ -112,6 +144,8 @@ class NotificationService {
       if (!hasPermission) {
         throw new Error('Notification permissions not granted');
       }
+      const N = getNotifications();
+      if (!N) return null;
 
       // Cancel any existing alarms
       await this.cancelAlarm();
@@ -125,17 +159,17 @@ class NotificationService {
         trigger.setDate(trigger.getDate() + 1);
       }
 
-      const notificationId = await Notifications.scheduleNotificationAsync({
+      const notificationId = await N.scheduleNotificationAsync({
         content: {
           title: '⏰ Wake Up!',
           body: 'Time to wake up and end your sleep session',
           sound: 'default',
           ...(Platform.OS === 'android' ? {
-            priority: Notifications.AndroidNotificationPriority.MAX,
+            priority: N.AndroidNotificationPriority.MAX,
           } : {}),
           data: { type: 'alarm', sessionId: config.sessionId },
         },
-        trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: trigger },
+        trigger: { type: N.SchedulableTriggerInputTypes.DATE, date: trigger },
       });
 
       // Store alarm ID for later cancellation
@@ -155,8 +189,9 @@ class NotificationService {
     try {
       const notificationId = await AsyncStorage.getItem('@alarm_notification_id');
       if (notificationId) {
-        if (isExpoNotificationsAvailable()) {
-          await Notifications.cancelScheduledNotificationAsync(notificationId);
+        const N = getNotifications();
+        if (N) {
+          await N.cancelScheduledNotificationAsync(notificationId);
         }
         await AsyncStorage.removeItem('@alarm_notification_id');
         await AsyncStorage.removeItem('@alarm_time');
@@ -182,6 +217,8 @@ class NotificationService {
     try {
       const hasPermission = await this.requestPermissions();
       if (!hasPermission) return;
+      const N = getNotifications();
+      if (!N) return;
 
       // Cancel existing bedtime reminder
       await this.cancelBedtimeReminder();
@@ -190,7 +227,7 @@ class NotificationService {
       const reminderTime = new Date(bedtime);
       reminderTime.setMinutes(reminderTime.getMinutes() - 30);
 
-      const notificationId = await Notifications.scheduleNotificationAsync({
+      const notificationId = await N.scheduleNotificationAsync({
         content: {
           title: 'Time for bed soon! 🌙',
           body: 'Your bedtime is in 30 minutes. Start winding down.',
@@ -198,7 +235,7 @@ class NotificationService {
           data: { type: 'bedtime_reminder' },
         },
         trigger: {
-          type: Notifications.SchedulableTriggerInputTypes.CALENDAR,
+          type: N.SchedulableTriggerInputTypes.CALENDAR,
           hour: reminderTime.getHours(),
           minute: reminderTime.getMinutes(),
           repeats: true,
@@ -217,8 +254,9 @@ class NotificationService {
     try {
       const notificationId = await AsyncStorage.getItem('@bedtime_reminder_id');
       if (notificationId) {
-        if (isExpoNotificationsAvailable()) {
-          await Notifications.cancelScheduledNotificationAsync(notificationId);
+        const N = getNotifications();
+        if (N) {
+          await N.cancelScheduledNotificationAsync(notificationId);
         }
         await AsyncStorage.removeItem('@bedtime_reminder_id');
       }
@@ -234,6 +272,8 @@ class NotificationService {
       if (!hasPermission) {
         throw new Error('Notification permissions not granted');
       }
+      const N = getNotifications();
+      if (!N) return null;
 
       // Cancel any existing alarms
       await this.cancelAlarm();
@@ -245,13 +285,13 @@ class NotificationService {
 
       // Schedule at the START of smart window
       // In production, this would analyze sleep stages and wake during light sleep
-      const notificationId = await Notifications.scheduleNotificationAsync({
+      const notificationId = await N.scheduleNotificationAsync({
         content: {
           title: '⏰ Smart Wake Up',
           body: 'Waking you during light sleep for better rest',
           sound: 'default',
           ...(Platform.OS === 'android' ? {
-            priority: Notifications.AndroidNotificationPriority.MAX,
+            priority: N.AndroidNotificationPriority.MAX,
           } : {}),
           data: {
             type: 'smart_alarm',
@@ -259,7 +299,7 @@ class NotificationService {
             targetTime: targetTime.toISOString()
           },
         },
-        trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: smartWindowStart },
+        trigger: { type: N.SchedulableTriggerInputTypes.DATE, date: smartWindowStart },
       });
 
       await AsyncStorage.setItem('@alarm_notification_id', notificationId);
@@ -279,6 +319,8 @@ class NotificationService {
     try {
       const hasPermission = await this.requestPermissions();
       if (!hasPermission) return;
+      const N = getNotifications();
+      if (!N) return;
 
       let title = '';
       let body = '';
@@ -294,7 +336,7 @@ class NotificationService {
           break;
       }
 
-      await Notifications.scheduleNotificationAsync({
+      await N.scheduleNotificationAsync({
         content: {
           title,
           body,
@@ -310,11 +352,12 @@ class NotificationService {
 
   // Send sync success notification
   async sendSyncNotification(syncedCount: number): Promise<void> {
-    if (!isExpoNotificationsAvailable()) return;
+    const N = getNotifications();
+    if (!N) return;
     try {
       if (syncedCount === 0) return;
 
-      await Notifications.scheduleNotificationAsync({
+      await N.scheduleNotificationAsync({
         content: {
           title: '☁️ Data Synced',
           body: `${syncedCount} sleep ${syncedCount === 1 ? 'session' : 'sessions'} synced successfully`,
@@ -329,21 +372,23 @@ class NotificationService {
   }
 
   // Add notification response listener
-  addNotificationResponseListener(handler: (response: Notifications.NotificationResponse) => void) {
-    if (!isExpoNotificationsAvailable()) {
+  addNotificationResponseListener(handler: (response: NotificationsType.NotificationResponse) => void) {
+    const N = getNotifications();
+    if (!N) {
       // Return a no-op "subscription" so callers that do
       // `const sub = addNotificationResponseListener(...); sub.remove()`
       // don't crash when they later clean up.
       return { remove: () => {} };
     }
-    return Notifications.addNotificationResponseReceivedListener(handler);
+    return N.addNotificationResponseReceivedListener(handler);
   }
 
   // Cancel all notifications
   async cancelAllNotifications(): Promise<void> {
     try {
-      if (isExpoNotificationsAvailable()) {
-        await Notifications.cancelAllScheduledNotificationsAsync();
+      const N = getNotifications();
+      if (N) {
+        await N.cancelAllScheduledNotificationsAsync();
       }
       await AsyncStorage.removeItem('@alarm_notification_id');
       await AsyncStorage.removeItem('@alarm_time');
@@ -360,14 +405,16 @@ class NotificationService {
       if (!hasPermission) {
         throw new Error('Notification permissions not granted');
       }
+      const N = getNotifications();
+      if (!N) return;
 
-      await Notifications.scheduleNotificationAsync({
+      await N.scheduleNotificationAsync({
         content: {
           title: '🧪 Test Notification',
           body: 'This is a test notification from your Sleep Tracker app!',
           sound: 'default',
           ...(Platform.OS === 'android' ? {
-            priority: Notifications.AndroidNotificationPriority.HIGH,
+            priority: N.AndroidNotificationPriority.HIGH,
           } : {}),
           data: { type: 'test' },
         },
@@ -388,21 +435,23 @@ class NotificationService {
       if (!hasPermission) {
         throw new Error('Notification permissions not granted');
       }
+      const N = getNotifications();
+      if (!N) return;
 
       const trigger = new Date();
       trigger.setSeconds(trigger.getSeconds() + delayInSeconds);
 
-      await Notifications.scheduleNotificationAsync({
+      await N.scheduleNotificationAsync({
         content: {
           title: '⏰ Test Alarm!',
           body: `This test alarm was scheduled ${delayInSeconds} seconds ago`,
           sound: 'default',
           ...(Platform.OS === 'android' ? {
-            priority: Notifications.AndroidNotificationPriority.MAX,
+            priority: N.AndroidNotificationPriority.MAX,
           } : {}),
           data: { type: 'test_alarm' },
         },
-        trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: trigger },
+        trigger: { type: N.SchedulableTriggerInputTypes.DATE, date: trigger },
       });
 
       console.log(`✅ Test alarm scheduled for ${delayInSeconds} seconds from now`);

@@ -61,7 +61,9 @@ import { supabase } from '../lib/supabase';
 import { useAppTheme } from '../hooks/useAppTheme';
 import GuestBanner from '../components/GuestBanner';
 import notificationService from '../services/notificationService';
-import * as Notifications from 'expo-notifications';
+// Do NOT statically import expo-notifications — the import itself crashes
+// Expo Go on Android (see utils/notificationAvailability.ts). Lazy-load it.
+import type * as NotificationsType from 'expo-notifications';
 import { isExpoNotificationsAvailable } from '../utils/notificationAvailability';
 import PushNotificationPrompt from '../components/PushNotificationPrompt';
 import { isPremiumActive } from '../utils/subscriptionHelpers';
@@ -105,6 +107,20 @@ interface OnboardingProfile {
     preferred_bed_time?: string;
     preferred_wake_time?: string;
     onboarding_completed_at?: string;
+}
+
+let Notifications: typeof NotificationsType | null = null;
+
+function getNotifications(): typeof NotificationsType | null {
+    if (Notifications) return Notifications;
+    if (!isExpoNotificationsAvailable()) return null;
+    try {
+        Notifications = require('expo-notifications');
+    } catch (error) {
+        console.warn('[notifications] Failed to load expo-notifications module:', error);
+        Notifications = null;
+    }
+    return Notifications;
 }
 
 const SettingsScreen = () => {
@@ -153,8 +169,9 @@ const SettingsScreen = () => {
 
             // Check push notification permission status (guarded: native
             // notification modules aren't present in Expo Go on Android)
-            if (isExpoNotificationsAvailable()) {
-                const { status } = await Notifications.getPermissionsAsync();
+            const N = getNotifications();
+            if (N) {
+                const { status } = await N.getPermissionsAsync();
                 setPushPermissionStatus(status);
             } else {
                 setPushPermissionStatus('denied');

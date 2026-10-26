@@ -10,12 +10,28 @@ import {
 } from 'react-native';
 import { Bell, X, Moon, Activity, Clock } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import * as Notifications from 'expo-notifications';
+// Do NOT statically import expo-notifications — the import itself crashes
+// Expo Go on Android (see utils/notificationAvailability.ts). Lazy-load it.
+import type * as NotificationsType from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAppTheme } from '../hooks/useAppTheme';
 import Constants from 'expo-constants';
 import { supabase } from '../lib/supabase';
 import { isExpoNotificationsAvailable } from '../utils/notificationAvailability';
+
+let Notifications: typeof NotificationsType | null = null;
+
+function getNotifications(): typeof NotificationsType | null {
+  if (Notifications) return Notifications;
+  if (!isExpoNotificationsAvailable()) return null;
+  try {
+    Notifications = require('expo-notifications');
+  } catch (error) {
+    console.warn('[notifications] Failed to load expo-notifications module:', error);
+    Notifications = null;
+  }
+  return Notifications;
+}
 
 interface PushNotificationPromptProps {
   userId?: string;
@@ -63,14 +79,15 @@ export default function PushNotificationPrompt({
     // modules aren't available (e.g. Expo Go on Android since SDK 53) —
     // there's nothing useful to enable, and every Notifications.* call below
     // would otherwise be reachable from a live UI interaction.
-    if (!isExpoNotificationsAvailable()) return;
+    const N = getNotifications();
+    if (!N) return;
     try {
       // Check if already prompted
       const hasPrompted = await AsyncStorage.getItem(STORAGE_KEY);
       const hasDeclined = await AsyncStorage.getItem(STORAGE_DECLINED_KEY);
 
       // Check current permission status
-      const { status } = await Notifications.getPermissionsAsync();
+      const { status } = await N.getPermissionsAsync();
       
       // Don't show if already granted or if declined recently (within 7 days)
       if (status === 'granted') return;
@@ -98,7 +115,8 @@ export default function PushNotificationPrompt({
   };
 
   const handleEnable = async () => {
-    if (!isExpoNotificationsAvailable()) {
+    const N = getNotifications();
+    if (!N) {
       setVisible(false);
       return;
     }
@@ -106,11 +124,11 @@ export default function PushNotificationPrompt({
       await AsyncStorage.setItem(STORAGE_KEY, Date.now().toString());
       await AsyncStorage.removeItem(STORAGE_DECLINED_KEY);
 
-      const { status } = await Notifications.requestPermissionsAsync();
+      const { status } = await N.requestPermissionsAsync();
 
       if (status === 'granted') {
         // Get and save push token
-        const pushTokenData = await Notifications.getExpoPushTokenAsync({
+        const pushTokenData = await N.getExpoPushTokenAsync({
           projectId: Constants.expoConfig?.extra?.eas?.projectId,
         });
 

@@ -1,4 +1,6 @@
-import * as Notifications from 'expo-notifications';
+// Do NOT statically import expo-notifications — the import itself crashes
+// Expo Go on Android (see utils/notificationAvailability.ts). Lazy-load it.
+import type * as NotificationsType from 'expo-notifications';
 import { SleepSession } from '../contexts/SleepContext';
 import { getSleepScoreColor } from '../utils/sleepQualityColors';
 import { isExpoNotificationsAvailable } from '../utils/notificationAvailability';
@@ -8,11 +10,26 @@ import { isExpoNotificationsAvailable } from '../utils/notificationAvailability'
  * Sends smart notifications in the morning with sleep score and insights
  */
 
+let Notifications: typeof NotificationsType | null = null;
+
+function getNotifications(): typeof NotificationsType | null {
+  if (Notifications) return Notifications;
+  if (!isExpoNotificationsAvailable()) return null;
+  try {
+    Notifications = require('expo-notifications');
+  } catch (error) {
+    console.warn('[notifications] Failed to load expo-notifications module:', error);
+    Notifications = null;
+  }
+  return Notifications;
+}
+
 export async function scheduleMorningNotification(session: SleepSession) {
-  if (!isExpoNotificationsAvailable()) return;
+  const N = getNotifications();
+  if (!N) return;
   try {
     // Check if notifications are permitted
-    const { status } = await Notifications.getPermissionsAsync();
+    const { status } = await N.getPermissionsAsync();
     if (status !== 'granted') {
       return;
     }
@@ -52,20 +69,20 @@ export async function scheduleMorningNotification(session: SleepSession) {
       body += `\n💤 ${session.wakeUps} wake-ups detected`;
     }
 
-    await Notifications.scheduleNotificationAsync({
+    await N.scheduleNotificationAsync({
       content: {
         title,
         body,
-        data: { 
-          type: 'morning_summary', 
+        data: {
+          type: 'morning_summary',
           sessionId: session.id,
-          sleepScore 
+          sleepScore
         },
         sound: 'default',
-        priority: Notifications.AndroidNotificationPriority.HIGH,
+        priority: N.AndroidNotificationPriority.HIGH,
       },
       trigger: {
-        type: Notifications.SchedulableTriggerInputTypes.DATE,
+        type: N.SchedulableTriggerInputTypes.DATE,
         date: notificationTime,
       },
     });
@@ -77,9 +94,10 @@ export async function scheduleMorningNotification(session: SleepSession) {
 }
 
 export async function sendImmediateSleepSummary(session: SleepSession) {
-  if (!isExpoNotificationsAvailable()) return;
+  const N = getNotifications();
+  if (!N) return;
   try {
-    const { status } = await Notifications.getPermissionsAsync();
+    const { status } = await N.getPermissionsAsync();
     if (status !== 'granted') {
       return;
     }
@@ -94,13 +112,13 @@ export async function sendImmediateSleepSummary(session: SleepSession) {
       ? `${durationHours}h ${durationMins}m sleep • Score: ${sleepScore}/100 (${scoreQuality.label})`
       : `${durationHours}h ${durationMins}m sleep tracked. Open app to view your summary.`;
 
-    await Notifications.scheduleNotificationAsync({
+    await N.scheduleNotificationAsync({
       content: {
         title,
         body,
-        data: { 
-          type: 'sleep_summary', 
-          sessionId: session.id 
+        data: {
+          type: 'sleep_summary',
+          sessionId: session.id
         },
         sound: 'default',
       },
@@ -114,9 +132,10 @@ export async function sendImmediateSleepSummary(session: SleepSession) {
 }
 
 export async function scheduleWeeklySummary(sleepSessions: SleepSession[]) {
-  if (!isExpoNotificationsAvailable()) return;
+  const N = getNotifications();
+  if (!N) return;
   try {
-    const { status } = await Notifications.getPermissionsAsync();
+    const { status } = await N.getPermissionsAsync();
     if (status !== 'granted') {
       return;
     }
@@ -135,7 +154,7 @@ export async function scheduleWeeklySummary(sleepSessions: SleepSession[]) {
     nextSunday.setDate(nextSunday.getDate() + (7 - nextSunday.getDay()));
     nextSunday.setHours(20, 0, 0, 0);
 
-    await Notifications.scheduleNotificationAsync({
+    await N.scheduleNotificationAsync({
       content: {
         title: '📊 Your Weekly Sleep Summary',
         body: `Avg: ${avgHours}h ${avgMins}m • Score: ${Math.round(avgScore)}/100 (${scoreQuality.label})\nTap to see details and insights!`,
@@ -143,7 +162,7 @@ export async function scheduleWeeklySummary(sleepSessions: SleepSession[]) {
         sound: 'default',
       },
       trigger: {
-        type: Notifications.SchedulableTriggerInputTypes.DATE,
+        type: N.SchedulableTriggerInputTypes.DATE,
         date: nextSunday,
       },
     });
