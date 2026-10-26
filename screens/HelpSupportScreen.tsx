@@ -9,35 +9,33 @@ import {
   TextInput,
   Alert,
   ActivityIndicator,
-  Dimensions,
   Platform,
   Linking
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
 import {
   ChevronLeft,
-  HelpCircle,
-  Mail,
   ChevronUp,
   ChevronDown,
+  Search,
+  Mail,
+  Bug,
+  Lightbulb,
   Clock,
   Twitter,
   Send,
   Crown,
   Lock,
-  Zap
+  Zap,
+  Headphones,
 } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../contexts/AuthContext';
 import { isPremiumActive } from '../utils/subscriptionHelpers';
 import analyticsService from '../services/analyticsService';
 
-const { width } = Dimensions.get('window');
-
-
-// FAQ data
+// FAQ data — unchanged content, now rendered as a single accordion card
+// matching the canvas's "Common questions" group (Ac-Help.dc.html).
 const faqs = [
   {
     id: 'faq-tracking',
@@ -92,28 +90,28 @@ const faqs = [
 ];
 
 export default function HelpSupportScreen() {
-  const { theme, isDark } = useAppTheme();
+  const { theme } = useAppTheme();
+  const s = styles(theme);
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
   const { profile } = useAuth();
   const isPremium = isPremiumActive(profile?.subscription_status, profile?.subscription_end_date, profile?.role, profile?.email);
   const [activeTab, setActiveTab] = useState('faq');
-  const [expandedFaq, setExpandedFaq] = useState(null);
+  const [expandedFaq, setExpandedFaq] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [message, setMessage] = useState('');
   const [subject, setSubject] = useState('');
   const [isSending, setIsSending] = useState(false);
-  
-  // Toggle FAQ expansion
-  const toggleFaq = (index) => {
-    if (expandedFaq === index) {
-      setExpandedFaq(null);
-    } else {
-      setExpandedFaq(index);
-    }
-  };
-  
+
+  const filteredFaqs = search.trim()
+    ? faqs.filter((faq) =>
+        faq.question.toLowerCase().includes(search.trim().toLowerCase()) ||
+        faq.answer.toLowerCase().includes(search.trim().toLowerCase())
+      )
+    : faqs;
+
   // Handle contact form submission
   const handleSubmit = async () => {
     // Validate form
@@ -168,55 +166,43 @@ export default function HelpSupportScreen() {
     }
   };
 
+  const handleReportBug = () => {
+    setActiveTab('contact');
+    setSubject('Bug report');
+  };
+
   return (
-    <SafeAreaView style={styles(theme).container} edges={['top']}>
-      <LinearGradient
-        colors={[theme.colors.background, '#0A0C14']}
-        style={StyleSheet.absoluteFill}
-      />
-      
-      <View style={styles(theme).header}>
-        <TouchableOpacity 
-          style={styles(theme).backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <ChevronLeft size={24} color={theme.colors.textPrimary} />
-        </TouchableOpacity>
-        <Text style={styles(theme).title}>Help & Support</Text>
-        <View style={styles(theme).placeholder} />
-      </View>
-      
-      {/* Tab Selector */}
-      <View style={styles(theme).tabContainer}>
+    <SafeAreaView style={s.container} edges={['top']}>
+      <View style={s.header}>
         <TouchableOpacity
-          style={[styles(theme).tab, activeTab === 'faq' && styles(theme).activeTab]}
+          style={s.backButton}
+          onPress={() => navigation.goBack()}
+          accessibilityLabel="Back"
+        >
+          <ChevronLeft size={20} color={theme.colors.textPrimary} />
+        </TouchableOpacity>
+        <Text style={s.title}>Help &amp; support</Text>
+      </View>
+
+      {/* Tab Selector */}
+      <View style={s.tabContainer}>
+        <TouchableOpacity
+          style={[s.tab, activeTab === 'faq' && s.activeTab]}
           onPress={() => setActiveTab('faq')}
         >
-          <HelpCircle
-            size={20}
-            color={activeTab === 'faq' ? theme.colors.accent : theme.colors.textSecondary}
-          />
-          <Text style={[styles(theme).tabText, activeTab === 'faq' && styles(theme).activeTabText]}>
-            FAQ
-          </Text>
+          <Text style={[s.tabText, activeTab === 'faq' && s.activeTabText]}>FAQ</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles(theme).tab, activeTab === 'contact' && styles(theme).activeTab]}
+          style={[s.tab, activeTab === 'contact' && s.activeTab]}
           onPress={() => setActiveTab('contact')}
         >
-          <Mail
-            size={20}
-            color={activeTab === 'contact' ? theme.colors.accent : theme.colors.textSecondary}
-          />
-          <Text style={[styles(theme).tabText, activeTab === 'contact' && styles(theme).activeTabText]}>
-            Contact Us
-          </Text>
+          <Text style={[s.tabText, activeTab === 'contact' && s.activeTabText]}>Contact Us</Text>
         </TouchableOpacity>
 
         {/* VIP Support tab — premium only */}
         <TouchableOpacity
-          style={[styles(theme).tab, styles(theme).vipTab, activeTab === 'vip' && styles(theme).vipTabActive]}
+          style={[s.tab, s.vipTab, activeTab === 'vip' && s.vipTabActive]}
           onPress={() => {
             if (!isPremium) {
               analyticsService.trackFeatureGateHit('vip_support');
@@ -228,127 +214,135 @@ export default function HelpSupportScreen() {
           }}
         >
           {isPremium
-            ? <Crown size={18} color={activeTab === 'vip' ? '#F59E0B' : '#F59E0B'} />
-            : <Lock size={16} color="#F59E0B" />}
-          <Text style={[styles(theme).tabText, styles(theme).vipTabText, activeTab === 'vip' && styles(theme).vipTabActiveText]}>
-            VIP
-          </Text>
+            ? <Crown size={16} color={theme.colors.premium} />
+            : <Lock size={14} color={theme.colors.premium} />}
+          <Text style={[s.tabText, s.vipTabText]}>VIP</Text>
         </TouchableOpacity>
       </View>
-      
-      <ScrollView 
-        style={styles(theme).content}
+
+      <ScrollView
+        style={s.content}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={[
-          styles(theme).scrollContent,
-          { 
-            paddingBottom: insets.bottom + 100 
-          }
-        ]}
+        contentContainerStyle={[s.scrollContent, { paddingBottom: insets.bottom + 100 }]}
       >
         {activeTab === 'faq' ? (
-          <View style={styles(theme).faqContainer}>
-            <Text style={styles(theme).sectionDescription}>
-              Find answers to commonly asked questions about our app and services.
-            </Text>
-            
-            {faqs.map((faq) => (
+          <View>
+            {/* Search — canvas's search input, wired to filter the FAQ list below */}
+            <View style={s.searchWrap}>
+              <Search size={18} color={theme.colors.textTertiary} style={s.searchIcon} />
+              <TextInput
+                style={s.searchInput}
+                placeholder="Search for help"
+                placeholderTextColor={theme.colors.textTertiary}
+                value={search}
+                onChangeText={setSearch}
+              />
+            </View>
+
+            <Text style={s.sectionLabel}>Common questions</Text>
+            <View style={s.faqCard}>
+              {filteredFaqs.length === 0 ? (
+                <Text style={s.emptyText}>No results for "{search.trim()}"</Text>
+              ) : (
+                filteredFaqs.map((faq, index) => {
+                  const isExpanded = expandedFaq === faq.id;
+                  const isLast = index === filteredFaqs.length - 1;
+                  return (
+                    <View key={faq.id} style={[s.faqRow, !isLast && s.faqRowDivider]}>
+                      <TouchableOpacity
+                        style={s.faqHeader}
+                        onPress={() => setExpandedFaq(isExpanded ? null : faq.id)}
+                        activeOpacity={0.7}
+                        accessibilityRole="button"
+                        accessibilityState={{ expanded: isExpanded }}
+                      >
+                        <Text style={s.faqQuestion}>{faq.question}</Text>
+                        {isExpanded ? (
+                          <ChevronUp size={18} color={theme.colors.textTertiary} />
+                        ) : (
+                          <ChevronDown size={18} color={theme.colors.textTertiary} />
+                        )}
+                      </TouchableOpacity>
+                      {isExpanded && (
+                        <Text style={s.faqAnswer}>{faq.answer}</Text>
+                      )}
+                    </View>
+                  );
+                })
+              )}
+            </View>
+
+            {/* Still stuck — canvas's 3-up action grid (Email us / Report a bug / Suggest idea) */}
+            <Text style={[s.sectionLabel, s.stuckLabel]}>Still stuck?</Text>
+            <View style={s.stuckGrid}>
+              <TouchableOpacity style={s.stuckTile} onPress={() => setActiveTab('contact')} activeOpacity={0.8}>
+                <Mail size={20} color={theme.colors.accent} />
+                <Text style={s.stuckTileText}>Email us</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={s.stuckTile} onPress={handleReportBug} activeOpacity={0.8}>
+                <Bug size={20} color={theme.colors.accent} />
+                <Text style={s.stuckTileText}>Report a bug</Text>
+              </TouchableOpacity>
               <TouchableOpacity
-                key={faq.id}
-                style={[
-                  styles(theme).faqItem,
-                  expandedFaq === faq.id && styles(theme).expandedFaqItem
-                ]}
-                onPress={() => setExpandedFaq(expandedFaq === faq.id ? null : faq.id)}
+                style={s.stuckTile}
+                onPress={() => Linking.openURL('mailto:asadalibscs20@gmail.com?subject=Feature%20idea')}
                 activeOpacity={0.8}
               >
-                <BlurView intensity={20} style={styles(theme).faqBlur}>
-                  <View style={styles(theme).faqHeader}>
-                    <Text style={styles(theme).faqQuestion}>{faq.question}</Text>
-                    {expandedFaq === faq.id ? (
-                      <ChevronUp size={20} color={theme.colors.textSecondary} />
-                    ) : (
-                      <ChevronDown size={20} color={theme.colors.textSecondary} />
-                    )}
-                  </View>
-
-                  {expandedFaq === faq.id && (
-                    <View style={styles(theme).faqAnswer}>
-                      <Text style={styles(theme).faqAnswerText}>{faq.answer}</Text>
-                    </View>
-                  )}
-                </BlurView>
-              </TouchableOpacity>
-            ))}
-            
-            <View style={styles(theme).moreHelpSection}>
-              <Text style={styles(theme).moreHelpTitle}>Need More Help?</Text>
-              <Text style={styles(theme).moreHelpText}>
-                If you couldn't find the answer to your question, please contact our support team.
-              </Text>
-              <TouchableOpacity 
-                style={styles(theme).contactButton}
-                onPress={() => setActiveTab('contact')}
-              >
-                <LinearGradient
-                  colors={[theme.colors.accent, theme.colors.highlight]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={styles(theme).contactButtonGradient}
-                >
-                  <Text style={styles(theme).contactButtonText}>Contact Support</Text>
-                </LinearGradient>
+                <Lightbulb size={20} color={theme.colors.accent} />
+                <Text style={s.stuckTileText}>Suggest idea</Text>
               </TouchableOpacity>
             </View>
+
+            <Text style={s.footerHint}>We usually reply within one working day.</Text>
           </View>
-        ) : (
-          <View style={styles(theme).contactContainer}>
-            <Text style={styles(theme).sectionDescription}>
+        ) : activeTab === 'contact' ? (
+          <View>
+            <Text style={s.sectionDescription}>
               Have a question or need assistance? Fill out the form below and our support team will get back to you as soon as possible.
             </Text>
-            
-            <View style={styles(theme).formContainer}>
-              <View style={styles(theme).inputGroup}>
-                <Text style={styles(theme).inputLabel}>Name</Text>
+
+            <View style={s.formCard}>
+              <View style={s.inputGroup}>
+                <Text style={s.inputLabel}>Name</Text>
                 <TextInput
-                  style={styles(theme).input}
+                  style={s.input}
                   placeholder="Your name"
-                  placeholderTextColor={theme.colors.textSecondary}
+                  placeholderTextColor={theme.colors.textTertiary}
                   value={name}
                   onChangeText={setName}
                 />
               </View>
-              
-              <View style={styles(theme).inputGroup}>
-                <Text style={styles(theme).inputLabel}>Email</Text>
+
+              <View style={s.inputGroup}>
+                <Text style={s.inputLabel}>Email</Text>
                 <TextInput
-                  style={styles(theme).input}
+                  style={s.input}
                   placeholder="your.email@example.com"
-                  placeholderTextColor={theme.colors.textSecondary}
+                  placeholderTextColor={theme.colors.textTertiary}
                   keyboardType="email-address"
                   autoCapitalize="none"
                   value={email}
                   onChangeText={setEmail}
                 />
               </View>
-              
-              <View style={styles(theme).inputGroup}>
-                <Text style={styles(theme).inputLabel}>Subject</Text>
+
+              <View style={s.inputGroup}>
+                <Text style={s.inputLabel}>Subject</Text>
                 <TextInput
-                  style={styles(theme).input}
+                  style={s.input}
                   placeholder="What is this regarding?"
-                  placeholderTextColor={theme.colors.textSecondary}
+                  placeholderTextColor={theme.colors.textTertiary}
                   value={subject}
                   onChangeText={setSubject}
                 />
               </View>
-              
-              <View style={styles(theme).inputGroup}>
-                <Text style={styles(theme).inputLabel}>Message</Text>
+
+              <View style={s.inputGroup}>
+                <Text style={s.inputLabel}>Message</Text>
                 <TextInput
-                  style={[styles(theme).input, styles(theme).messageInput]}
+                  style={[s.input, s.messageInput]}
                   placeholder="Please describe your issue or question in detail"
-                  placeholderTextColor={theme.colors.textSecondary}
+                  placeholderTextColor={theme.colors.textTertiary}
                   multiline
                   numberOfLines={6}
                   textAlignVertical="top"
@@ -356,137 +350,135 @@ export default function HelpSupportScreen() {
                   onChangeText={setMessage}
                 />
               </View>
-              
-              <TouchableOpacity 
-                style={[styles(theme).submitButton, isSending && styles(theme).disabledButton]}
+
+              <TouchableOpacity
+                style={[s.submitButton, isSending && s.disabledButton]}
                 onPress={handleSubmit}
                 disabled={isSending}
+                activeOpacity={0.85}
               >
-                <LinearGradient
-                  colors={[theme.colors.accent, theme.colors.highlight]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={styles(theme).submitButtonGradient}
+                {isSending ? (
+                  <ActivityIndicator color={theme.colors.ctaText} size="small" />
+                ) : (
+                  <Text style={s.submitButtonText}>Send Message</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+
+            <Text style={s.sectionLabel}>Other ways to reach us</Text>
+            <View style={s.methodsCard}>
+              <View style={[s.methodRow, s.methodRowDivider]}>
+                <View style={s.methodIcon}>
+                  <Mail size={20} color={theme.colors.accent} />
+                </View>
+                <View style={s.methodTextBlock}>
+                  <Text style={s.methodTitle}>Email</Text>
+                  <Text style={s.methodValue}>support@sleepapp.com</Text>
+                </View>
+              </View>
+
+              <View style={[s.methodRow, s.methodRowDivider]}>
+                <View style={s.methodIcon}>
+                  <Clock size={20} color={theme.colors.accent} />
+                </View>
+                <View style={s.methodTextBlock}>
+                  <Text style={s.methodTitle}>Response Time</Text>
+                  <Text style={s.methodValue}>Within 24 hours</Text>
+                </View>
+              </View>
+
+              <TouchableOpacity
+                style={[s.methodRow, s.methodRowDivider]}
+                onPress={() => Linking.openURL('https://x.com/mxsports5')}
+                activeOpacity={0.7}
+              >
+                <View style={s.methodIcon}>
+                  <Twitter size={20} color={theme.colors.accent} />
+                </View>
+                <View style={s.methodTextBlock}>
+                  <Text style={s.methodTitle}>X (Twitter)</Text>
+                  <Text style={s.methodValue}>@Sleeptracker</Text>
+                </View>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={s.methodRow}
+                onPress={() => Linking.openURL('https://t.me/asadalinaul1')}
+                activeOpacity={0.7}
+              >
+                <View style={s.methodIcon}>
+                  <Send size={20} color={theme.colors.accent} />
+                </View>
+                <View style={s.methodTextBlock}>
+                  <Text style={s.methodTitle}>Telegram</Text>
+                  <Text style={s.methodValue}>t.me/asadalinaul1</Text>
+                </View>
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : (
+          isPremium && (
+            <View>
+              {/* VIP hero */}
+              <View style={s.vipHero}>
+                <Crown size={36} color={theme.colors.premium} />
+                <Text style={s.vipHeroTitle}>VIP Priority Support</Text>
+                <Text style={s.vipHeroSubtitle}>As a Premium member you get priority responses within 2 hours</Text>
+              </View>
+
+              {/* Priority email */}
+              <View style={s.vipCard}>
+                <View style={s.vipCardHeader}>
+                  <View style={s.vipIconBox}><Zap size={18} color={theme.colors.premium} /></View>
+                  <Text style={s.vipCardTitle}>Priority Email Support</Text>
+                </View>
+                <Text style={s.vipCardDesc}>Send us your issue and we'll reply within 2 hours (Mon-Fri).</Text>
+                <TouchableOpacity
+                  style={s.vipActionBtn}
+                  onPress={() => Linking.openURL('mailto:vip@sleeparchitect.app?subject=VIP Support Request&body=Premium Member - Priority Support')}
+                  activeOpacity={0.85}
                 >
-                  {isSending ? (
-                    <ActivityIndicator color="#000" size="small" />
-                  ) : (
-                    <Text style={styles(theme).submitButtonText}>Send Message</Text>
-                  )}
-                </LinearGradient>
-              </TouchableOpacity>
-            </View>
-            
-            <View style={styles(theme).alternativeContactSection}>
-              <Text style={styles(theme).alternativeContactTitle}>Other Ways to Reach Us</Text>
-              
-              <View style={styles(theme).contactMethodsContainer}>
-                <View style={styles(theme).contactMethod}>
-                  <View style={styles(theme).contactMethodIcon}>
-                    <Mail size={24} color={theme.colors.accent} />
-                  </View>
-                  <View>
-                    <Text style={styles(theme).contactMethodTitle}>Email</Text>
-                    <Text style={styles(theme).contactMethodValue}>support@sleepapp.com</Text>
-                  </View>
-                </View>
-                
-                <View style={styles(theme).contactMethod}>
-                  <View style={styles(theme).contactMethodIcon}>
-                    <Clock size={24} color={theme.colors.accent} />
-                  </View>
-                  <View>
-                    <Text style={styles(theme).contactMethodTitle}>Response Time</Text>
-                    <Text style={styles(theme).contactMethodValue}>Within 24 hours</Text>
-                  </View>
-                </View>
-                
-                <View style={styles(theme).contactMethod}>
-                  <View style={styles(theme).contactMethodIcon}>
-                    <Twitter size={24} color={theme.colors.accent} />
-                  </View>
-                  <TouchableOpacity onPress={() => Linking.openURL('https://x.com/mxsports5')}>
-                    <Text style={styles(theme).contactMethodTitle}>X (Twitter)</Text>
-                    <Text style={styles(theme).contactMethodValue}>@Sleeptracker</Text>
-                  </TouchableOpacity>
-                </View>
+                  <Text style={s.vipActionText}>Email VIP Support</Text>
+                </TouchableOpacity>
+              </View>
 
-                <View style={styles(theme).contactMethod}>
-                  <View style={styles(theme).contactMethodIcon}>
-                    <Send size={24} color={theme.colors.accent} />
-                  </View>
-                  <TouchableOpacity onPress={() => Linking.openURL('https://t.me/asadalinaul1')}>
-                    <Text style={styles(theme).contactMethodTitle}>Telegram</Text>
-                    <Text style={styles(theme).contactMethodValue}>t.me/asadalinaul1</Text>
-                  </TouchableOpacity>
+              {/* Telegram VIP */}
+              <View style={s.vipCard}>
+                <View style={s.vipCardHeader}>
+                  <View style={s.vipIconBox}><Headphones size={18} color={theme.colors.premium} /></View>
+                  <Text style={s.vipCardTitle}>VIP Telegram Chat</Text>
                 </View>
+                <Text style={s.vipCardDesc}>Join our private VIP Telegram group for direct developer access.</Text>
+                <TouchableOpacity
+                  style={s.vipActionBtn}
+                  onPress={() => Linking.openURL('https://t.me/sleeparchitectvip')}
+                  activeOpacity={0.85}
+                >
+                  <Text style={s.vipActionText}>Join VIP Group</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Response times */}
+              <View style={s.vipCard}>
+                <Text style={s.vipCardTitle}>Response Times</Text>
+                {[
+                  { label: 'VIP Priority Email', value: '< 2 hours', good: true },
+                  { label: 'VIP Telegram', value: '< 1 hour', good: true },
+                  { label: 'Standard Email', value: '24-48 hours', good: false },
+                ].map((row, i) => (
+                  <View key={i} style={[s.responseRow, i < 2 && s.responseRowDivider]}>
+                    <Text style={s.responseLabel}>{row.label}</Text>
+                    <Text style={[s.responseValue, { color: row.good ? theme.colors.success : theme.colors.textTertiary }]}>
+                      {row.value}
+                    </Text>
+                  </View>
+                ))}
               </View>
             </View>
-          </View>
-        )}
-        
-        {activeTab === 'vip' && isPremium && (
-          <View style={styles(theme).vipContainer}>
-            {/* VIP hero */}
-            <LinearGradient colors={['rgba(245,158,11,0.15)', 'rgba(245,158,11,0.04)']} style={styles(theme).vipHero}>
-              <Crown size={40} color="#F59E0B" />
-              <Text style={styles(theme).vipHeroTitle}>VIP Priority Support</Text>
-              <Text style={styles(theme).vipHeroSubtitle}>As a Premium member you get priority responses within 2 hours</Text>
-            </LinearGradient>
-
-            {/* Priority email */}
-            <View style={styles(theme).vipCard}>
-              <View style={styles(theme).vipCardHeader}>
-                <View style={styles(theme).vipIconBox}><Zap size={20} color="#F59E0B" /></View>
-                <Text style={styles(theme).vipCardTitle}>Priority Email Support</Text>
-              </View>
-              <Text style={styles(theme).vipCardDesc}>Send us your issue and we'll reply within 2 hours (Mon-Fri).</Text>
-              <TouchableOpacity
-                style={styles(theme).vipActionBtn}
-                onPress={() => Linking.openURL('mailto:vip@sleeparchitect.app?subject=VIP Support Request&body=Premium Member - Priority Support')}
-              >
-                <LinearGradient colors={['#F59E0B', '#D97706']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles(theme).vipActionGradient}>
-                  <Text style={styles(theme).vipActionText}>Email VIP Support</Text>
-                </LinearGradient>
-              </TouchableOpacity>
-            </View>
-
-            {/* Telegram VIP */}
-            <View style={styles(theme).vipCard}>
-              <View style={styles(theme).vipCardHeader}>
-                <View style={styles(theme).vipIconBox}><Send size={20} color="#F59E0B" /></View>
-                <Text style={styles(theme).vipCardTitle}>VIP Telegram Chat</Text>
-              </View>
-              <Text style={styles(theme).vipCardDesc}>Join our private VIP Telegram group for direct developer access.</Text>
-              <TouchableOpacity
-                style={styles(theme).vipActionBtn}
-                onPress={() => Linking.openURL('https://t.me/sleeparchitectvip')}
-              >
-                <LinearGradient colors={['#F59E0B', '#D97706']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles(theme).vipActionGradient}>
-                  <Text style={styles(theme).vipActionText}>Join VIP Group</Text>
-                </LinearGradient>
-              </TouchableOpacity>
-            </View>
-
-            {/* Response times */}
-            <View style={styles(theme).vipCard}>
-              <Text style={styles(theme).vipCardTitle}>Response Times</Text>
-              {[
-                { label: 'VIP Priority Email', value: '< 2 hours', color: '#10B981' },
-                { label: 'VIP Telegram', value: '< 1 hour', color: '#10B981' },
-                { label: 'Standard Email', value: '24-48 hours', color: 'rgba(255,255,255,0.4)' },
-              ].map((row, i) => (
-                <View key={i} style={styles(theme).responseRow}>
-                  <Text style={styles(theme).responseLabel}>{row.label}</Text>
-                  <Text style={[styles(theme).responseValue, { color: row.color }]}>{row.value}</Text>
-                </View>
-              ))}
-            </View>
-          </View>
+          )
         )}
 
-        {/* Bottom padding for tab bar */}
-        <View style={styles(theme).bottomPadding} />
+        <View style={s.bottomPadding} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -500,54 +492,68 @@ const styles = (theme: any) => StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    columnGap: 12,
     paddingHorizontal: 20,
-    paddingVertical: 10,
+    paddingTop: 10,
+    paddingBottom: 16,
   },
   backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(27, 29, 42, 0.6)',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: theme.colors.cardBorder,
+    backgroundColor: theme.colors.card,
     alignItems: 'center',
     justifyContent: 'center',
   },
   title: {
-    fontSize: 20,
-    fontWeight: 'bold',
+    fontFamily: theme.typography.fontFamily.displaySemibold,
+    fontSize: 24,
+    letterSpacing: -0.2,
     color: theme.colors.textPrimary,
   },
-  placeholder: {
-    width: 40,
-  },
+
   tabContainer: {
     flexDirection: 'row',
+    columnGap: 10,
     paddingHorizontal: 20,
-    marginBottom: 20,
+    marginBottom: 16,
   },
   tab: {
     flexDirection: 'row',
     alignItems: 'center',
+    columnGap: 6,
     paddingVertical: 10,
     paddingHorizontal: 16,
     borderRadius: 20,
-    marginRight: 10,
-    backgroundColor: 'rgba(27, 29, 42, 0.6)',
+    backgroundColor: theme.colors.card,
+    borderWidth: 1,
+    borderColor: theme.colors.cardBorder,
   },
   activeTab: {
-    backgroundColor: 'rgba(0, 255, 209, 0.15)',
-    borderWidth: 1,
+    backgroundColor: theme.colors.selectedBackground,
     borderColor: theme.colors.accent,
   },
   tabText: {
+    fontFamily: theme.typography.fontFamily.bodySemibold,
     fontSize: 14,
-    fontWeight: '600',
     color: theme.colors.textSecondary,
-    marginLeft: 6,
   },
   activeTabText: {
     color: theme.colors.accent,
   },
+  vipTab: {
+    borderColor: theme.colors.premiumBadgeBorder,
+    backgroundColor: theme.colors.premiumBadgeBackground,
+  },
+  vipTabActive: {
+    borderColor: theme.colors.premium,
+  },
+  vipTabText: {
+    color: theme.colors.premium,
+  },
+
   content: {
     flex: 1,
   },
@@ -555,109 +561,147 @@ const styles = (theme: any) => StyleSheet.create({
     paddingHorizontal: 20,
   },
   sectionDescription: {
+    fontFamily: theme.typography.fontFamily.body,
     fontSize: 14,
     color: theme.colors.textSecondary,
-    marginBottom: 24,
     lineHeight: 20,
-  },
-  faqContainer: {
     marginBottom: 20,
   },
-  faqItem: {
-    marginBottom: 12,
-    borderRadius: 16,
-    overflow: 'hidden',
+  sectionLabel: {
+    fontFamily: theme.typography.fontFamily.bodyBold,
+    fontSize: 13,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    color: theme.colors.textTertiary,
+    marginBottom: 10,
+  },
+
+  // Search
+  searchWrap: {
+    position: 'relative',
+    marginBottom: 20,
+  },
+  searchIcon: {
+    position: 'absolute',
+    left: 16,
+    top: 16,
+    zIndex: 1,
+  },
+  searchInput: {
+    height: 50,
+    borderRadius: theme.borderRadius.lg,
     borderWidth: 1,
-    borderColor: 'rgba(51, 198, 255, 0.1)',
+    borderColor: theme.colors.cardBorder,
+    backgroundColor: theme.colors.card,
+    color: theme.colors.textPrimary,
+    paddingLeft: 44,
+    paddingRight: 16,
+    fontFamily: theme.typography.fontFamily.body,
+    fontSize: 16,
   },
-  expandedFaqItem: {
-    borderColor: theme.colors.accent,
+
+  // FAQ accordion card
+  faqCard: {
+    backgroundColor: theme.colors.card,
+    borderWidth: 1,
+    borderColor: theme.colors.cardBorder,
+    borderRadius: theme.borderRadius.card,
+    paddingHorizontal: 16,
+    marginBottom: 24,
   },
-  faqBlur: {
-    borderRadius: 16,
-    overflow: 'hidden',
-    backgroundColor: 'rgba(27, 29, 42, 0.6)',
+  faqRow: {
+    paddingVertical: 14,
+  },
+  faqRowDivider: {
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.cardBorder,
   },
   faqHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 16,
+    justifyContent: 'space-between',
+    columnGap: 12,
   },
   faqQuestion: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: theme.colors.textPrimary,
     flex: 1,
-    marginRight: 10,
+    fontFamily: theme.typography.fontFamily.bodySemibold,
+    fontSize: 15,
+    color: theme.colors.textPrimary,
   },
   faqAnswer: {
-    padding: 16,
-    paddingTop: 0,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(51, 198, 255, 0.1)',
-  },
-  faqAnswerText: {
+    fontFamily: theme.typography.fontFamily.body,
     fontSize: 14,
     color: theme.colors.textSecondary,
     lineHeight: 20,
+    marginTop: 10,
   },
-  moreHelpSection: {
-    marginTop: 30,
-    alignItems: 'center',
-    padding: 20,
-    borderRadius: 16,
-    backgroundColor: 'rgba(27, 29, 42, 0.6)',
-  },
-  moreHelpTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: theme.colors.textPrimary,
-    marginBottom: 8,
-  },
-  moreHelpText: {
+  emptyText: {
+    fontFamily: theme.typography.fontFamily.body,
     fontSize: 14,
-    color: theme.colors.textSecondary,
+    color: theme.colors.textTertiary,
     textAlign: 'center',
+    paddingVertical: 20,
+  },
+
+  // Still stuck grid
+  stuckLabel: {
+    marginTop: 4,
+  },
+  stuckGrid: {
+    flexDirection: 'row',
+    columnGap: 10,
     marginBottom: 16,
   },
-  contactButton: {
-    borderRadius: 20,
-    overflow: 'hidden',
+  stuckTile: {
+    flex: 1,
+    height: 84,
+    borderRadius: theme.borderRadius.lg,
+    borderWidth: 1,
+    borderColor: theme.colors.cardBorder,
+    backgroundColor: theme.colors.card,
+    alignItems: 'center',
+    justifyContent: 'center',
+    rowGap: 6,
   },
-  contactButtonGradient: {
-    paddingVertical: 12,
-    paddingHorizontal: 24,
+  stuckTileText: {
+    fontFamily: theme.typography.fontFamily.bodySemibold,
+    fontSize: 12,
+    color: theme.colors.textPrimary,
+    textAlign: 'center',
   },
-  contactButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#000',
+  footerHint: {
+    fontFamily: theme.typography.fontFamily.body,
+    fontSize: 13,
+    color: theme.colors.textTertiary,
+    textAlign: 'center',
+    marginTop: 8,
   },
-  contactContainer: {
-    marginBottom: 20,
-  },
-  formContainer: {
-    backgroundColor: 'rgba(27, 29, 42, 0.6)',
-    borderRadius: 16,
+
+  // Contact form
+  formCard: {
+    backgroundColor: theme.colors.card,
+    borderWidth: 1,
+    borderColor: theme.colors.cardBorder,
+    borderRadius: theme.borderRadius.card,
     padding: 20,
-    marginBottom: 30,
+    marginBottom: 24,
   },
   inputGroup: {
     marginBottom: 16,
   },
   inputLabel: {
+    fontFamily: theme.typography.fontFamily.bodySemibold,
     fontSize: 14,
-    fontWeight: '600',
     color: theme.colors.textPrimary,
     marginBottom: 8,
   },
   input: {
-    backgroundColor: 'rgba(15, 17, 26, 0.6)',
+    backgroundColor: theme.colors.backgroundTertiary,
     borderWidth: 1,
-    borderColor: 'rgba(51, 198, 255, 0.1)',
+    borderColor: theme.colors.cardBorder,
     borderRadius: 12,
     padding: 12,
+    fontFamily: theme.typography.fontFamily.body,
     fontSize: 14,
     color: theme.colors.textPrimary,
   },
@@ -667,83 +711,147 @@ const styles = (theme: any) => StyleSheet.create({
   },
   submitButton: {
     borderRadius: 16,
-    overflow: 'hidden',
-    marginTop: 10,
+    marginTop: 6,
+    paddingVertical: 16,
+    alignItems: 'center',
+    backgroundColor: theme.colors.ctaBackground,
   },
   disabledButton: {
     opacity: 0.7,
   },
-  submitButtonGradient: {
-    paddingVertical: 16,
-    alignItems: 'center',
-  },
   submitButtonText: {
+    fontFamily: theme.typography.fontFamily.bodyBold,
     fontSize: 16,
-    fontWeight: '600',
-    color: '#000',
+    color: theme.colors.ctaText,
   },
-  alternativeContactSection: {
-    backgroundColor: 'rgba(27, 29, 42, 0.6)',
-    borderRadius: 16,
-    padding: 20,
+
+  // Other ways to reach us
+  methodsCard: {
+    backgroundColor: theme.colors.card,
+    borderWidth: 1,
+    borderColor: theme.colors.cardBorder,
+    borderRadius: theme.borderRadius.card,
+    paddingHorizontal: 16,
   },
-  alternativeContactTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: theme.colors.textPrimary,
-    marginBottom: 16,
-  },
-  contactMethodsContainer: {
-    marginBottom: 10,
-  },
-  contactMethod: {
+  methodRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
+    columnGap: 12,
+    paddingVertical: 14,
   },
-  contactMethodIcon: {
+  methodRowDivider: {
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.cardBorder,
+  },
+  methodIcon: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(0, 255, 209, 0.1)',
+    backgroundColor: theme.colors.accentLight,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
   },
-  contactMethodTitle: {
+  methodTextBlock: {
+    rowGap: 2,
+  },
+  methodTitle: {
+    fontFamily: theme.typography.fontFamily.bodySemibold,
     fontSize: 14,
-    fontWeight: '600',
     color: theme.colors.textPrimary,
-    marginBottom: 4,
   },
-  contactMethodValue: {
+  methodValue: {
+    fontFamily: theme.typography.fontFamily.body,
     fontSize: 14,
     color: theme.colors.highlight,
   },
-  bottomPadding: {
-    height: 100,
-  },
 
-  // VIP tab styles
-  vipTab: { borderWidth: 1, borderColor: 'rgba(245,158,11,0.3)', backgroundColor: 'rgba(245,158,11,0.08)' },
-  vipTabActive: { backgroundColor: 'rgba(245,158,11,0.15)', borderColor: '#F59E0B' },
-  vipTabText: { color: '#F59E0B' },
-  vipTabActiveText: { color: '#F59E0B' },
+  bottomPadding: { height: 40 },
 
   // VIP screen
-  vipContainer: { paddingBottom: 20 },
-  vipHero: { borderRadius: 20, padding: 24, alignItems: 'center', marginBottom: 16, borderWidth: 1, borderColor: 'rgba(245,158,11,0.2)' },
-  vipHeroTitle: { fontSize: 20, fontWeight: '900', color: '#F59E0B', marginTop: 12, marginBottom: 6 },
-  vipHeroSubtitle: { fontSize: 13, color: 'rgba(255,255,255,0.5)', textAlign: 'center', lineHeight: 18 },
-  vipCard: { backgroundColor: 'rgba(27,29,42,0.7)', borderRadius: 16, padding: 18, marginBottom: 12, borderWidth: 1, borderColor: 'rgba(245,158,11,0.15)' },
-  vipCardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
-  vipIconBox: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(245,158,11,0.1)', justifyContent: 'center', alignItems: 'center', marginRight: 10 },
-  vipCardTitle: { fontSize: 15, fontWeight: '700', color: theme.colors.textPrimary },
-  vipCardDesc: { fontSize: 13, color: theme.colors.textSecondary, lineHeight: 18, marginBottom: 14 },
-  vipActionBtn: { borderRadius: 12, overflow: 'hidden' },
-  vipActionGradient: { paddingVertical: 12, alignItems: 'center' },
-  vipActionText: { fontSize: 14, fontWeight: '700', color: '#000' },
-  responseRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.06)' },
-  responseLabel: { fontSize: 13, color: theme.colors.textSecondary },
-  responseValue: { fontSize: 13, fontWeight: '700' },
+  vipHero: {
+    borderRadius: theme.borderRadius.card,
+    padding: 24,
+    alignItems: 'center',
+    rowGap: 10,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: theme.colors.premiumBadgeBorder,
+    backgroundColor: theme.colors.premiumBadgeBackground,
+  },
+  vipHeroTitle: {
+    fontFamily: theme.typography.fontFamily.displaySemibold,
+    fontSize: 20,
+    color: theme.colors.premium,
+  },
+  vipHeroSubtitle: {
+    fontFamily: theme.typography.fontFamily.body,
+    fontSize: 13,
+    color: theme.colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 18,
+  },
+  vipCard: {
+    backgroundColor: theme.colors.card,
+    borderRadius: theme.borderRadius.card,
+    padding: 18,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: theme.colors.premiumBadgeBorder,
+  },
+  vipCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    columnGap: 10,
+    marginBottom: 8,
+  },
+  vipIconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: theme.colors.premiumBadgeBackground,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  vipCardTitle: {
+    fontFamily: theme.typography.fontFamily.bodyBold,
+    fontSize: 15,
+    color: theme.colors.textPrimary,
+  },
+  vipCardDesc: {
+    fontFamily: theme.typography.fontFamily.body,
+    fontSize: 13,
+    color: theme.colors.textSecondary,
+    lineHeight: 18,
+    marginBottom: 14,
+  },
+  vipActionBtn: {
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
+    backgroundColor: theme.colors.premium,
+  },
+  vipActionText: {
+    fontFamily: theme.typography.fontFamily.bodyBold,
+    fontSize: 14,
+    color: theme.colors.background,
+  },
+  responseRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 10,
+  },
+  responseRowDivider: {
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.cardBorder,
+  },
+  responseLabel: {
+    fontFamily: theme.typography.fontFamily.body,
+    fontSize: 13,
+    color: theme.colors.textSecondary,
+  },
+  responseValue: {
+    fontFamily: theme.typography.fontFamily.bodyBold,
+    fontSize: 13,
+  },
 });

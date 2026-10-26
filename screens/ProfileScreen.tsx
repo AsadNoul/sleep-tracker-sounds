@@ -1,12 +1,11 @@
 import { useAppTheme } from '../hooks/useAppTheme';
 import { getSubscriptionLabel, isPremiumActive } from '../utils/subscriptionHelpers';
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert, ScrollView, ActivityIndicator } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
 import {
   ChevronLeft,
+  ChevronRight,
   User,
   Moon,
   Flag,
@@ -22,13 +21,25 @@ import {
   Star,
   Edit2,
   LogIn,
-  Smartphone
+  Smartphone,
+  Check,
+  X,
 } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { format24hTo12h } from '../utils/dateFormatting';
 
+// Canvas (`Ac-Profile.dc.html` / `D-Ac-Profile.dc.html`): avatar-initial circle +
+// Fraunces name + "plan · member since" line, a 3-stat row, a premium CTA card,
+// and grouped list rows with trailing chevrons. This screen keeps that visual
+// language (avatar, Fraunces display name, grouped `row` list pattern lifted
+// from the rebuilt SettingsScreen) but is a back-button detail screen (not a
+// tab root), so the bottom nav / achievements / habits grid from the canvas
+// don't apply here — the Account + Sleep Profile sections below are
+// self-designed in the same system per the standing project instruction,
+// since the canvas's Profile page doesn't cover an edit-name flow or an
+// onboarding-data summary at all.
 
 interface OnboardingProfile {
   age?: number;
@@ -97,7 +108,8 @@ const HEALTH_CONDITION_LABELS: Record<string, string> = {
 };
 
 export default function ProfileScreen() {
-  const { theme, isDark } = useAppTheme();
+  const { theme } = useAppTheme();
+  const s = styles(theme);
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
   const { user, reloadProfile } = useAuth();
@@ -237,10 +249,6 @@ export default function ProfileScreen() {
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   };
 
-  const getSignInIcon = () => {
-    return Mail;
-  };
-
   const getSignInLabel = () => {
     if (signInMethod === 'google') {
       return 'Google';
@@ -248,17 +256,27 @@ export default function ProfileScreen() {
     return 'Email/Password';
   };
 
+  const avatarInitial = (user?.full_name || user?.email || 'U').trim().charAt(0).toUpperCase();
+  const isPremium = isPremiumActive(user?.subscription_status, user?.subscription_end_date, user?.role, user?.email);
+
   const renderProfileHeader = () => {
     return (
-      <View style={styles(theme).profileHeader}>
-        <View style={styles(theme).profileImageContainer}>
-          <View style={styles(theme).profileImagePlaceholder}>
-            <User size={50} color={theme.colors.accent} />
-          </View>
-          <View style={styles(theme).glowRing} />
+      <View style={s.profileHeaderRow}>
+        <View style={s.avatarCircle}>
+          <Text style={s.avatarInitial}>{avatarInitial}</Text>
         </View>
-        <Text style={styles(theme).profileHeaderName}>{user?.full_name || 'User'}</Text>
-        <Text style={styles(theme).profileHeaderEmail}>{user?.email || ''}</Text>
+        <View style={s.profileHeaderText}>
+          <Text style={s.profileHeaderName} numberOfLines={1}>{user?.full_name || 'User'}</Text>
+          <View style={s.profileHeaderMetaRow}>
+            <Text style={s.profileHeaderMeta}>{getSubscriptionLabel(user?.subscription_status)}</Text>
+            {isPremium && (
+              <View style={s.premiumBadge}>
+                <Star size={10} color={theme.colors.premium} fill={theme.colors.premium} />
+                <Text style={s.premiumBadgeText}>VIP</Text>
+              </View>
+            )}
+          </View>
+        </View>
       </View>
     );
   };
@@ -266,169 +284,155 @@ export default function ProfileScreen() {
   const renderSleepProfileSection = () => {
     if (!onboardingProfile || !onboardingProfile.onboarding_completed_at) {
       return (
-        <BlurView intensity={20} tint="dark" style={styles(theme).emptyCard}>
-          <Moon size={48} color={theme.colors.textSecondary} />
-          <Text style={styles(theme).emptyCardTitle}>No Sleep Profile Yet</Text>
-          <Text style={styles(theme).emptyCardText}>
+        <View style={s.emptyCard}>
+          <Moon size={40} color={theme.colors.textTertiary} />
+          <Text style={s.emptyCardTitle}>No Sleep Profile Yet</Text>
+          <Text style={s.emptyCardText}>
             Complete the onboarding to set up your personalized sleep profile
           </Text>
-        </BlurView>
+        </View>
       );
     }
 
     return (
-      <View style={styles(theme).section}>
-        <Text style={styles(theme).sectionTitle}>Sleep Profile</Text>
+      <View style={s.sectionBlock}>
+        <Text style={s.sectionLabel}>Sleep Profile</Text>
 
         {/* Sleep Goals */}
-        {onboardingProfile && onboardingProfile.sleep_goals && onboardingProfile.sleep_goals.length > 0 && (
-          <BlurView intensity={20} tint="dark" style={[styles(theme).card, styles(theme).glowCard]}>
-            <LinearGradient
-              colors={['rgba(0, 255, 209, 0.1)', 'transparent']}
-              style={styles(theme).cardGradient}
-            />
-            <View style={styles(theme).cardHeader}>
-              <Flag size={24} color={theme.colors.accent} />
-              <Text style={styles(theme).cardTitle}>Sleep Goals</Text>
+        {onboardingProfile.sleep_goals && onboardingProfile.sleep_goals.length > 0 && (
+          <View style={s.card}>
+            <View style={s.cardHeader}>
+              <View style={[s.cardIconWrapper, { backgroundColor: theme.colors.accentLight }]}>
+                <Flag size={18} color={theme.colors.accent} />
+              </View>
+              <Text style={s.cardTitle}>Sleep Goals</Text>
             </View>
-            <View style={styles(theme).tagContainer}>
+            <View style={s.tagContainer}>
               {onboardingProfile.sleep_goals.map((goal) => (
-                <View key={goal} style={styles(theme).tag}>
-                  <Text style={styles(theme).tagText}>{SLEEP_GOAL_LABELS[goal] || goal}</Text>
+                <View key={goal} style={s.tag}>
+                  <Text style={s.tagText}>{SLEEP_GOAL_LABELS[goal] || goal}</Text>
                 </View>
               ))}
             </View>
-          </BlurView>
+          </View>
         )}
 
         {/* Sleep Troubles */}
         {onboardingProfile.sleep_troubles && onboardingProfile.sleep_troubles.length > 0 && (
-          <BlurView intensity={20} tint="dark" style={[styles(theme).card, styles(theme).glowCard]}>
-            <LinearGradient
-              colors={['rgba(255, 107, 157, 0.1)', 'transparent']}
-              style={styles(theme).cardGradient}
-            />
-            <View style={styles(theme).cardHeader}>
-              <AlertCircle size={24} color="#FF6B9D" />
-              <Text style={styles(theme).cardTitle}>Sleep Troubles</Text>
+          <View style={s.card}>
+            <View style={s.cardHeader}>
+              <View style={[s.cardIconWrapper, { backgroundColor: theme.colors.cardOverlay }]}>
+                <AlertCircle size={18} color={theme.colors.danger} />
+              </View>
+              <Text style={s.cardTitle}>Sleep Troubles</Text>
             </View>
-            <View style={styles(theme).tagContainer}>
+            <View style={s.tagContainer}>
               {onboardingProfile.sleep_troubles.map((trouble) => (
-                <View key={trouble} style={[styles(theme).tag, styles(theme).troubleTag]}>
-                  <Text style={styles(theme).tagText}>{SLEEP_TROUBLE_LABELS[trouble] || trouble}</Text>
+                <View key={trouble} style={[s.tag, s.troubleTag]}>
+                  <Text style={[s.tagText, { color: theme.colors.danger }]}>{SLEEP_TROUBLE_LABELS[trouble] || trouble}</Text>
                 </View>
               ))}
             </View>
-          </BlurView>
+          </View>
         )}
 
         {/* Sleep Pattern */}
         {onboardingProfile.sleep_pattern && (
-          <BlurView intensity={20} tint="dark" style={[styles(theme).card, styles(theme).glowCard]}>
-            <LinearGradient
-              colors={['rgba(51, 198, 255, 0.1)', 'transparent']}
-              style={styles(theme).cardGradient}
-            />
-            <View style={styles(theme).cardHeader}>
-              <Calendar size={24} color={theme.colors.highlight} />
-              <Text style={styles(theme).cardTitle}>Sleep Pattern</Text>
+          <View style={s.card}>
+            <View style={s.cardHeader}>
+              <View style={[s.cardIconWrapper, { backgroundColor: theme.colors.highlightLight }]}>
+                <Calendar size={18} color={theme.colors.highlight} />
+              </View>
+              <Text style={s.cardTitle}>Sleep Pattern</Text>
             </View>
-            <View style={styles(theme).infoRow}>
-              <Activity size={20} color={theme.colors.highlight} />
-              <Text style={styles(theme).infoText}>
+            <View style={s.infoRow}>
+              <Activity size={16} color={theme.colors.highlight} />
+              <Text style={s.infoText}>
                 {SLEEP_PATTERN_LABELS[onboardingProfile.sleep_pattern]}
               </Text>
             </View>
-          </BlurView>
+          </View>
         )}
 
         {/* Average Sleep Hours */}
         {onboardingProfile.average_sleep_hours && (
-          <BlurView intensity={20} tint="dark" style={[styles(theme).card, styles(theme).glowCard]}>
-            <LinearGradient
-              colors={['rgba(0, 255, 209, 0.1)', 'transparent']}
-              style={styles(theme).cardGradient}
-            />
-            <View style={styles(theme).cardHeader}>
-              <Clock size={24} color={theme.colors.accent} />
-              <Text style={styles(theme).cardTitle}>Average Sleep Hours</Text>
+          <View style={s.card}>
+            <View style={s.cardHeader}>
+              <View style={[s.cardIconWrapper, { backgroundColor: theme.colors.accentLight }]}>
+                <Clock size={18} color={theme.colors.accent} />
+              </View>
+              <Text style={s.cardTitle}>Average Sleep Hours</Text>
             </View>
-            <View style={styles(theme).statHighlight}>
-              <Text style={styles(theme).statHighlightValue}>{onboardingProfile.average_sleep_hours}</Text>
-              <Text style={styles(theme).statHighlightLabel}>hours per night</Text>
+            <View style={s.statHighlight}>
+              <Text style={s.statHighlightValue}>{onboardingProfile.average_sleep_hours}</Text>
+              <Text style={s.statHighlightLabel}>hours per night</Text>
             </View>
-          </BlurView>
+          </View>
         )}
 
         {/* Wake Up Feeling */}
         {onboardingProfile.wake_up_feeling && (
-          <BlurView intensity={20} tint="dark" style={[styles(theme).card, styles(theme).glowCard]}>
-            <LinearGradient
-              colors={['rgba(255, 215, 0, 0.1)', 'transparent']}
-              style={styles(theme).cardGradient}
-            />
-            <View style={styles(theme).cardHeader}>
-              <Sun size={24} color={theme.colors.premium} />
-              <Text style={styles(theme).cardTitle}>Wake Up Feeling</Text>
+          <View style={s.card}>
+            <View style={s.cardHeader}>
+              <View style={[s.cardIconWrapper, { backgroundColor: theme.colors.premiumBadgeBackground }]}>
+                <Sun size={18} color={theme.colors.premium} />
+              </View>
+              <Text style={s.cardTitle}>Wake Up Feeling</Text>
             </View>
-            <View style={styles(theme).infoRow}>
-              <Sun size={20} color={theme.colors.premium} />
-              <Text style={styles(theme).infoText}>
+            <View style={s.infoRow}>
+              <Sun size={16} color={theme.colors.premium} />
+              <Text style={s.infoText}>
                 {WAKE_FEELING_LABELS[onboardingProfile.wake_up_feeling]}
               </Text>
             </View>
-          </BlurView>
+          </View>
         )}
 
         {/* Health Conditions */}
         {onboardingProfile.health_conditions && onboardingProfile.health_conditions.length > 0 && (
-          <BlurView intensity={20} tint="dark" style={[styles(theme).card, styles(theme).glowCard]}>
-            <LinearGradient
-              colors={['rgba(255, 107, 107, 0.1)', 'transparent']}
-              style={styles(theme).cardGradient}
-            />
-            <View style={styles(theme).cardHeader}>
-              <Stethoscope size={24} color={theme.colors.danger} />
-              <Text style={styles(theme).cardTitle}>Health Conditions</Text>
+          <View style={s.card}>
+            <View style={s.cardHeader}>
+              <View style={[s.cardIconWrapper, { backgroundColor: theme.colors.cardOverlay }]}>
+                <Stethoscope size={18} color={theme.colors.danger} />
+              </View>
+              <Text style={s.cardTitle}>Health Conditions</Text>
             </View>
-            <View style={styles(theme).tagContainer}>
+            <View style={s.tagContainer}>
               {onboardingProfile.health_conditions.map((condition) => (
-                <View key={condition} style={[styles(theme).tag, styles(theme).healthTag]}>
-                  <Text style={styles(theme).tagText}>{HEALTH_CONDITION_LABELS[condition] || condition}</Text>
+                <View key={condition} style={[s.tag, s.healthTag]}>
+                  <Text style={[s.tagText, { color: theme.colors.danger }]}>{HEALTH_CONDITION_LABELS[condition] || condition}</Text>
                 </View>
               ))}
             </View>
-          </BlurView>
+          </View>
         )}
 
         {/* Sleep Schedule */}
         {(onboardingProfile.preferred_bed_time || onboardingProfile.preferred_wake_time) && (
-          <BlurView intensity={20} tint="dark" style={[styles(theme).card, styles(theme).glowCard]}>
-            <LinearGradient
-              colors={['rgba(51, 198, 255, 0.1)', 'transparent']}
-              style={styles(theme).cardGradient}
-            />
-            <View style={styles(theme).cardHeader}>
-              <Bell size={24} color={theme.colors.highlight} />
-              <Text style={styles(theme).cardTitle}>Sleep Schedule</Text>
+          <View style={s.card}>
+            <View style={s.cardHeader}>
+              <View style={[s.cardIconWrapper, { backgroundColor: theme.colors.highlightLight }]}>
+                <Bell size={18} color={theme.colors.highlight} />
+              </View>
+              <Text style={s.cardTitle}>Sleep Schedule</Text>
             </View>
             {onboardingProfile.preferred_bed_time && (
-              <View style={styles(theme).infoRow}>
-                <Moon size={20} color={theme.colors.accent} />
-                <Text style={styles(theme).infoText}>
+              <View style={s.infoRow}>
+                <Moon size={16} color={theme.colors.accent} />
+                <Text style={s.infoText}>
                   Bedtime: {format24hTo12h(onboardingProfile.preferred_bed_time)}
                 </Text>
               </View>
             )}
             {onboardingProfile.preferred_wake_time && (
-              <View style={styles(theme).infoRow}>
-                <Sun size={20} color={theme.colors.premium} />
-                <Text style={styles(theme).infoText}>
+              <View style={s.infoRow}>
+                <Sun size={16} color={theme.colors.premium} />
+                <Text style={s.infoText}>
                   Wake time: {format24hTo12h(onboardingProfile.preferred_wake_time)}
                 </Text>
               </View>
             )}
-          </BlurView>
+          </View>
         )}
       </View>
     );
@@ -436,173 +440,175 @@ export default function ProfileScreen() {
 
   const renderAccountSection = () => {
     return (
-      <View style={styles(theme).section}>
-        <Text style={styles(theme).sectionTitle}>Account Details</Text>
+      <View style={s.sectionBlock}>
+        <Text style={s.sectionLabel}>Account Details</Text>
 
-        <BlurView intensity={20} tint="dark" style={[styles(theme).card, styles(theme).glowCard]}>
-          <LinearGradient
-            colors={['rgba(0, 255, 209, 0.05)', 'transparent']}
-            style={styles(theme).cardGradient}
-          />
-
-          {editMode ? (
-            <>
-              <TextInput
-                style={styles(theme).input}
-                value={editName}
-                onChangeText={setEditName}
-                placeholder="Full Name"
-                placeholderTextColor={theme.colors.textSecondary}
-                accessibilityLabel="Name input field"
-                accessibilityHint="Enter your full name"
-              />
-              <View style={styles(theme).profileButtonRow}>
-                <TouchableOpacity
-                  style={[styles(theme).profileButton, isSaving && styles(theme).disabledButton]}
-                  onPress={saveProfileData}
-                  disabled={isSaving}
-                >
-                  <Text style={styles(theme).profileButtonText}>{isSaving ? 'Saving...' : 'Save'}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles(theme).profileButton, styles(theme).cancelButton]}
-                  onPress={cancelEditProfile}
-                  disabled={isSaving}
-                >
-                  <Text style={styles(theme).cancelButtonText}>Cancel</Text>
-                </TouchableOpacity>
+        {editMode ? (
+          <View style={s.card}>
+            <Text style={s.inputLabel}>Full Name</Text>
+            <TextInput
+              style={s.input}
+              value={editName}
+              onChangeText={setEditName}
+              placeholder="Full Name"
+              placeholderTextColor={theme.colors.textTertiary}
+              accessibilityLabel="Name input field"
+              accessibilityHint="Enter your full name"
+            />
+            <View style={s.editButtonRow}>
+              <TouchableOpacity
+                style={[s.primaryButton, isSaving && s.disabledButton]}
+                onPress={saveProfileData}
+                disabled={isSaving}
+                activeOpacity={0.85}
+              >
+                {isSaving ? (
+                  <ActivityIndicator color={theme.colors.ctaText} size="small" />
+                ) : (
+                  <>
+                    <Check size={16} color={theme.colors.ctaText} />
+                    <Text style={s.primaryButtonText}>Save</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={s.secondaryButton}
+                onPress={cancelEditProfile}
+                disabled={isSaving}
+                activeOpacity={0.85}
+              >
+                <X size={16} color={theme.colors.textPrimary} />
+                <Text style={s.secondaryButtonText}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : (
+          <View style={s.groupCard}>
+            <View style={s.row}>
+              <View style={s.rowIconWrapper}>
+                <User size={18} color={theme.colors.accent} />
               </View>
-            </>
-          ) : (
-            <>
-              <View style={styles(theme).profileInfoRow}>
-                <User size={24} color={theme.colors.accent} style={{ marginRight: 12 }} />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles(theme).profileLabel}>Full Name</Text>
-                  <Text style={styles(theme).profileValue}>{user?.full_name || 'Not set'}</Text>
-                </View>
+              <View style={s.rowTextBlock}>
+                <Text style={s.rowLabel}>Full Name</Text>
+                <Text style={s.rowValue}>{user?.full_name || 'Not set'}</Text>
               </View>
+              <TouchableOpacity onPress={startEditProfile} style={s.rowEditButton} accessibilityLabel="Edit profile">
+                <Edit2 size={16} color={theme.colors.accent} />
+              </TouchableOpacity>
+            </View>
+            <View style={s.rowDivider} />
 
-              <View style={styles(theme).profileInfoRow}>
-                <Mail size={24} color={theme.colors.highlight} style={{ marginRight: 12 }} />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles(theme).profileLabel}>Email</Text>
-                  <Text style={styles(theme).profileValue}>{user?.email || 'Not set'}</Text>
-                </View>
+            <View style={s.row}>
+              <View style={s.rowIconWrapper}>
+                <Mail size={18} color={theme.colors.highlight} />
               </View>
-
-              {/* Sign-in Method */}
-              <View style={styles(theme).profileInfoRow}>
-                <Mail size={24} color="#9D4EDD" style={{ marginRight: 12 }} />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles(theme).profileLabel}>Sign-in Method</Text>
-                  <Text style={styles(theme).profileValue}>{getSignInLabel()}</Text>
-                </View>
+              <View style={s.rowTextBlock}>
+                <Text style={s.rowLabel}>Email</Text>
+                <Text style={s.rowValue}>{user?.email || 'Not set'}</Text>
               </View>
+            </View>
+            <View style={s.rowDivider} />
 
-              <View style={styles(theme).profileInfoRow}>
-                <ShieldCheck size={24} color={theme.colors.premium} style={{ marginRight: 12 }} />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles(theme).profileLabel}>Subscription</Text>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }}>
-                    <Text style={styles(theme).profileValue}>
-                      {getSubscriptionLabel(user?.subscription_status)}
-                    </Text>
-                    {isPremiumActive(user?.subscription_status, user?.subscription_end_date, user?.role, user?.email) && (
-                      <LinearGradient
-                        colors={[theme.colors.accent, theme.colors.highlight, '#9D4EDD']}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 0 }}
-                        style={styles(theme).premiumBadge}
-                      >
-                        <Star size={12} color={theme.colors.textPrimary} />
-                        <Text style={styles(theme).premiumBadgeText}>PREMIUM</Text>
-                      </LinearGradient>
-                    )}
-                  </View>
-                  {user?.subscription_end_date && isPremiumActive(user?.subscription_status, user?.subscription_end_date, user?.role, user?.email) && (
-                    <Text style={styles(theme).expiryDateText}>
-                      Valid until: {new Date(user.subscription_end_date).toLocaleDateString('en-US', {
-                        year: 'numeric',
-                        month: 'long',
-                        day: 'numeric'
-                      })}
-                    </Text>
+            <View style={s.row}>
+              <View style={s.rowIconWrapper}>
+                <LogIn size={18} color={theme.colors.highlight} />
+              </View>
+              <View style={s.rowTextBlock}>
+                <Text style={s.rowLabel}>Sign-in Method</Text>
+                <Text style={s.rowValue}>{getSignInLabel()}</Text>
+              </View>
+            </View>
+            <View style={s.rowDivider} />
+
+            <View style={[s.row, s.rowLast]}>
+              <View style={s.rowIconWrapper}>
+                <ShieldCheck size={18} color={theme.colors.premium} />
+              </View>
+              <View style={s.rowTextBlock}>
+                <Text style={s.rowLabel}>Subscription</Text>
+                <View style={s.subscriptionValueRow}>
+                  <Text style={s.rowValue}>
+                    {getSubscriptionLabel(user?.subscription_status)}
+                  </Text>
+                  {isPremium && (
+                    <View style={s.premiumBadge}>
+                      <Star size={10} color={theme.colors.premium} fill={theme.colors.premium} />
+                      <Text style={s.premiumBadgeText}>VIP</Text>
+                    </View>
                   )}
                 </View>
+                {user?.subscription_end_date && isPremium && (
+                  <Text style={s.expiryDateText}>
+                    Valid until: {new Date(user.subscription_end_date).toLocaleDateString('en-US', {
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric'
+                    })}
+                  </Text>
+                )}
               </View>
-
-              <TouchableOpacity style={styles(theme).editButton} onPress={startEditProfile}>
-                <Edit2 size={20} color="#0F111A" />
-                <Text style={styles(theme).editButtonText}>Edit Profile</Text>
-              </TouchableOpacity>
-            </>
-          )}
-        </BlurView>
+            </View>
+          </View>
+        )}
 
         {/* Recent Login Session */}
         {sessionInfo && sessionInfo.last_sign_in_at && (
-          <BlurView intensity={20} tint="dark" style={[styles(theme).card, styles(theme).glowCard]}>
-            <LinearGradient
-              colors={['rgba(51, 198, 255, 0.05)', 'transparent']}
-              style={styles(theme).cardGradient}
-            />
-            <View style={styles(theme).cardHeader}>
-              <Clock size={24} color={theme.colors.highlight} />
-              <Text style={styles(theme).cardTitle}>Recent Activity</Text>
+          <View style={s.card}>
+            <View style={s.cardHeader}>
+              <View style={[s.cardIconWrapper, { backgroundColor: theme.colors.highlightLight }]}>
+                <Clock size={18} color={theme.colors.highlight} />
+              </View>
+              <Text style={s.cardTitle}>Recent Activity</Text>
             </View>
-            <View style={styles(theme).infoRow}>
-              <LogIn size={20} color={theme.colors.accent} />
-              <Text style={styles(theme).infoText}>
+            <View style={s.infoRow}>
+              <LogIn size={16} color={theme.colors.accent} />
+              <Text style={s.infoText}>
                 Last login: {formatLastSignIn(sessionInfo.last_sign_in_at)}
               </Text>
             </View>
             {sessionInfo.platform && (
-              <View style={styles(theme).infoRow}>
-                <Smartphone size={20} color={theme.colors.highlight} />
-                <Text style={styles(theme).infoText}>
+              <View style={s.infoRow}>
+                <Smartphone size={16} color={theme.colors.highlight} />
+                <Text style={s.infoText}>
                   Device: {sessionInfo.platform}
                 </Text>
               </View>
             )}
-          </BlurView>
+          </View>
         )}
       </View>
     );
   };
 
   return (
-    <SafeAreaView style={styles(theme).container} edges={['top']}>
-      <LinearGradient
-        colors={[theme.colors.background, '#0A0C14']}
-        style={StyleSheet.absoluteFill}
-      />
-      <View style={styles(theme).header}>
-        <TouchableOpacity style={styles(theme).backButton} onPress={() => navigation.goBack()}>
-          <ChevronLeft size={24} color={theme.colors.textPrimary} />
+    <SafeAreaView style={s.container} edges={['top']}>
+      <View style={s.header}>
+        <TouchableOpacity style={s.backButton} onPress={() => navigation.goBack()} accessibilityLabel="Back">
+          <ChevronLeft size={20} color={theme.colors.textPrimary} />
         </TouchableOpacity>
-        <Text style={styles(theme).title}>Profile</Text>
-        <View style={styles(theme).placeholder} />
+        <Text style={s.title}>Profile</Text>
+        <View style={s.placeholder} />
       </View>
 
       <ScrollView
-        style={styles(theme).scrollView}
+        style={s.scrollView}
+        showsVerticalScrollIndicator={false}
         contentContainerStyle={[
-          styles(theme).scrollContent,
+          s.scrollContent,
           { paddingBottom: insets.bottom + 100 }
         ]}
       >
         {!user ? (
-          <BlurView intensity={20} tint="dark" style={styles(theme).emptyCard}>
-            <User size={48} color={theme.colors.textSecondary} />
-            <Text style={styles(theme).emptyCardTitle}>Sign In Required</Text>
-            <Text style={styles(theme).emptyCardText}>
+          <View style={s.emptyCard}>
+            <User size={40} color={theme.colors.textTertiary} />
+            <Text style={s.emptyCardTitle}>Sign In Required</Text>
+            <Text style={s.emptyCardText}>
               Please sign in to view and edit your profile
             </Text>
-          </BlurView>
+          </View>
         ) : (
           <>
-            {/* Profile Header with Image */}
+            {/* Profile Header with Avatar */}
             {renderProfileHeader()}
 
             {/* Account Section - FIRST */}
@@ -625,288 +631,346 @@ const styles = (theme: any) => StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
+    columnGap: 12,
+    paddingHorizontal: 20,
     paddingTop: 10,
     marginBottom: 10,
   },
   backButton: {
-    padding: 8,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: theme.colors.card,
+    borderWidth: 1,
+    borderColor: theme.colors.cardBorder,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   title: {
-    fontSize: 22,
-    fontWeight: 'bold',
+    flex: 1,
+    fontFamily: theme.typography.fontFamily.displaySemibold,
+    fontSize: 24,
+    letterSpacing: -0.2,
     color: theme.colors.textPrimary,
   },
   placeholder: {
-    width: 32,
+    width: 44,
   },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     paddingBottom: 40,
   },
-  profileHeader: {
+
+  // Profile header (canvas-matched: avatar initial + Fraunces name + plan line)
+  profileHeaderRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 32,
-    paddingTop: 10,
+    columnGap: 14,
+    marginBottom: 20,
   },
-  profileImageContainer: {
-    position: 'relative',
-    marginBottom: 16,
-  },
-  profileImage: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    borderWidth: 3,
-    borderColor: theme.colors.accent,
-  },
-  profileImagePlaceholder: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: 'rgba(27, 29, 42, 0.9)',
-    borderWidth: 3,
-    borderColor: theme.colors.accent,
+  avatarCircle: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: theme.colors.navActiveBackground,
+    borderWidth: 1,
+    borderColor: theme.colors.accentBorder,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  glowRing: {
-    position: 'absolute',
-    width: 110,
-    height: 110,
-    borderRadius: 55,
-    top: -5,
-    left: -5,
-    borderWidth: 2,
-    borderColor: theme.colors.accent,
-    opacity: 0.3,
+  avatarInitial: {
+    fontFamily: theme.typography.fontFamily.displaySemibold,
+    fontSize: 24,
+    color: theme.colors.textPrimary,
+  },
+  profileHeaderText: {
+    flex: 1,
+    rowGap: 2,
   },
   profileHeaderName: {
-    fontSize: 24,
-    fontWeight: 'bold',
+    fontFamily: theme.typography.fontFamily.displaySemibold,
+    fontSize: 22,
+    letterSpacing: -0.2,
     color: theme.colors.textPrimary,
-    marginBottom: 4,
   },
-  profileHeaderEmail: {
+  profileHeaderMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    columnGap: 8,
+  },
+  profileHeaderMeta: {
+    fontFamily: theme.typography.fontFamily.body,
     fontSize: 14,
-    color: theme.colors.textSecondary,
+    color: theme.colors.textTertiary,
   },
-  section: {
-    marginBottom: 24,
-    rowGap: 16, columnGap: 16,
+
+  // Section wrapper (self-designed, matches SettingsScreen's sectionBlock/sectionLabel)
+  sectionBlock: {
+    rowGap: 12,
+    marginBottom: 20,
   },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
+  sectionLabel: {
+    fontFamily: theme.typography.fontFamily.bodyBold,
+    fontSize: 13,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    color: theme.colors.textTertiary,
+  },
+
+  // Grouped list rows (lifted from SettingsScreen's groupCard/row pattern)
+  groupCard: {
+    backgroundColor: theme.colors.card,
+    borderWidth: 1,
+    borderColor: theme.colors.cardBorder,
+    borderRadius: theme.borderRadius.card,
+    paddingHorizontal: 16,
+  },
+  row: {
+    minHeight: 64,
+    flexDirection: 'row',
+    alignItems: 'center',
+    columnGap: 12,
+    paddingVertical: 12,
+  },
+  rowLast: {},
+  rowDivider: {
+    height: 1,
+    backgroundColor: theme.colors.cardBorder,
+  },
+  rowIconWrapper: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    backgroundColor: theme.colors.backgroundTertiary,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  rowTextBlock: {
+    flex: 1,
+    rowGap: 2,
+  },
+  rowLabel: {
+    fontFamily: theme.typography.fontFamily.body,
+    fontSize: 12,
+    color: theme.colors.textTertiary,
+  },
+  rowValue: {
+    fontFamily: theme.typography.fontFamily.bodySemibold,
+    fontSize: 15,
     color: theme.colors.textPrimary,
-    marginBottom: 4,
   },
-  card: {
-    backgroundColor: 'rgba(27, 29, 42, 0.7)',
+  rowEditButton: {
+    width: 32,
+    height: 32,
     borderRadius: 16,
-    padding: 20,
-    borderWidth: 0,
-    overflow: 'hidden',
+    backgroundColor: theme.colors.accentLight,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  glowCard: {
-    shadowColor: theme.colors.accent,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.05,
-    shadowRadius: 5,
-    elevation: 2,
+  subscriptionValueRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    columnGap: 8,
   },
-  cardGradient: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: '100%',
+
+  // Generic card (sleep profile + recent activity + edit form)
+  card: {
+    backgroundColor: theme.colors.card,
+    borderWidth: 1,
+    borderColor: theme.colors.cardBorder,
+    borderRadius: theme.borderRadius.card,
+    padding: 16,
   },
   cardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
-    rowGap: 12, columnGap: 12,
-    zIndex: 1,
+    columnGap: 10,
+    marginBottom: 14,
+  },
+  cardIconWrapper: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   cardTitle: {
-    fontSize: 18,
-    fontWeight: '600',
+    fontFamily: theme.typography.fontFamily.bodyBold,
+    fontSize: 15,
     color: theme.colors.textPrimary,
   },
-  profileInfoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-    zIndex: 1,
-  },
-  profileLabel: {
-    fontSize: 14,
-    color: theme.colors.textSecondary,
-    marginBottom: 2,
-  },
-  profileValue: {
-    fontSize: 16,
-    color: theme.colors.textPrimary,
-    fontWeight: '500',
+
+  // Edit-name form
+  inputLabel: {
+    fontFamily: theme.typography.fontFamily.bodySemibold,
+    fontSize: 12,
+    color: theme.colors.textTertiary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+    marginBottom: 8,
   },
   input: {
-    width: '100%',
-    borderWidth: 2,
-    borderColor: 'rgba(0, 255, 209, 0.3)',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-    fontSize: 16,
-    color: theme.colors.textPrimary,
-    backgroundColor: 'rgba(35, 36, 58, 0.5)',
-    zIndex: 1,
-  },
-  profileButtonRow: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    rowGap: 12, columnGap: 12,
-    zIndex: 1,
-  },
-  profileButton: {
-    backgroundColor: theme.colors.accent,
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    rowGap: 8, columnGap: 8,
-  },
-  profileButtonText: {
-    color: theme.colors.background,
-    fontWeight: '700',
-    fontSize: 16,
-  },
-  cancelButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  cancelButtonText: {
-    color: theme.colors.textPrimary,
-    fontWeight: '600',
-    fontSize: 16,
-  },
-  editButton: {
-    backgroundColor: theme.colors.accent,
+    borderWidth: 1,
+    borderColor: theme.colors.accentBorder,
+    borderRadius: 14,
+    paddingHorizontal: 16,
     paddingVertical: 14,
-    paddingHorizontal: 24,
-    borderRadius: 12,
+    fontFamily: theme.typography.fontFamily.bodyMedium,
+    fontSize: 16,
+    color: theme.colors.textPrimary,
+    backgroundColor: theme.colors.backgroundTertiary,
+  },
+  editButtonRow: {
+    flexDirection: 'row',
+    columnGap: 12,
+    marginTop: 16,
+  },
+  primaryButton: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    rowGap: 8, columnGap: 8,
-    marginTop: 8,
-    zIndex: 1,
+    columnGap: 8,
+    backgroundColor: theme.colors.ctaBackground,
+    paddingVertical: 14,
+    borderRadius: 14,
   },
-  editButtonText: {
-    color: theme.colors.background,
-    fontWeight: '700',
-    fontSize: 16,
+  primaryButtonText: {
+    fontFamily: theme.typography.fontFamily.bodyBold,
+    fontSize: 15,
+    color: theme.colors.ctaText,
+  },
+  secondaryButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    columnGap: 8,
+    backgroundColor: theme.colors.backgroundTertiary,
+    borderWidth: 1,
+    borderColor: theme.colors.cardBorder,
+    paddingVertical: 14,
+    borderRadius: 14,
+  },
+  secondaryButtonText: {
+    fontFamily: theme.typography.fontFamily.bodySemibold,
+    fontSize: 15,
+    color: theme.colors.textPrimary,
   },
   disabledButton: {
     opacity: 0.6,
   },
+
+  // Tags (sleep goals / troubles / health conditions)
   tagContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    rowGap: 8, columnGap: 8,
-    zIndex: 1,
+    columnGap: 8,
+    rowGap: 8,
   },
   tag: {
-    backgroundColor: 'rgba(0, 255, 209, 0.08)',
-    borderWidth: 0,
+    backgroundColor: theme.colors.accentLight,
+    borderWidth: 1,
+    borderColor: theme.colors.accentBorder,
     borderRadius: 20,
     paddingHorizontal: 14,
     paddingVertical: 8,
   },
   troubleTag: {
-    backgroundColor: 'rgba(255, 107, 157, 0.08)',
-    borderColor: 'rgba(255, 107, 157, 0.15)',
+    backgroundColor: theme.colors.cardOverlay,
+    borderColor: theme.colors.danger,
   },
   healthTag: {
-    backgroundColor: 'rgba(255, 107, 107, 0.08)',
-    borderColor: 'rgba(255, 107, 107, 0.15)',
+    backgroundColor: theme.colors.cardOverlay,
+    borderColor: theme.colors.danger,
   },
   tagText: {
-    color: theme.colors.textPrimary,
-    fontSize: 14,
-    fontWeight: '500',
+    fontFamily: theme.typography.fontFamily.bodyMedium,
+    fontSize: 13,
+    color: theme.colors.accent,
   },
+
+  // Info row (single stat / fact line within a card)
   infoRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    rowGap: 12, columnGap: 12,
+    columnGap: 10,
     marginTop: 8,
-    zIndex: 1,
   },
   infoText: {
     flex: 1,
-    fontSize: 15,
+    fontFamily: theme.typography.fontFamily.body,
+    fontSize: 14,
     color: theme.colors.textPrimary,
   },
+
+  // Average sleep hours highlight
   statHighlight: {
     alignItems: 'center',
-    paddingVertical: 12,
-    zIndex: 1,
+    paddingVertical: 8,
   },
   statHighlightValue: {
-    fontSize: 48,
-    fontWeight: 'bold',
+    fontFamily: theme.typography.fontFamily.displaySemibold,
+    fontSize: 40,
     color: theme.colors.accent,
-    marginBottom: 4,
+    marginBottom: 2,
   },
   statHighlightLabel: {
-    fontSize: 14,
-    color: theme.colors.textSecondary,
+    fontFamily: theme.typography.fontFamily.body,
+    fontSize: 13,
+    color: theme.colors.textTertiary,
   },
+
+  // Empty states (no user / no onboarding profile)
   emptyCard: {
-    backgroundColor: 'rgba(27, 29, 42, 0.7)',
-    borderRadius: 16,
+    backgroundColor: theme.colors.card,
+    borderWidth: 1,
+    borderColor: theme.colors.cardBorder,
+    borderRadius: theme.borderRadius.card,
     padding: 40,
-    borderWidth: 0,
     alignItems: 'center',
     marginTop: 20,
   },
   emptyCardTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
+    fontFamily: theme.typography.fontFamily.displaySemibold,
+    fontSize: 18,
     color: theme.colors.textPrimary,
     marginTop: 16,
     marginBottom: 8,
   },
   emptyCardText: {
+    fontFamily: theme.typography.fontFamily.body,
     fontSize: 14,
-    color: theme.colors.textSecondary,
+    color: theme.colors.textTertiary,
     textAlign: 'center',
     lineHeight: 20,
   },
+
+  // Premium / VIP badge (canvas-matched color system)
   premiumBadge: {
     flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: theme.colors.premiumBadgeBackground,
+    borderWidth: 1,
+    borderColor: theme.colors.premiumBadgeBorder,
     paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    marginLeft: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+    columnGap: 3,
   },
   premiumBadgeText: {
+    fontFamily: theme.typography.fontFamily.bodyBold,
     fontSize: 10,
-    fontWeight: '700',
-    color: theme.colors.textPrimary,
-    marginLeft: 4,
-    letterSpacing: 0.5,
+    color: theme.colors.premiumBadgeText,
+    letterSpacing: 0.4,
   },
   expiryDateText: {
-    fontSize: 13,
+    fontFamily: theme.typography.fontFamily.body,
+    fontSize: 12,
     color: theme.colors.accent,
-    marginTop: 6,
-    fontWeight: '500',
+    marginTop: 4,
   },
 });
