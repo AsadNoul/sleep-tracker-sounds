@@ -26,6 +26,7 @@
     "@types/react": "~19.1.10",
     "expo": "^57.0.0",
     "expo-application": "~57.0.3",
+    "expo-asset": "~57.0.20",
     "expo-audio": "~57.0.5",
     "expo-auth-session": "~57.0.16",
     "expo-blur": "~57.0.3",
@@ -44,6 +45,7 @@
     "expo-print": "~57.0.2",
     "expo-sensors": "~57.0.3",
     "expo-sharing": "~57.0.24",
+    "expo-splash-screen": "~57.0.10",
     "expo-status-bar": "~57.0.1",
     "expo-updates": "~57.0.26",
     "expo-web-browser": "~57.0.3",
@@ -67,9 +69,9 @@
     "typescript": "~5.9.2"
   },
   "devDependencies": {
-    "@babel/core": "^7.20.0",
-    "@types/react": "~19.1.10",
-    "typescript": "~5.9.2"
+    "@babel/core": "^7.29.0",
+    "@types/react": "~19.2.4",
+    "typescript": "~6.0.3"
   },
   "overrides": {
     "react-native-worklets": "0.10.1"
