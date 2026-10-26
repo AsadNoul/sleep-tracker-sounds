@@ -11,7 +11,6 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
 import { isPremiumActive as checkPremiumStatus } from '../utils/subscriptionHelpers';
 import analyticsService from '../services/analyticsService';
 import {
@@ -30,7 +29,6 @@ import {
   ChevronUp,
   Infinity,
   Gift,
-  Sparkles,
   Crown,
   Headphones,
   FileText,
@@ -41,6 +39,7 @@ import {
   Award,
   TrendingUp,
   Flame,
+  Check,
 } from 'lucide-react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useAuth } from '../contexts/AuthContext';
@@ -49,6 +48,23 @@ import ConfettiCannon from 'react-native-confetti-cannon';
 import revenueCatService from '../services/revenueCatService';
 import { PurchasesPackage } from 'react-native-purchases';
 import { useAppTheme } from '../hooks/useAppTheme';
+import SleepPrintMark from '../components/SleepPrintMark';
+
+// ============================================================================
+// Sleep Architect — Subscription / Paywall screen (redesign/ui-ux-v3)
+// ============================================================================
+// Canvas reference: `Ac-Paywall.dc.html` (close button + "Compare plans" link,
+// Sleep Print mark, Fraunces h1, checklist, plan radio cards, CTA + fine
+// print) and `Gp-Compare.dc.html` (Free vs Premium comparison table — folded
+// into this screen's existing collapsible comparison section, since there is
+// no separate route for it).
+//
+// REVENUE-CRITICAL: every RevenueCat call site below (getOfferings,
+// purchasePackage, restorePurchases, getSubscriptionType, getExpirationDate,
+// isReady/setUserId) keeps byte-identical logic to the pre-redesign version —
+// only the surrounding JSX/styles changed. The loading/error state machine
+// for offerings fetch and purchase/restore flows is unchanged in substance.
+// ============================================================================
 
 type PlanType = 'monthly' | 'yearly' | 'lifetime';
 
@@ -58,7 +74,6 @@ const TESTIMONIALS = [
     role: 'Working Mom',
     flag: '🇺🇸',
     country: 'United States',
-    avatarColor: '#EC4899',
     quote: '"I went from 5hrs broken sleep to 7.5hrs solid in just 2 weeks. This app changed my life!"',
     stars: 5,
     improvement: '+42% sleep quality',
@@ -68,7 +83,6 @@ const TESTIMONIALS = [
     role: 'Software Engineer',
     flag: '🇬🇧',
     country: 'United Kingdom',
-    avatarColor: '#6366F1',
     quote: '"The AI insights showed me caffeine was killing my deep sleep. Fixed in 10 days. Incredible."',
     stars: 5,
     improvement: '+38% deep sleep',
@@ -78,7 +92,6 @@ const TESTIMONIALS = [
     role: 'Yoga Instructor',
     flag: '🇦🇪',
     country: 'UAE',
-    avatarColor: '#10B981',
     quote: '"Sleep sounds + tracking combo is unbeatable. Finally waking up refreshed every morning."',
     stars: 5,
     improvement: '+31% sleep score',
@@ -88,11 +101,21 @@ const TESTIMONIALS = [
     role: 'Entrepreneur',
     flag: '🇺🇸',
     country: 'United States',
-    avatarColor: '#F59E0B',
     quote: '"Worth every penny. The sleep recorder caught my sleep apnea — literally changed my health."',
     stars: 5,
     improvement: '+55% energy levels',
   },
+];
+
+// Short checklist shown under the Sleep Print mark — canvas content
+// (Ac-Paywall.dc.html `features` list), kept as the hero summary above the
+// existing, more detailed feature grid/comparison table further down.
+const HERO_CHECKLIST = [
+  'All sleep sounds, mixing and saved mixes',
+  'Full history, trends and Sleep Prints',
+  'AI-powered sleep insights & reports',
+  'Sleep recorder, nap mode and routines',
+  'Partner mode',
 ];
 
 export default function SubscriptionScreen() {
@@ -101,6 +124,8 @@ export default function SubscriptionScreen() {
   const { user, profile, session } = useAuth();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
+  const { theme } = useAppTheme();
+  const s = styles(theme);
 
   // source tells us which feature triggered the paywall (for analytics)
   const source: string = route.params?.source || 'unknown';
@@ -360,20 +385,22 @@ export default function SubscriptionScreen() {
   // ─── Already Premium screen ───
   if (isPremium) {
     return (
-      <View style={s.container}>
-        <LinearGradient colors={['#0F172A', '#1E1B4B']} style={StyleSheet.absoluteFill} />
+      <View style={[s.container, { backgroundColor: theme.colors.background }]}>
         <View style={[s.premiumHeader, { paddingTop: insets.top + 10 }]}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={s.iconBtn}>
-            <ArrowLeft size={24} color="#FFF" />
+          <TouchableOpacity onPress={() => navigation.goBack()} style={s.iconBtn} accessibilityLabel="Back">
+            <ArrowLeft size={22} color={theme.colors.textPrimary} />
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={s.iconBtn}>
-            <X size={24} color="#FFF" />
+          <TouchableOpacity onPress={() => navigation.goBack()} style={s.iconBtn} accessibilityLabel="Close">
+            <X size={22} color={theme.colors.textPrimary} />
           </TouchableOpacity>
         </View>
         <View style={s.centeredContent}>
-          <LinearGradient colors={['#8B5CF6', '#6366F1', '#9D4EDD']} style={s.premiumBadge}>
-            <Crown size={60} color="#FFF" />
-          </LinearGradient>
+          <View style={s.premiumMarkWrap}>
+            <SleepPrintMark size={120} colors={theme.sleepPrintMark} />
+          </View>
+          <View style={s.premiumCrownBadge}>
+            <Crown size={26} color={theme.colors.premiumBadgeText} />
+          </View>
           <Text style={s.premiumTitle}>You're Premium!</Text>
           <Text style={s.premiumSubtitle}>
             {(profile?.subscription_status as string) === 'premium_lifetime'
@@ -383,27 +410,32 @@ export default function SubscriptionScreen() {
           {profile?.subscription_end_date && (profile?.subscription_status as string) !== 'premium_lifetime' && (
             <Text style={s.expiryText}>Renews: {new Date(profile.subscription_end_date).toLocaleDateString()}</Text>
           )}
-          <TouchableOpacity style={s.manageBtn} onPress={() => navigation.navigate('Profile')}>
+          <TouchableOpacity style={s.manageBtn} onPress={() => navigation.navigate('Profile')} activeOpacity={0.85}>
             <Text style={s.manageBtnText}>Manage Subscription</Text>
           </TouchableOpacity>
           {(profile?.subscription_status as string) !== 'premium_lifetime' && (
-            <TouchableOpacity style={s.cancelBtn} onPress={handleCancelSubscription}>
+            <TouchableOpacity style={s.cancelBtn} onPress={handleCancelSubscription} activeOpacity={0.85}>
               <Text style={s.cancelBtnText}>Cancel Subscription</Text>
             </TouchableOpacity>
           )}
         </View>
-        <ConfettiCannon ref={confettiRef} count={200} origin={{ x: -10, y: 0 }} autoStart={false} fadeOut fallSpeed={3000} colors={['#8B5CF6', '#6366F1', '#9D4EDD', '#F59E0B', '#EC4899']} />
+        <ConfettiCannon ref={confettiRef} count={200} origin={{ x: -10, y: 0 }} autoStart={false} fadeOut fallSpeed={3000} colors={[theme.colors.accent, theme.colors.highlight, theme.colors.premium]} />
       </View>
     );
   }
 
+  // ─── Loading state — RevenueCat offerings fetch in flight ───
+  // Functional requirement unchanged: renders while isLoadingOfferings is
+  // true, so the paywall never shows blank/broken plan data mid-fetch.
   if (isLoadingOfferings) {
     return (
-      <View style={s.container}>
-        <LinearGradient colors={['#0F172A', '#1E1B4B']} style={StyleSheet.absoluteFill} />
+      <View style={[s.container, { backgroundColor: theme.colors.background }]}>
         <View style={s.loadingContainer}>
-          <ActivityIndicator size="large" color="#8B5CF6" />
-          <Text style={s.loadingText}>Loading plans...</Text>
+          <View style={s.loadingMarkWrap}>
+            <SleepPrintMark size={100} colors={theme.sleepPrintMark} />
+          </View>
+          <ActivityIndicator size="large" color={theme.colors.accent} style={{ marginTop: 8 }} />
+          <Text style={s.loadingText}>Loading your plans…</Text>
         </View>
       </View>
     );
@@ -423,17 +455,51 @@ export default function SubscriptionScreen() {
     return id.includes('lifetime') || id.includes('life');
   });
 
+  // Error state — offerings fetch completed but returned nothing usable.
+  // Restyled to match the canvas's St-Error pattern (icon badge, Fraunces
+  // heading, body copy, primary retry action) while keeping the same
+  // underlying recovery path (re-run loadOfferings).
+  if (!isLoadingOfferings && packages.length === 0) {
+    return (
+      <View style={[s.container, { backgroundColor: theme.colors.background }]}>
+        <View style={[s.header, { paddingTop: insets.top + 10 }]}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={s.iconBtn} accessibilityLabel="Back">
+            <ArrowLeft size={22} color={theme.colors.textPrimary} />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={s.iconBtn} accessibilityLabel="Close">
+            <X size={22} color={theme.colors.textPrimary} />
+          </TouchableOpacity>
+        </View>
+        <View style={s.errorContent}>
+          <View style={s.errorIconBadge}>
+            <Crown size={36} color={theme.colors.accent} />
+          </View>
+          <Text style={s.errorTitle}>We couldn't load plans</Text>
+          <Text style={s.errorBody}>
+            Check your internet connection and try again. If this keeps happening, contact support.
+          </Text>
+          <TouchableOpacity style={s.errorRetryBtn} onPress={() => loadOfferings()} activeOpacity={0.9}>
+            <Text style={s.errorRetryBtnText}>Try Again</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={s.restoreBtn} onPress={handleRestorePurchases} disabled={isRestoring}>
+            <Text style={s.restoreBtnText}>{isRestoring ? 'Restoring...' : 'Restore Purchases'}</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
   return (
-    <View style={s.container}>
-      <LinearGradient colors={['#0F172A', '#1E1B4B', '#0F172A']} style={StyleSheet.absoluteFill} />
+    <View style={[s.container, { backgroundColor: theme.colors.background }]}>
+      <View aria-hidden style={s.heroGlow} pointerEvents="none" />
 
       {/* Header */}
       <View style={[s.header, { paddingTop: insets.top + 10 }]}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={s.iconBtn}>
-          <ArrowLeft size={24} color="#FFF" />
+        <TouchableOpacity onPress={() => navigation.goBack()} style={s.iconBtn} accessibilityLabel="Close">
+          <X size={22} color={theme.colors.textPrimary} />
         </TouchableOpacity>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={s.iconBtn}>
-          <X size={24} color="#FFF" />
+        <TouchableOpacity onPress={() => setIsComparisonVisible(true)} style={s.comparePlansLink}>
+          <Text style={s.comparePlansLinkText}>Compare plans</Text>
         </TouchableOpacity>
       </View>
 
@@ -443,37 +509,49 @@ export default function SubscriptionScreen() {
         style={s.scrollView}
       >
 
-        {/* Hero */}
+        {/* Hero — Sleep Print mark + title, matching Ac-Paywall.dc.html */}
         <View style={s.hero}>
-          <LinearGradient colors={['rgba(139,92,246,0.3)', 'rgba(99,102,241,0.1)']} style={s.heroBadge}>
-            <Crown size={32} color="#8B5CF6" />
-          </LinearGradient>
-          <Text style={s.heroTitle}>Sleep Better,{'\n'}Every Night</Text>
-          <Text style={s.heroSubtitle}>Join thousands of users who improved their sleep with Premium</Text>
+          <View style={s.heroMarkWrap}>
+            <SleepPrintMark size={110} colors={theme.sleepPrintMark} />
+          </View>
+          <Text style={s.heroTitle}>Sleep Architect Premium</Text>
+          <Text style={s.heroSubtitle}>Everything you need to wind down and wake up better.</Text>
 
           {/* Free trial banner — only shown when trial is actually configured in stores */}
           {trialDays != null && (
             <View style={s.trialBanner}>
-              <View style={s.trialBannerIcon}><Gift size={16} color="#10B981" /></View>
+              <View style={s.trialBannerIcon}><Gift size={16} color={theme.colors.success} /></View>
               <Text style={s.trialText}>{trialDays} days free — cancel anytime</Text>
             </View>
           )}
         </View>
 
+        {/* Hero checklist — canvas content */}
+        <View style={s.heroChecklist}>
+          {HERO_CHECKLIST.map((item, i) => (
+            <View key={i} style={s.heroChecklistRow}>
+              <View style={s.heroChecklistIcon}>
+                <Check size={13} color={theme.colors.accent} strokeWidth={3} />
+              </View>
+              <Text style={s.heroChecklistText}>{item}</Text>
+            </View>
+          ))}
+        </View>
+
         {/* ─── TRUST STATS BAR ─── */}
         <View style={s.trustStatsRow}>
           <View style={s.trustStat}>
-            <View style={s.trustStatIcon}><Star size={13} color="#F59E0B" /></View>
+            <View style={s.trustStatIcon}><Star size={13} color={theme.colors.premium} /></View>
             <Text style={s.trustStatText}>4.8 App Store</Text>
           </View>
           <View style={s.trustStatDivider} />
           <View style={s.trustStat}>
-            <View style={s.trustStatIcon}><Users size={13} color="#8B5CF6" /></View>
+            <View style={s.trustStatIcon}><Users size={13} color={theme.colors.accent} /></View>
             <Text style={s.trustStatText}>50K+ users</Text>
           </View>
           <View style={s.trustStatDivider} />
           <View style={s.trustStat}>
-            <View style={s.trustStatIcon}><Moon size={13} color="#6366F1" /></View>
+            <View style={s.trustStatIcon}><Moon size={13} color={theme.colors.highlight} /></View>
             <Text style={s.trustStatText}>2M+ nights tracked</Text>
           </View>
         </View>
@@ -494,43 +572,38 @@ export default function SubscriptionScreen() {
           >
             {TESTIMONIALS.map((t, i) => (
               <View key={i} style={[s.testimonialCard, { width: cardWidth }]}>
-                <LinearGradient
-                  colors={['rgba(139,92,246,0.1)', 'rgba(99,102,241,0.05)']}
-                  style={s.testimonialGradient}
-                >
-                  {/* Author row at top */}
-                  <View style={s.testimonialAuthorTop}>
-                    <View style={s.testimonialAvatarWrap}>
-                      <View style={[s.testimonialAvatar, { backgroundColor: t.avatarColor + '33', borderColor: t.avatarColor + '66' }]}>
-                        <Text style={[s.testimonialAvatarText, { color: t.avatarColor }]}>{t.name[0]}</Text>
-                      </View>
-                      <View style={s.testimonialFlagBadge}>
-                        <Text style={s.testimonialFlagText}>{t.flag}</Text>
-                      </View>
+                {/* Author row at top */}
+                <View style={s.testimonialAuthorTop}>
+                  <View style={s.testimonialAvatarWrap}>
+                    <View style={s.testimonialAvatar}>
+                      <Text style={s.testimonialAvatarText}>{t.name[0]}</Text>
                     </View>
-                    <View style={{ flex: 1 }}>
-                      <View style={s.testimonialNameRow}>
-                        <Text style={s.testimonialName}>{t.name}</Text>
-                        <Text style={s.testimonialCountry}>{t.country}</Text>
-                      </View>
-                      <Text style={s.testimonialRole}>{t.role}</Text>
-                    </View>
-                    <View style={s.testimonialImprovementChip}>
-                      <TrendingUp size={11} color="#10B981" />
-                      <Text style={s.testimonialImprovementText}>{t.improvement}</Text>
+                    <View style={s.testimonialFlagBadge}>
+                      <Text style={s.testimonialFlagText}>{t.flag}</Text>
                     </View>
                   </View>
-                  {/* Stars */}
-                  <View style={s.testimonialStars}>
-                    {Array.from({ length: t.stars }).map((_, si) => (
-                      <View key={si} style={si > 0 ? { marginLeft: 2 } : {}}>
-                        <Star size={13} color="#F59E0B" fill="#F59E0B" />
-                      </View>
-                    ))}
+                  <View style={{ flex: 1 }}>
+                    <View style={s.testimonialNameRow}>
+                      <Text style={s.testimonialName}>{t.name}</Text>
+                      <Text style={s.testimonialCountry}>{t.country}</Text>
+                    </View>
+                    <Text style={s.testimonialRole}>{t.role}</Text>
                   </View>
-                  {/* Quote */}
-                  <Text style={s.testimonialQuote}>{t.quote}</Text>
-                </LinearGradient>
+                  <View style={s.testimonialImprovementChip}>
+                    <TrendingUp size={11} color={theme.colors.success} />
+                    <Text style={s.testimonialImprovementText}>{t.improvement}</Text>
+                  </View>
+                </View>
+                {/* Stars */}
+                <View style={s.testimonialStars}>
+                  {Array.from({ length: t.stars }).map((_, si) => (
+                    <View key={si} style={si > 0 ? { marginLeft: 2 } : {}}>
+                      <Star size={13} color={theme.colors.premium} fill={theme.colors.premium} />
+                    </View>
+                  ))}
+                </View>
+                {/* Quote */}
+                <Text style={s.testimonialQuote}>{t.quote}</Text>
               </View>
             ))}
           </ScrollView>
@@ -548,148 +621,161 @@ export default function SubscriptionScreen() {
 
         {/* ─── SOCIAL PROOF COUNTER ─── */}
         <View style={s.socialProofRow}>
-          <View style={s.socialProofIcon}><Flame size={16} color="#F97316" /></View>
+          <View style={s.socialProofIcon}><Flame size={16} color={theme.colors.highlight} /></View>
           <Text style={s.socialProofText}>127 people upgraded this week</Text>
         </View>
 
-        {/* ─── PRICING TOGGLE — at the top ─── */}
-        <View style={s.planToggleRow}>
+        {/* ─── PRICING — plan radio cards, matching Ac-Paywall.dc.html ─── */}
+        <View style={s.planList}>
+          {/* Yearly — most popular, canvas's primary selected example */}
+          <TouchableOpacity
+            style={[s.planCard, selectedPlan === 'yearly' && s.planCardActive]}
+            onPress={() => setSelectedPlan('yearly')}
+            activeOpacity={0.9}
+            accessibilityRole="radio"
+            accessibilityState={{ selected: selectedPlan === 'yearly' }}
+          >
+            <View style={[s.planRadio, selectedPlan === 'yearly' && s.planRadioActive]} />
+            <View style={s.planCardText}>
+              <Text style={s.planCardLabel}>Yearly</Text>
+              <Text style={s.planCardPrice}>
+                {yearlyTotalPrice ? `${yearlyTotalPrice} a year` : '–'}
+                {yearlyPricePerMonth ? ` · ${yearlyPricePerMonth} a month` : ''}
+              </Text>
+            </View>
+            <View style={s.savingsBadge}>
+              <Text style={s.savingsBadgeText}>Save 33%</Text>
+            </View>
+          </TouchableOpacity>
+
           {/* Monthly */}
           <TouchableOpacity
-            style={[s.planTab, selectedPlan === 'monthly' && s.planTabActive]}
+            style={[s.planCard, selectedPlan === 'monthly' && s.planCardActive]}
             onPress={() => setSelectedPlan('monthly')}
+            activeOpacity={0.9}
+            accessibilityRole="radio"
+            accessibilityState={{ selected: selectedPlan === 'monthly' }}
           >
-            <Text style={[s.planTabLabel, selectedPlan === 'monthly' && s.planTabLabelActive]}>Monthly</Text>
-            <Text style={[s.planTabPrice, selectedPlan === 'monthly' && s.planTabPriceActive]}>
-              {monthlyPrice || '–'}<Text style={s.planTabPeriod}>/mo</Text>
-            </Text>
+            <View style={[s.planRadio, selectedPlan === 'monthly' && s.planRadioActive]} />
+            <View style={s.planCardText}>
+              <Text style={s.planCardLabel}>Monthly</Text>
+              <Text style={s.planCardPrice}>{monthlyPrice ? `${monthlyPrice} a month` : '–'}</Text>
+            </View>
           </TouchableOpacity>
 
-          {/* Yearly — most popular */}
-          <TouchableOpacity
-            style={[s.planTab, s.planTabYearly, selectedPlan === 'yearly' && s.planTabActive]}
-            onPress={() => setSelectedPlan('yearly')}
-          >
-            <View style={s.popularBadge}><Text style={s.popularBadgeText}>BEST VALUE</Text></View>
-            <Text style={[s.planTabLabel, selectedPlan === 'yearly' && s.planTabLabelActive]}>Yearly</Text>
-            <Text style={[s.planTabPrice, selectedPlan === 'yearly' && s.planTabPriceActive]}>
-              {yearlyPricePerMonth || '–'}<Text style={s.planTabPeriod}>/mo</Text>
-            </Text>
-            {yearlyTotalPrice && (
-              <Text style={s.planTabYearlyTotal}>{yearlyTotalPrice}/year</Text>
-            )}
-            {monthlyPrice && yearlyPricePerMonth && (
-              <View style={s.savingsChip}>
-                <View style={s.savingsChipIcon}><TrendingDown size={12} color="#10B981" /></View>
-                <Text style={s.savingsChipText}>Save vs monthly</Text>
-              </View>
-            )}
-          </TouchableOpacity>
-
-          {/* Lifetime — if available in RevenueCat */}
+          {/* Lifetime — if available in RevenueCat; no canvas equivalent, designed
+              in the same radio-card system as the other two plans. */}
           {hasLifetime && (
             <TouchableOpacity
-              style={[s.planTab, selectedPlan === 'lifetime' && s.planTabActive]}
+              style={[s.planCard, selectedPlan === 'lifetime' && s.planCardActive]}
               onPress={() => setSelectedPlan('lifetime')}
+              activeOpacity={0.9}
+              accessibilityRole="radio"
+              accessibilityState={{ selected: selectedPlan === 'lifetime' }}
             >
-              <Infinity size={16} color={selectedPlan === 'lifetime' ? '#8B5CF6' : 'rgba(255,255,255,0.4)'} />
-              <Text style={[s.planTabLabel, selectedPlan === 'lifetime' && s.planTabLabelActive]}>Lifetime</Text>
-              <Text style={[s.planTabPrice, selectedPlan === 'lifetime' && s.planTabPriceActive]}>
-                {packages.find(p => p.identifier.toLowerCase().includes('life'))?.product.priceString || '–'}
-              </Text>
-              <Text style={s.planTabYearlyTotal}>One-time</Text>
+              <View style={[s.planRadio, selectedPlan === 'lifetime' && s.planRadioActive]} />
+              <View style={s.planCardText}>
+                <Text style={s.planCardLabel}>Lifetime</Text>
+                <Text style={s.planCardPrice}>
+                  {packages.find(p => p.identifier.toLowerCase().includes('life'))?.product.priceString || '–'} one-time
+                </Text>
+              </View>
+              <Infinity size={18} color={selectedPlan === 'lifetime' ? theme.colors.accent : theme.colors.textTertiary} />
             </TouchableOpacity>
           )}
         </View>
 
         {/* Secure checkout badge */}
         <View style={s.secureBadge}>
-          <View style={s.secureBadgeIcon}><ShieldCheck size={16} color="#10B981" /></View>
+          <View style={s.secureBadgeIcon}><ShieldCheck size={16} color={theme.colors.success} /></View>
           <Text style={s.secureBadgeText}>
             {Platform.OS === 'ios' ? 'Secure checkout via App Store' : 'Secure checkout via Google Play'}
           </Text>
         </View>
 
-        {/* Features grid */}
+        {/* Features grid — self-designed section, no canvas equivalent for this
+            density; kept in the same card/chip system as the rest of the app. */}
         <View style={s.featuresSection}>
           <Text style={s.sectionTitle}>What's included</Text>
           <View style={s.featuresGrid}>
             {[
-              { icon: Music, text: '19 Sleep Sounds', color: '#8B5CF6' },
-              { icon: BarChart2, text: '90-Day Trends', color: '#6366F1' },
-              { icon: Sparkles, text: 'AI Insights', color: '#F59E0B' },
-              { icon: Heart, text: 'Sleep Analysis', color: '#EC4899' },
-              { icon: Moon, text: 'Nap Mode', color: '#10B981' },
-              { icon: Thermometer, text: 'Environment', color: '#3B82F6' },
-              { icon: Headphones, text: 'VIP Support', color: '#F59E0B' },
-              { icon: FileText, text: 'Sleep Reports', color: '#6366F1' },
-              { icon: Users, text: 'Partner Mode', color: '#EC4899' },
-              { icon: Zap, text: 'Sleep Recorder', color: '#10B981' },
+              { icon: Music, text: '19 Sleep Sounds' },
+              { icon: BarChart2, text: '90-Day Trends' },
+              { icon: Zap, text: 'AI Insights' },
+              { icon: Heart, text: 'Sleep Analysis' },
+              { icon: Moon, text: 'Nap Mode' },
+              { icon: Thermometer, text: 'Environment' },
+              { icon: Headphones, text: 'VIP Support' },
+              { icon: FileText, text: 'Sleep Reports' },
+              { icon: Users, text: 'Partner Mode' },
+              { icon: Zap, text: 'Sleep Recorder' },
             ].map((f, i) => (
               <View key={i} style={s.featureChip}>
-                <View style={s.featureChipIcon}><f.icon size={18} color={f.color} /></View>
+                <View style={s.featureChipIcon}><f.icon size={16} color={theme.colors.accent} /></View>
                 <Text style={s.featureChipText}>{f.text}</Text>
               </View>
             ))}
           </View>
         </View>
 
-        {/* Upcoming features teaser */}
+        {/* Upcoming features teaser — self-designed, same card system */}
         <View style={s.upcomingSection}>
           <Text style={s.sectionTitle}>Coming Soon</Text>
           <View style={s.upcomingCard}>
-            <LinearGradient colors={['rgba(139,92,246,0.08)', 'rgba(99,102,241,0.04)']} style={s.upcomingGradient}>
-              {[
-                { icon: Users, text: 'Partner Mode', desc: 'Share & compare sleep with a partner', color: '#EC4899' },
-                { icon: FileText, text: 'PDF & CSV Export', desc: 'Detailed sleep reports exportable anytime', color: '#6366F1' },
-                { icon: Star, text: 'Sleep Coach', desc: 'Personalized sleep improvement program', color: '#F59E0B' },
-                { icon: Clock, text: 'Smart Alarm', desc: 'Wake up at your lightest sleep stage', color: '#10B981' },
-              ].map((item, i) => (
-                <View key={i} style={[s.upcomingRow, i < 3 && s.upcomingRowBorder]}>
-                  <View style={s.upcomingIcon}><item.icon size={18} color={item.color} /></View>
-                  <View style={s.upcomingText}>
-                    <Text style={s.upcomingTitle}>{item.text}</Text>
-                    <Text style={s.upcomingDesc}>{item.desc}</Text>
-                  </View>
-                  <View style={s.upcomingBadge}><Text style={s.upcomingBadgeText}>SOON</Text></View>
+            {[
+              { icon: Users, text: 'Partner Mode', desc: 'Share & compare sleep with a partner' },
+              { icon: FileText, text: 'PDF & CSV Export', desc: 'Detailed sleep reports exportable anytime' },
+              { icon: Star, text: 'Sleep Coach', desc: 'Personalized sleep improvement program' },
+              { icon: Clock, text: 'Smart Alarm', desc: 'Wake up at your lightest sleep stage' },
+            ].map((item, i) => (
+              <View key={i} style={[s.upcomingRow, i < 3 && s.upcomingRowBorder]}>
+                <View style={s.upcomingIcon}><item.icon size={17} color={theme.colors.accent} /></View>
+                <View style={s.upcomingText}>
+                  <Text style={s.upcomingTitle}>{item.text}</Text>
+                  <Text style={s.upcomingDesc}>{item.desc}</Text>
                 </View>
-              ))}
-            </LinearGradient>
+                <View style={s.upcomingBadge}><Text style={s.upcomingBadgeText}>SOON</Text></View>
+              </View>
+            ))}
           </View>
         </View>
 
-        {/* Comparison table */}
+        {/* Comparison table — canvas content folded in from Gp-Compare.dc.html's
+            "Free vs Premium" table structure, using the existing detailed
+            13-row dataset and expand-for-description behavior (unchanged
+            logic; the "Compare plans" header link above also opens this). */}
         <View style={s.comparisonSection}>
           <TouchableOpacity
             style={s.comparisonToggle}
             onPress={() => setIsComparisonVisible(v => !v)}
+            activeOpacity={0.85}
           >
             <Text style={s.comparisonToggleText}>Free vs Premium</Text>
             {isComparisonVisible
-              ? <ChevronUp size={18} color="#8B5CF6" />
-              : <ChevronDown size={18} color="#8B5CF6" />}
+              ? <ChevronUp size={18} color={theme.colors.accent} />
+              : <ChevronDown size={18} color={theme.colors.accent} />}
           </TouchableOpacity>
 
           {isComparisonVisible && (
             <View style={s.comparisonCard}>
               {/* Header row */}
               <View style={s.comparisonHeaderRow}>
-                <Text style={[s.comparisonCol, { flex: 3, color: 'rgba(255,255,255,0.4)', fontSize: 11 }]}>FEATURE</Text>
-                <Text style={[s.comparisonColCenter, { color: 'rgba(255,255,255,0.4)', fontSize: 11 }]}>FREE</Text>
-                <Text style={[s.comparisonColCenter, { color: '#8B5CF6', fontSize: 11 }]}>PRO</Text>
+                <Text style={[s.comparisonColHeader, { flex: 3 }]}>FEATURE</Text>
+                <Text style={s.comparisonColHeaderCenter}>FREE</Text>
+                <Text style={[s.comparisonColHeaderCenter, s.comparisonColHeaderPro]}>PRO</Text>
               </View>
               {COMPARISON_FEATURES.map((row, i) => (
                 <View key={i}>
                   <TouchableOpacity
-                    style={[s.comparisonRow, i % 2 === 0 && { backgroundColor: 'rgba(255,255,255,0.02)' }, expandedRow === i && { backgroundColor: 'rgba(139,92,246,0.08)' }]}
+                    style={[s.comparisonRow, i % 2 === 0 && s.comparisonRowAlt, expandedRow === i && s.comparisonRowExpanded]}
                     onPress={() => setExpandedRow(expandedRow === i ? null : i)}
                   >
                     <Text style={[s.comparisonCol, { flex: 3 }]}>{row.label}</Text>
                     <View style={s.comparisonColCenter}>
-                      {row.free ? <CheckCircle size={15} color="rgba(255,255,255,0.4)" /> : <XCircle size={15} color="rgba(255,255,255,0.12)" />}
+                      {row.free ? <CheckCircle size={15} color={theme.colors.textTertiary} /> : <XCircle size={15} color={theme.colors.cardBorder} />}
                     </View>
                     <View style={s.comparisonColCenter}>
-                      {row.pro ? <CheckCircle size={16} color="#8B5CF6" /> : <XCircle size={15} color="rgba(255,255,255,0.12)" />}
+                      {row.pro ? <CheckCircle size={16} color={theme.colors.accent} /> : <XCircle size={15} color={theme.colors.cardBorder} />}
                     </View>
                   </TouchableOpacity>
                   {expandedRow === i && (
@@ -708,41 +794,40 @@ export default function SubscriptionScreen() {
 
         {/* Money-back guarantee badge */}
         <View style={s.guaranteeBadge}>
-          <View style={s.guaranteeIcon}><Award size={14} color="#F59E0B" /></View>
+          <View style={s.guaranteeIcon}><Award size={14} color={theme.colors.premium} /></View>
           <Text style={s.guaranteeText}>30-day money-back guarantee · No questions asked</Text>
         </View>
 
         <TouchableOpacity
-          style={[s.subscribeBtn, isProcessing && { opacity: 0.6 }]}
+          style={[s.subscribeBtn, isProcessing && s.subscribeBtnBusy]}
           onPress={handleSubscribe}
           disabled={isProcessing}
+          activeOpacity={0.9}
         >
-          <LinearGradient colors={['#8B5CF6', '#6366F1']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={s.subscribeBtnGradient}>
-            {isProcessing ? (
-              <ActivityIndicator color="#FFF" />
-            ) : (
-              <>
-                <Text style={s.subscribeBtnText}>
-                  {selectedPlan === 'lifetime'
-                    ? 'Get Lifetime Access'
+          {isProcessing ? (
+            <ActivityIndicator color={theme.colors.ctaText} />
+          ) : (
+            <>
+              <Text style={s.subscribeBtnText}>
+                {selectedPlan === 'lifetime'
+                  ? 'Get Lifetime Access'
+                  : trialDays != null
+                    ? `Start ${trialDays}-Day Free Trial`
+                    : 'Get Premium'}
+              </Text>
+              <Text style={s.subscribeBtnSub}>
+                {selectedPlan === 'lifetime'
+                  ? `${selectedPackage?.product.priceString || ''} one-time`
+                  : selectedPlan === 'yearly'
+                    ? trialDays != null
+                      ? `Free for ${trialDays} days, then ${yearlyTotalPrice || ''}/year`
+                      : `${yearlyTotalPrice || ''}/year • Cancel anytime`
                     : trialDays != null
-                      ? `Start ${trialDays}-Day Free Trial`
-                      : 'Get Premium'}
-                </Text>
-                <Text style={s.subscribeBtnSub}>
-                  {selectedPlan === 'lifetime'
-                    ? `${selectedPackage?.product.priceString || ''} one-time`
-                    : selectedPlan === 'yearly'
-                      ? trialDays != null
-                        ? `Free for ${trialDays} days, then ${yearlyTotalPrice || ''}/year`
-                        : `${yearlyTotalPrice || ''}/year • Cancel anytime`
-                      : trialDays != null
-                        ? `Free for ${trialDays} days, then ${monthlyPrice || ''}/month`
-                        : `${monthlyPrice || ''}/month • Cancel anytime`}
-                </Text>
-              </>
-            )}
-          </LinearGradient>
+                      ? `Free for ${trialDays} days, then ${monthlyPrice || ''}/month`
+                      : `${monthlyPrice || ''}/month • Cancel anytime`}
+              </Text>
+            </>
+          )}
         </TouchableOpacity>
 
         <TouchableOpacity style={s.restoreBtn} onPress={handleRestorePurchases} disabled={isRestoring}>
@@ -766,140 +851,599 @@ export default function SubscriptionScreen() {
         autoStart={false}
         fadeOut
         fallSpeed={3000}
-        colors={['#8B5CF6', '#6366F1', '#9D4EDD', '#F59E0B', '#EC4899']}
+        colors={[theme.colors.accent, theme.colors.highlight, theme.colors.premium]}
       />
     </View>
   );
 }
 
-const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0F172A' },
+const styles = (theme: any) => StyleSheet.create({
+  container: { flex: 1 },
+  heroGlow: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: -40,
+    height: 300,
+    backgroundColor: theme.colors.accentLight,
+  },
+
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  loadingText: { color: 'rgba(255,255,255,0.5)', fontSize: 14, marginTop: 16 },
+  loadingMarkWrap: { marginBottom: 8, opacity: 0.9 },
+  loadingText: {
+    fontFamily: theme.typography.fontFamily.body,
+    color: theme.colors.textTertiary,
+    fontSize: 14,
+    marginTop: 16,
+  },
+
+  // Error state
+  errorContent: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 },
+  errorIconBadge: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    backgroundColor: theme.colors.navActiveBackground,
+    borderWidth: 1,
+    borderColor: theme.colors.accentBorder,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  errorTitle: {
+    fontFamily: theme.typography.fontFamily.displaySemibold,
+    fontSize: 24,
+    color: theme.colors.textPrimary,
+    textAlign: 'center',
+    marginBottom: 10,
+  },
+  errorBody: {
+    fontFamily: theme.typography.fontFamily.body,
+    fontSize: 15,
+    lineHeight: 22,
+    color: theme.colors.textSecondary,
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  errorRetryBtn: {
+    height: 54,
+    paddingHorizontal: 32,
+    borderRadius: 18,
+    backgroundColor: theme.colors.accent,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  errorRetryBtnText: {
+    fontFamily: theme.typography.fontFamily.bodyBold,
+    fontSize: 16,
+    color: theme.colors.background,
+  },
+
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingBottom: 10 },
-  iconBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.08)', justifyContent: 'center', alignItems: 'center' },
+  iconBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: theme.colors.card,
+    borderWidth: 1,
+    borderColor: theme.colors.cardBorder,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  comparePlansLink: { height: 44, justifyContent: 'center', paddingHorizontal: 4 },
+  comparePlansLinkText: {
+    fontFamily: theme.typography.fontFamily.bodySemibold,
+    fontSize: 15,
+    color: theme.colors.textSecondary,
+  },
   scrollView: { flex: 1 },
-  scroll: { paddingHorizontal: 20, paddingTop: 10 },
+  scroll: { paddingHorizontal: 20, paddingTop: 6 },
 
   // Hero
   hero: { alignItems: 'center', marginBottom: 16 },
-  heroBadge: { width: 68, height: 68, borderRadius: 34, justifyContent: 'center', alignItems: 'center', marginBottom: 14, borderWidth: 1, borderColor: 'rgba(139,92,246,0.3)' },
-  heroTitle: { fontSize: 30, fontWeight: '900', color: '#FFF', textAlign: 'center', lineHeight: 36, marginBottom: 8 },
-  heroSubtitle: { fontSize: 14, color: 'rgba(255,255,255,0.5)', textAlign: 'center', lineHeight: 20, marginBottom: 14 },
-  trialBanner: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(16,185,129,0.12)', borderWidth: 1, borderColor: 'rgba(16,185,129,0.3)', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 50 },
+  heroMarkWrap: { marginBottom: 10 },
+  heroTitle: {
+    fontFamily: theme.typography.fontFamily.displaySemibold,
+    fontSize: 28,
+    letterSpacing: -0.4,
+    color: theme.colors.textPrimary,
+    textAlign: 'center',
+    lineHeight: 32,
+    marginBottom: 6,
+  },
+  heroSubtitle: {
+    fontFamily: theme.typography.fontFamily.body,
+    fontSize: 15,
+    color: theme.colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 14,
+  },
+  trialBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.colors.accentLight,
+    borderWidth: 1,
+    borderColor: theme.colors.accentBorder,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 50,
+  },
   trialBannerIcon: { marginRight: 8 },
-  trialText: { color: '#10B981', fontSize: 13, fontWeight: '700' },
+  trialText: {
+    fontFamily: theme.typography.fontFamily.bodyBold,
+    color: theme.colors.success,
+    fontSize: 13,
+  },
+
+  // Hero checklist
+  heroChecklist: { marginBottom: 18, rowGap: 10 },
+  heroChecklistRow: { flexDirection: 'row', alignItems: 'center', columnGap: 12 },
+  heroChecklistIcon: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: theme.colors.navActiveBackground,
+    borderWidth: 1,
+    borderColor: theme.colors.accentBorder,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  heroChecklistText: {
+    flex: 1,
+    fontFamily: theme.typography.fontFamily.bodySemibold,
+    fontSize: 15,
+    color: theme.colors.textPrimary,
+  },
 
   // Trust stats bar
-  trustStatsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.04)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)', borderRadius: 50, paddingVertical: 9, paddingHorizontal: 14, marginBottom: 14 },
+  trustStatsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: theme.colors.card,
+    borderWidth: 1,
+    borderColor: theme.colors.cardBorder,
+    borderRadius: 50,
+    paddingVertical: 9,
+    paddingHorizontal: 14,
+    marginBottom: 14,
+  },
   trustStat: { flexDirection: 'row', alignItems: 'center' },
   trustStatIcon: { marginRight: 5 },
-  trustStatText: { color: 'rgba(255,255,255,0.65)', fontSize: 11, fontWeight: '600' },
-  trustStatDivider: { width: 1, height: 12, backgroundColor: 'rgba(255,255,255,0.12)', marginHorizontal: 10 },
+  trustStatText: {
+    fontFamily: theme.typography.fontFamily.bodySemibold,
+    color: theme.colors.textSecondary,
+    fontSize: 11,
+  },
+  trustStatDivider: { width: 1, height: 12, backgroundColor: theme.colors.cardBorder, marginHorizontal: 10 },
 
   // Testimonials
   testimonialsSection: { marginBottom: 14, alignItems: 'center' },
-  testimonialCard: { paddingRight: 0 },
-  testimonialGradient: { borderRadius: 18, padding: 16, borderWidth: 1, borderColor: 'rgba(139,92,246,0.2)' },
+  testimonialCard: {
+    backgroundColor: theme.colors.card,
+    borderRadius: theme.borderRadius.card,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: theme.colors.cardBorder,
+  },
   testimonialAuthorTop: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
   testimonialAvatarWrap: { position: 'relative', marginRight: 10 },
-  testimonialAvatar: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center', borderWidth: 1.5 },
-  testimonialAvatarText: { fontSize: 18, fontWeight: '900' },
-  testimonialFlagBadge: { position: 'absolute', bottom: -2, right: -4, backgroundColor: '#1E1B4B', borderRadius: 8, paddingHorizontal: 1, paddingVertical: 0 },
+  testimonialAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: theme.colors.navActiveBackground,
+    borderWidth: 1.5,
+    borderColor: theme.colors.accentBorder,
+  },
+  testimonialAvatarText: {
+    fontFamily: theme.typography.fontFamily.bodyBold,
+    fontSize: 18,
+    color: theme.colors.accent,
+  },
+  testimonialFlagBadge: {
+    position: 'absolute',
+    bottom: -2,
+    right: -4,
+    backgroundColor: theme.colors.backgroundSecondary,
+    borderRadius: 8,
+    paddingHorizontal: 1,
+    paddingVertical: 0,
+  },
   testimonialFlagText: { fontSize: 13 },
   testimonialNameRow: { flexDirection: 'row', alignItems: 'center' },
-  testimonialName: { color: '#FFF', fontSize: 13, fontWeight: '700', marginRight: 6 },
-  testimonialCountry: { color: 'rgba(255,255,255,0.3)', fontSize: 11 },
-  testimonialRole: { color: 'rgba(255,255,255,0.4)', fontSize: 11, marginTop: 1 },
-  testimonialImprovementChip: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(16,185,129,0.12)', paddingHorizontal: 7, paddingVertical: 3, borderRadius: 8 },
-  testimonialImprovementText: { color: '#10B981', fontSize: 10, fontWeight: '700', marginLeft: 3 },
+  testimonialName: {
+    fontFamily: theme.typography.fontFamily.bodyBold,
+    color: theme.colors.textPrimary,
+    fontSize: 13,
+    marginRight: 6,
+  },
+  testimonialCountry: {
+    fontFamily: theme.typography.fontFamily.body,
+    color: theme.colors.textTertiary,
+    fontSize: 11,
+  },
+  testimonialRole: {
+    fontFamily: theme.typography.fontFamily.body,
+    color: theme.colors.textTertiary,
+    fontSize: 11,
+    marginTop: 1,
+  },
+  testimonialImprovementChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.colors.accentLight,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  testimonialImprovementText: {
+    fontFamily: theme.typography.fontFamily.bodyBold,
+    color: theme.colors.success,
+    fontSize: 10,
+    marginLeft: 3,
+  },
   testimonialStars: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
-  testimonialQuote: { color: 'rgba(255,255,255,0.82)', fontSize: 13, lineHeight: 20, fontStyle: 'italic' },
+  testimonialQuote: {
+    fontFamily: theme.typography.fontFamily.body,
+    color: theme.colors.textSecondary,
+    fontSize: 13,
+    lineHeight: 20,
+    fontStyle: 'italic',
+  },
   testimonialDots: { flexDirection: 'row', alignItems: 'center', marginTop: 10 },
-  testimonialDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.15)', marginHorizontal: 3 },
-  testimonialDotActive: { backgroundColor: '#8B5CF6', width: 18, borderRadius: 3 },
+  testimonialDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: theme.colors.cardBorder, marginHorizontal: 3 },
+  testimonialDotActive: { backgroundColor: theme.colors.accent, width: 18, borderRadius: 3 },
 
   // Social proof counter
-  socialProofRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(249,115,22,0.08)', borderWidth: 1, borderColor: 'rgba(249,115,22,0.2)', paddingVertical: 7, paddingHorizontal: 16, borderRadius: 50, marginBottom: 16, alignSelf: 'center' },
+  socialProofRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: theme.colors.highlightLight,
+    borderWidth: 1,
+    borderColor: theme.colors.cardBorder,
+    paddingVertical: 7,
+    paddingHorizontal: 16,
+    borderRadius: 50,
+    marginBottom: 16,
+    alignSelf: 'center',
+  },
   socialProofIcon: { marginRight: 8 },
-  socialProofText: { color: '#F97316', fontSize: 13, fontWeight: '700' },
+  socialProofText: {
+    fontFamily: theme.typography.fontFamily.bodyBold,
+    color: theme.colors.highlight,
+    fontSize: 13,
+  },
 
-  // Plan toggle
-  planToggleRow: { flexDirection: 'row', marginBottom: 16, marginHorizontal: -4 },
-  planTab: { flex: 1, backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 20, paddingHorizontal: 8, paddingVertical: 14, alignItems: 'center', borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.08)', position: 'relative', overflow: 'visible', marginHorizontal: 4 },
-  planTabYearly: { flex: 1.4 },
-  planTabActive: { borderColor: '#8B5CF6', backgroundColor: 'rgba(139,92,246,0.12)' },
-  planTabLabel: { color: 'rgba(255,255,255,0.5)', fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
-  planTabLabelActive: { color: '#FFF' },
-  planTabPrice: { color: 'rgba(255,255,255,0.6)', fontSize: 20, fontWeight: '900' },
-  planTabPriceActive: { color: '#8B5CF6' },
-  planTabPeriod: { fontSize: 12, fontWeight: '500' },
-  planTabYearlyTotal: { color: 'rgba(255,255,255,0.3)', fontSize: 11, fontWeight: '500' },
-  popularBadge: { position: 'absolute', top: -10, left: '50%', transform: [{ translateX: -28 }], backgroundColor: '#8B5CF6', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
-  popularBadgeText: { color: '#FFF', fontSize: 9, fontWeight: '900', letterSpacing: 0.5 },
-  savingsChip: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(16,185,129,0.1)', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, marginTop: 2 },
-  savingsChipIcon: { marginRight: 4 },
-  savingsChipText: { color: '#10B981', fontSize: 10, fontWeight: '700' },
+  // Plan cards — canvas's radio-card pattern
+  planList: { rowGap: 10, marginBottom: 16 },
+  planCard: {
+    minHeight: 68,
+    flexDirection: 'row',
+    alignItems: 'center',
+    columnGap: 14,
+    backgroundColor: theme.colors.card,
+    borderWidth: 1,
+    borderColor: theme.colors.cardBorder,
+    borderRadius: theme.borderRadius.card,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  planCardActive: {
+    borderWidth: 2,
+    borderColor: theme.colors.accent,
+    backgroundColor: theme.colors.navActiveBackground,
+  },
+  planRadio: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: theme.colors.cardBorder,
+    flexShrink: 0,
+  },
+  planRadioActive: {
+    borderWidth: 7,
+    borderColor: theme.colors.accent,
+  },
+  planCardText: { flex: 1, rowGap: 2 },
+  planCardLabel: {
+    fontFamily: theme.typography.fontFamily.bodyBold,
+    fontSize: 17,
+    color: theme.colors.textPrimary,
+  },
+  planCardPrice: {
+    fontFamily: theme.typography.fontFamily.body,
+    fontSize: 14,
+    color: theme.colors.textSecondary,
+  },
+  savingsBadge: {
+    height: 28,
+    paddingHorizontal: 10,
+    borderRadius: 99,
+    backgroundColor: theme.colors.accent,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  savingsBadgeText: {
+    fontFamily: theme.typography.fontFamily.bodyBold,
+    fontSize: 13,
+    color: theme.colors.background,
+  },
 
   // Secure badge
   secureBadge: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
   secureBadgeIcon: { marginRight: 8 },
-  secureBadgeText: { color: 'rgba(255,255,255,0.35)', fontSize: 12 },
+  secureBadgeText: {
+    fontFamily: theme.typography.fontFamily.body,
+    color: theme.colors.textTertiary,
+    fontSize: 12,
+  },
 
   // Features
   featuresSection: { marginBottom: 20 },
-  sectionTitle: { color: 'rgba(255,255,255,0.4)', fontSize: 11, fontWeight: '900', letterSpacing: 2, textTransform: 'uppercase', marginBottom: 14 },
-  featuresGrid: { flexDirection: 'row', flexWrap: 'wrap' },
-  featureChip: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.04)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 50, marginRight: 10, marginBottom: 10 },
+  sectionTitle: {
+    fontFamily: theme.typography.fontFamily.bodyBold,
+    color: theme.colors.textTertiary,
+    fontSize: 11,
+    letterSpacing: 2,
+    textTransform: 'uppercase',
+    marginBottom: 14,
+  },
+  featuresGrid: { flexDirection: 'row', flexWrap: 'wrap', marginRight: -10, marginBottom: -10 },
+  featureChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.colors.card,
+    borderWidth: 1,
+    borderColor: theme.colors.cardBorder,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 50,
+    marginRight: 10,
+    marginBottom: 10,
+  },
   featureChipIcon: { marginRight: 8 },
-  featureChipText: { color: 'rgba(255,255,255,0.7)', fontSize: 13, fontWeight: '600' },
+  featureChipText: {
+    fontFamily: theme.typography.fontFamily.bodySemibold,
+    color: theme.colors.textSecondary,
+    fontSize: 13,
+  },
 
   // Upcoming features
   upcomingSection: { marginBottom: 20 },
-  upcomingCard: { borderRadius: 20, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(139,92,246,0.15)' },
-  upcomingGradient: { padding: 4 },
+  upcomingCard: {
+    borderRadius: theme.borderRadius.card,
+    borderWidth: 1,
+    borderColor: theme.colors.cardBorder,
+    backgroundColor: theme.colors.card,
+    paddingHorizontal: 4,
+  },
   upcomingRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 14 },
-  upcomingRowBorder: { borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.05)' },
-  upcomingIcon: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.05)', justifyContent: 'center', alignItems: 'center', marginRight: 12 },
+  upcomingRowBorder: { borderBottomWidth: 1, borderBottomColor: theme.colors.cardBorder },
+  upcomingIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: theme.colors.navActiveBackground,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
   upcomingText: { flex: 1 },
-  upcomingTitle: { color: 'rgba(255,255,255,0.8)', fontSize: 13, fontWeight: '700', marginBottom: 2 },
-  upcomingDesc: { color: 'rgba(255,255,255,0.35)', fontSize: 11, lineHeight: 15 },
-  upcomingBadge: { backgroundColor: 'rgba(139,92,246,0.2)', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, borderWidth: 1, borderColor: 'rgba(139,92,246,0.3)' },
-  upcomingBadgeText: { color: '#8B5CF6', fontSize: 9, fontWeight: '900', letterSpacing: 0.5 },
+  upcomingTitle: {
+    fontFamily: theme.typography.fontFamily.bodyBold,
+    color: theme.colors.textPrimary,
+    fontSize: 13,
+    marginBottom: 2,
+  },
+  upcomingDesc: {
+    fontFamily: theme.typography.fontFamily.body,
+    color: theme.colors.textTertiary,
+    fontSize: 11,
+    lineHeight: 15,
+  },
+  upcomingBadge: {
+    backgroundColor: theme.colors.premiumBadgeBackground,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: theme.colors.premiumBadgeBorder,
+  },
+  upcomingBadgeText: {
+    fontFamily: theme.typography.fontFamily.bodyBold,
+    color: theme.colors.premiumBadgeText,
+    fontSize: 9,
+    letterSpacing: 0.5,
+  },
 
-  // Comparison
+  // Comparison — canvas's Gp-Compare table pattern
   comparisonSection: { marginBottom: 20 },
-  comparisonToggle: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.04)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', paddingHorizontal: 16, paddingVertical: 14, borderRadius: 14, marginBottom: 12 },
-  comparisonToggleText: { color: '#FFF', fontSize: 15, fontWeight: '700' },
-  comparisonCard: { backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: 16, borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)', overflow: 'hidden' },
-  comparisonHeaderRow: { flexDirection: 'row', paddingVertical: 10, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.06)' },
+  comparisonToggle: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: theme.colors.card,
+    borderWidth: 1,
+    borderColor: theme.colors.cardBorder,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderRadius: 14,
+    marginBottom: 12,
+  },
+  comparisonToggleText: {
+    fontFamily: theme.typography.fontFamily.bodyBold,
+    color: theme.colors.textPrimary,
+    fontSize: 15,
+  },
+  comparisonCard: {
+    backgroundColor: theme.colors.card,
+    borderRadius: theme.borderRadius.card,
+    borderWidth: 1,
+    borderColor: theme.colors.cardBorder,
+    overflow: 'hidden',
+  },
+  comparisonHeaderRow: {
+    flexDirection: 'row',
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.cardBorder,
+  },
+  comparisonColHeader: {
+    fontFamily: theme.typography.fontFamily.bodyBold,
+    fontSize: 11,
+    color: theme.colors.textTertiary,
+  },
+  comparisonColHeaderCenter: {
+    width: 48,
+    textAlign: 'center',
+    fontFamily: theme.typography.fontFamily.bodyBold,
+    fontSize: 11,
+    color: theme.colors.textTertiary,
+  },
+  comparisonColHeaderPro: { color: theme.colors.accent },
   comparisonRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 13, paddingHorizontal: 14 },
-  comparisonCol: { flex: 1, color: 'rgba(255,255,255,0.75)', fontSize: 13, fontWeight: '500' },
+  comparisonRowAlt: { backgroundColor: theme.colors.backgroundSecondary },
+  comparisonRowExpanded: { backgroundColor: theme.colors.accentLight },
+  comparisonCol: {
+    flex: 1,
+    fontFamily: theme.typography.fontFamily.bodyMedium,
+    color: theme.colors.textSecondary,
+    fontSize: 13,
+  },
   comparisonColCenter: { width: 48, alignItems: 'center', justifyContent: 'center' },
-  comparisonExpanded: { fontSize: 12, color: 'rgba(255,255,255,0.4)', lineHeight: 18, paddingHorizontal: 14, paddingBottom: 12, paddingTop: 2 },
+  comparisonExpanded: {
+    fontFamily: theme.typography.fontFamily.body,
+    fontSize: 12,
+    color: theme.colors.textTertiary,
+    lineHeight: 18,
+    paddingHorizontal: 14,
+    paddingBottom: 12,
+    paddingTop: 2,
+  },
 
   // Sticky bottom
-  stickyBottom: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(15,23,42,0.97)', paddingHorizontal: 20, paddingTop: 12, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.07)' },
+  stickyBottom: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: theme.colors.cardOverlay,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.cardBorder,
+  },
   guaranteeBadge: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
   guaranteeIcon: { marginRight: 6 },
-  guaranteeText: { color: '#F59E0B', fontSize: 12, fontWeight: '600' },
-  subscribeBtn: { marginBottom: 10 },
-  subscribeBtnGradient: { paddingVertical: 18, borderRadius: 18, alignItems: 'center' },
-  subscribeBtnText: { color: '#FFF', fontSize: 18, fontWeight: '900' },
-  subscribeBtnSub: { color: 'rgba(255,255,255,0.65)', fontSize: 12, fontWeight: '500', marginTop: 4 },
+  guaranteeText: {
+    fontFamily: theme.typography.fontFamily.bodySemibold,
+    color: theme.colors.premium,
+    fontSize: 12,
+  },
+  subscribeBtn: {
+    height: 60,
+    borderRadius: 20,
+    backgroundColor: theme.colors.ctaBackground,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+  },
+  subscribeBtnBusy: { opacity: 0.7 },
+  subscribeBtnText: {
+    fontFamily: theme.typography.fontFamily.bodyBold,
+    color: theme.colors.ctaText,
+    fontSize: 17,
+  },
+  subscribeBtnSub: {
+    fontFamily: theme.typography.fontFamily.bodyMedium,
+    color: theme.colors.ctaText,
+    opacity: 0.85,
+    fontSize: 12,
+    marginTop: 4,
+  },
   restoreBtn: { alignSelf: 'center', paddingVertical: 8, marginBottom: 6 },
-  restoreBtnText: { color: '#8B5CF6', fontSize: 14, fontWeight: '600' },
-  termsText: { color: 'rgba(255,255,255,0.25)', fontSize: 10, textAlign: 'center', lineHeight: 14 },
+  restoreBtnText: {
+    fontFamily: theme.typography.fontFamily.bodySemibold,
+    color: theme.colors.accent,
+    fontSize: 14,
+  },
+  termsText: {
+    fontFamily: theme.typography.fontFamily.body,
+    color: theme.colors.textTertiary,
+    opacity: 0.7,
+    fontSize: 10,
+    textAlign: 'center',
+    lineHeight: 14,
+  },
 
   // Premium screen
   premiumHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingBottom: 10 },
   centeredContent: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 40 },
-  premiumBadge: { width: 120, height: 120, borderRadius: 60, justifyContent: 'center', alignItems: 'center', marginBottom: 24 },
-  premiumTitle: { fontSize: 32, fontWeight: '900', color: '#FFF', marginBottom: 8 },
-  premiumSubtitle: { fontSize: 16, color: 'rgba(255,255,255,0.5)', textAlign: 'center', marginBottom: 8 },
-  expiryText: { fontSize: 14, color: '#8B5CF6', marginBottom: 32 },
-  manageBtn: { backgroundColor: 'rgba(139,92,246,0.15)', paddingHorizontal: 28, paddingVertical: 14, borderRadius: 14, borderWidth: 1, borderColor: '#8B5CF6', marginBottom: 12 },
-  manageBtnText: { color: '#8B5CF6', fontSize: 16, fontWeight: '700' },
-  cancelBtn: { backgroundColor: 'rgba(239,68,68,0.1)', paddingHorizontal: 28, paddingVertical: 14, borderRadius: 14, borderWidth: 1, borderColor: '#EF4444' },
-  cancelBtnText: { color: '#EF4444', fontSize: 16, fontWeight: '700' },
+  premiumMarkWrap: { marginBottom: 8 },
+  premiumCrownBadge: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: theme.colors.premiumBadgeBackground,
+    borderWidth: 1,
+    borderColor: theme.colors.premiumBadgeBorder,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+    marginTop: -8,
+  },
+  premiumTitle: {
+    fontFamily: theme.typography.fontFamily.displaySemibold,
+    fontSize: 30,
+    color: theme.colors.textPrimary,
+    marginBottom: 8,
+  },
+  premiumSubtitle: {
+    fontFamily: theme.typography.fontFamily.body,
+    fontSize: 16,
+    color: theme.colors.textSecondary,
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  expiryText: {
+    fontFamily: theme.typography.fontFamily.bodyMedium,
+    fontSize: 14,
+    color: theme.colors.accent,
+    marginBottom: 32,
+  },
+  manageBtn: {
+    backgroundColor: theme.colors.accentLight,
+    paddingHorizontal: 28,
+    paddingVertical: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: theme.colors.accentBorder,
+    marginBottom: 12,
+  },
+  manageBtnText: {
+    fontFamily: theme.typography.fontFamily.bodyBold,
+    color: theme.colors.accent,
+    fontSize: 16,
+  },
+  cancelBtn: {
+    backgroundColor: theme.colors.cardOverlay,
+    paddingHorizontal: 28,
+    paddingVertical: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: theme.colors.danger,
+  },
+  cancelBtnText: {
+    fontFamily: theme.typography.fontFamily.bodyBold,
+    color: theme.colors.danger,
+    fontSize: 16,
+  },
 });

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,12 +9,10 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
 import {
   ChevronLeft,
-  Send,
   Lightbulb,
   CheckCircle2,
   Clock,
@@ -22,15 +20,22 @@ import {
   Layout,
   Filter,
   MoreVertical,
-  Shield,
-  FileText,
-  ChevronRight
+  AlertCircle,
 } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme } from '../hooks/useAppTheme';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
+
+// Canvas (`Ac-Feature.dc.html` / `D-Ac-Feature.dc.html`, "Request a feature"):
+// no-chrome header with a back pill + Fraunces h1 "Suggest an idea", a single
+// textarea prompt, a row of category pills, a solid CTA, and a "Popular
+// ideas · vote for yours" card listing community requests with a vote count
+// button. This screen keeps its real data shape (separate title/description
+// fields, per-user "My Requests", and the admin moderation view) which the
+// canvas doesn't cover — those sections are designed in the same system
+// (Fraunces/DM Sans, card radii, theme tokens) rather than left old-styled.
 
 interface FeatureRequest {
   id: string;
@@ -47,11 +52,12 @@ export default function FeatureRequestScreen() {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
-  const themedStyles = styles(theme);
+  const s = styles(theme);
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [myRequests, setMyRequests] = useState<FeatureRequest[]>([]);
   const [allRequests, setAllRequests] = useState<FeatureRequest[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -140,6 +146,7 @@ export default function FeatureRequestScreen() {
 
     const userId = user.id;
     setIsSubmitting(true);
+    setSubmitError(null);
 
     try {
       const { error } = await supabase
@@ -165,7 +172,7 @@ export default function FeatureRequestScreen() {
       loadMyRequests();
     } catch (error) {
       console.error('Error submitting feature request:', error);
-      Alert.alert('Error', 'Failed to submit feature request. Please try again.');
+      setSubmitError('Failed to submit your request. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -173,21 +180,21 @@ export default function FeatureRequestScreen() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'pending': return '#94A3B8';
-      case 'reviewed': return '#3B82F6';
-      case 'planned': return '#F59E0B';
-      case 'completed': return '#10B981';
-      default: return '#94A3B8';
+      case 'pending': return theme.colors.textTertiary;
+      case 'reviewed': return theme.colors.highlight;
+      case 'planned': return theme.colors.warning;
+      case 'completed': return theme.colors.success;
+      default: return theme.colors.textTertiary;
     }
   };
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'pending': return <Clock size={16} color={getStatusColor(status)} />;
-      case 'reviewed': return <ThumbsUp size={16} color={getStatusColor(status)} />;
-      case 'planned': return <Lightbulb size={16} color={getStatusColor(status)} />;
-      case 'completed': return <CheckCircle2 size={16} color={getStatusColor(status)} />;
-      default: return <Clock size={16} color={getStatusColor(status)} />;
+      case 'pending': return <Clock size={14} color={getStatusColor(status)} />;
+      case 'reviewed': return <ThumbsUp size={14} color={getStatusColor(status)} />;
+      case 'planned': return <Lightbulb size={14} color={getStatusColor(status)} />;
+      case 'completed': return <CheckCircle2 size={14} color={getStatusColor(status)} />;
+      default: return <Clock size={14} color={getStatusColor(status)} />;
     }
   };
 
@@ -224,228 +231,210 @@ export default function FeatureRequestScreen() {
     Alert.alert(
       'Update Status',
       'Select new status for this request:',
-      statuses.map(s => ({
-        text: getStatusLabel(s),
-        onPress: () => updateRequestStatus(request.id, s)
+      statuses.map(st => ({
+        text: getStatusLabel(st),
+        onPress: () => updateRequestStatus(request.id, st)
       })).concat([{ text: 'Cancel', style: 'cancel' } as any])
     );
   };
 
-  const handleOpenLink = (url: string) => {
-    // Implement actual link opening logic here, e.g., using Linking from react-native
-    Alert.alert('Open Link', `Would open: ${url}`);
-  };
-
   return (
     <KeyboardAvoidingView
-      style={themedStyles.container}
+      style={[s.container, { backgroundColor: theme.colors.background }]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <LinearGradient
-        colors={[theme.colors.background, theme.colors.card]}
-        style={themedStyles.gradient}
-      >
-        {/* Header */}
-        <View style={[themedStyles.header, { paddingTop: insets.top + 10 }]}>
-          <TouchableOpacity
-            onPress={() => navigation.goBack()}
-            style={themedStyles.backButton}
-          >
-            <ChevronLeft size={24} color={theme.colors.textPrimary} />
-          </TouchableOpacity>
-          <Text style={themedStyles.headerTitle}>Request a Feature</Text>
-        </View>
-
-        <ScrollView
-          style={themedStyles.content}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingBottom: insets.bottom + 20 }}
+      {/* Header */}
+      <View style={[s.header, { paddingTop: insets.top + 10 }]}>
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={s.backButton}
+          accessibilityLabel="Back"
         >
-          {/* Admin Toggle */}
-          {isAdmin && (
+          <ChevronLeft size={20} color={theme.colors.textPrimary} />
+        </TouchableOpacity>
+        <Text style={s.headerTitle}>Suggest an idea</Text>
+      </View>
+
+      <ScrollView
+        style={s.content}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: insets.bottom + 20 }}
+      >
+        {/* Admin Toggle */}
+        {isAdmin && (
+          <TouchableOpacity
+            style={s.adminToggle}
+            onPress={() => setAdminMode(!adminMode)}
+            activeOpacity={0.85}
+          >
+            <Layout size={18} color={theme.colors.ctaText} />
+            <Text style={s.adminToggleText}>
+              {adminMode ? 'Switch to User View' : 'Manager View (Admin)'}
+            </Text>
+          </TouchableOpacity>
+        )}
+
+        {/* Request Form - Hide for Admin entirely */}
+        {!isAdmin && !adminMode && (
+          <View>
+            <Text style={s.label}>What would help you sleep better?</Text>
+            <TextInput
+              style={s.input}
+              placeholder="Brief title for your feature"
+              placeholderTextColor={theme.colors.textTertiary}
+              value={title}
+              onChangeText={setTitle}
+              maxLength={100}
+            />
+
+            <TextInput
+              style={[s.input, s.textArea]}
+              placeholder="I'd love it if the app could…"
+              placeholderTextColor={theme.colors.textTertiary}
+              value={description}
+              onChangeText={setDescription}
+              multiline
+              numberOfLines={4}
+              textAlignVertical="top"
+              maxLength={500}
+            />
+
             <TouchableOpacity
-              style={themedStyles.adminToggle}
-              onPress={() => setAdminMode(!adminMode)}
+              style={[s.submitButton, isSubmitting && s.submitButtonDisabled]}
+              onPress={submitFeatureRequest}
+              disabled={isSubmitting}
+              activeOpacity={0.85}
             >
-              <LinearGradient
-                colors={['#8B5CF6', '#D946EF']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={themedStyles.adminToggleGradient}
-              />
-              <Layout size={20} color="#FFF" />
-              <Text style={themedStyles.adminToggleText}>
-                {adminMode ? 'Switch to User View' : 'Manager View (Admin)'}
-              </Text>
+              {isSubmitting ? (
+                <ActivityIndicator size="small" color={theme.colors.ctaText} />
+              ) : (
+                <Text style={s.submitButtonText}>Send idea</Text>
+              )}
             </TouchableOpacity>
-          )}
 
-          {/* Info Banner - Hide in Admin Mode */}
-          {!adminMode && (
-            <BlurView intensity={20} tint="dark" style={themedStyles.infoBanner}>
-              <Lightbulb size={24} color={theme.colors.accent} />
-              <View style={{ flex: 1, marginLeft: 12 }}>
-                <Text style={themedStyles.infoTitle}>Have an idea?</Text>
-                <Text style={themedStyles.infoText}>
-                  Share your suggestions to help us improve the app!
-                </Text>
+            {submitError && (
+              <View style={s.errorBanner}>
+                <AlertCircle size={16} color={theme.colors.danger} />
+                <Text style={s.errorBannerText}>{submitError}</Text>
               </View>
-            </BlurView>
-          )}
+            )}
+          </View>
+        )}
 
-          {/* Request Form - Hide for Admin entirely */}
-          {!isAdmin && !adminMode && (
-            <BlurView intensity={20} tint="dark" style={themedStyles.card}>
-              <Text style={themedStyles.cardTitle}>New Feature Request</Text>
-
-              <Text style={themedStyles.label}>Title</Text>
-              <TextInput
-                style={themedStyles.input}
-                placeholder="Brief title for your feature"
-                placeholderTextColor={theme.colors.textSecondary}
-                value={title}
-                onChangeText={setTitle}
-                maxLength={100}
-              />
-
-              <Text style={themedStyles.label}>Description</Text>
-              <TextInput
-                style={[themedStyles.input, themedStyles.textArea]}
-                placeholder="Describe the feature you'd like to see..."
-                placeholderTextColor={theme.colors.textSecondary}
-                value={description}
-                onChangeText={setDescription}
-                multiline
-                numberOfLines={6}
-                textAlignVertical="top"
-                maxLength={500}
-              />
-
+        {/* Admin List View */}
+        {adminMode && (
+          <View>
+            <View style={s.adminHeader}>
+              <Text style={s.sectionLabel}>All User Requests</Text>
               <TouchableOpacity
-                style={[themedStyles.submitButton, isSubmitting && themedStyles.submitButtonDisabled]}
-                onPress={submitFeatureRequest}
-                disabled={isSubmitting}
+                onPress={() => {
+                  const filters = ['all', 'pending', 'reviewed', 'planned', 'completed'];
+                  Alert.alert(
+                    'Filter by Status',
+                    'Select status to filter:',
+                    filters.map(f => ({
+                      text: f.toUpperCase(),
+                      onPress: () => setStatusFilter(f as 'all' | 'pending' | 'reviewed' | 'planned' | 'completed')
+                    })).concat([{ text: 'Cancel', style: 'cancel' } as any])
+                  );
+                }}
+                style={s.filterBtn}
+                activeOpacity={0.8}
               >
-                <LinearGradient
-                  colors={isSubmitting ? ['#94A3B8', '#64748B'] : [theme.colors.accent, theme.colors.highlight]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={themedStyles.submitButtonGradient}
-                />
-                <Send size={20} color={theme.colors.textPrimary} />
-                <Text style={themedStyles.submitButtonText}>
-                  {isSubmitting ? 'Submitting...' : 'Submit Request'}
+                <Filter size={16} color={theme.colors.accent} />
+                <Text style={s.filterBtnText}>
+                  {statusFilter === 'all' ? 'Filter' : statusFilter}
                 </Text>
               </TouchableOpacity>
-            </BlurView>
-          )}
+            </View>
 
-          {/* Admin List View */}
-          {adminMode && (
-            <View>
-              <View style={themedStyles.adminHeader}>
-                <Text style={themedStyles.cardTitle}>All User Requests</Text>
-                <TouchableOpacity
-                  onPress={() => {
-                    const filters = ['all', 'pending', 'reviewed', 'planned', 'completed'];
-                    Alert.alert(
-                      'Filter by Status',
-                      'Select status to filter:',
-                      filters.map(f => ({
-                        text: f.toUpperCase(),
-                        onPress: () => setStatusFilter(f as 'all' | 'pending' | 'reviewed' | 'planned' | 'completed')
-                      })).concat([{ text: 'Cancel', style: 'cancel' } as any])
-                    );
-                  }}
-                  style={themedStyles.filterBtn}
-                >
-                  <Filter size={18} color={theme.colors.accent} />
-                  <Text style={themedStyles.filterBtnText}>
-                    {statusFilter === 'all' ? 'Filter' : statusFilter}
-                  </Text>
-                </TouchableOpacity>
+            {isLoading ? (
+              <View style={s.loadingBlock}>
+                <ActivityIndicator size="small" color={theme.colors.accent} />
+                <Text style={s.loadingText}>Loading requests…</Text>
               </View>
-
-              {allRequests
-                .filter(r => statusFilter === 'all' || r.status === statusFilter)
-                .map((request) => (
-                  <BlurView key={request.id} intensity={10} tint="dark" style={styles(theme).requestItemAdmin}>
-                    <View style={styles(theme).requestHeader}>
-                      <Text style={styles(theme).requestTitle} numberOfLines={1}>
-                        {request.title}
-                      </Text>
-                      <TouchableOpacity onPress={() => handleStatusUpdatePress(request)}>
-                        <View style={[styles(theme).statusBadge, { borderColor: getStatusColor(request.status) }]}>
-                          {getStatusIcon(request.status)}
-                          <Text style={[styles(theme).statusText, { color: getStatusColor(request.status) }]}>
-                            {getStatusLabel(request.status)}
-                          </Text>
-                          <MoreVertical size={14} color={getStatusColor(request.status)} style={{ marginLeft: 4 }} />
-                        </View>
+            ) : (
+              <View style={s.listCard}>
+                {allRequests
+                  .filter(r => statusFilter === 'all' || r.status === statusFilter)
+                  .map((request, index, arr) => (
+                    <View
+                      key={request.id}
+                      style={[s.ideaRow, index < arr.length - 1 && s.ideaRowDivider]}
+                    >
+                      <View style={s.ideaRowText}>
+                        <Text style={s.ideaName} numberOfLines={1}>{request.title}</Text>
+                        <Text style={s.ideaDescription} numberOfLines={2}>{request.description}</Text>
+                        <Text style={s.ideaMeta}>
+                          User: {request.user_id.slice(0, 8)}… · {new Date(request.created_at).toLocaleDateString()}
+                        </Text>
+                      </View>
+                      <TouchableOpacity
+                        style={[s.statusBadge, { borderColor: getStatusColor(request.status) }]}
+                        onPress={() => handleStatusUpdatePress(request)}
+                        activeOpacity={0.8}
+                      >
+                        {getStatusIcon(request.status)}
+                        <Text style={[s.statusText, { color: getStatusColor(request.status) }]}>
+                          {getStatusLabel(request.status)}
+                        </Text>
+                        <MoreVertical size={13} color={getStatusColor(request.status)} />
                       </TouchableOpacity>
                     </View>
-                    <Text style={styles(theme).requestDescription}>
-                      {request.description}
+                  ))}
+
+                {allRequests.length === 0 && (
+                  <Text style={s.emptyText}>No requests found.</Text>
+                )}
+              </View>
+            )}
+          </View>
+        )}
+
+        {/* My Requests Section - Only for Users */}
+        {!isAdmin && !adminMode && myRequests.length > 0 && (
+          <View style={s.ideasSection}>
+            <Text style={s.sectionLabel}>My Requests</Text>
+            <View style={s.listCard}>
+              {myRequests.map((request, index, arr) => (
+                <View
+                  key={request.id}
+                  style={[s.ideaRow, index < arr.length - 1 && s.ideaRowDivider]}
+                >
+                  <View style={s.ideaRowText}>
+                    <Text style={s.ideaName} numberOfLines={1}>{request.title}</Text>
+                    <Text style={s.ideaDescription} numberOfLines={2}>{request.description}</Text>
+                    <Text style={s.ideaMeta}>
+                      {new Date(request.created_at).toLocaleDateString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric'
+                      })}
                     </Text>
-                    <View style={styles(theme).requestFooter}>
-                      <Text style={styles(theme).requestDate}>
-                        User: {request.user_id.slice(0, 8)}... | {new Date(request.created_at).toLocaleDateString()}
-                      </Text>
-                    </View>
-                  </BlurView>
-                ))}
-
-              {allRequests.length === 0 && (
-                <Text style={styles(theme).emptyText}>No requests found.</Text>
-              )}
-            </View>
-          )}
-
-          {/* My Requests Section - Only for Users */}
-          {!isAdmin && !adminMode && myRequests.length > 0 && (
-            <BlurView intensity={20} tint="dark" style={styles(theme).card}>
-              <Text style={styles(theme).cardTitle}>My Requests</Text>
-
-              {myRequests.map((request) => (
-                <View key={request.id} style={styles(theme).requestItem}>
-                  <View style={styles(theme).requestHeader}>
-                    <Text style={styles(theme).requestTitle} numberOfLines={1}>
-                      {request.title}
-                    </Text>
-                    <View style={[styles(theme).statusBadge, { borderColor: getStatusColor(request.status) }]}>
-                      {getStatusIcon(request.status)}
-                      <Text style={[styles(theme).statusText, { color: getStatusColor(request.status) }]}>
-                        {getStatusLabel(request.status)}
-                      </Text>
-                    </View>
                   </View>
-                  <Text style={styles(theme).requestDescription} numberOfLines={2}>
-                    {request.description}
-                  </Text>
-                  <Text style={styles(theme).requestDate}>
-                    {new Date(request.created_at).toLocaleDateString('en-US', {
-                      month: 'short',
-                      day: 'numeric',
-                      year: 'numeric'
-                    })}
-                  </Text>
+                  <View style={[s.statusBadge, { borderColor: getStatusColor(request.status) }]}>
+                    {getStatusIcon(request.status)}
+                    <Text style={[s.statusText, { color: getStatusColor(request.status) }]}>
+                      {getStatusLabel(request.status)}
+                    </Text>
+                  </View>
                 </View>
               ))}
-            </BlurView>
-          )}
+            </View>
+          </View>
+        )}
 
-          {/* Empty State */}
-          {myRequests.length === 0 && !isLoading && user?.id !== 'guest' && (
-            <BlurView intensity={20} tint="dark" style={styles(theme).emptyState}>
-              <Lightbulb size={48} color={theme.colors.textSecondary} />
-              <Text style={styles(theme).emptyStateTitle}>No requests yet</Text>
-              <Text style={styles(theme).emptyStateText}>
-                Submit your first feature request above!
-              </Text>
-            </BlurView>
-          )}
-        </ScrollView>
-      </LinearGradient>
+        {/* Empty State */}
+        {!adminMode && myRequests.length === 0 && !isLoading && user?.id !== 'guest' && (
+          <View style={s.emptyState}>
+            <Lightbulb size={40} color={theme.colors.textTertiary} />
+            <Text style={s.emptyStateTitle}>No requests yet</Text>
+            <Text style={s.emptyStateText}>
+              Submit your first feature request above!
+            </Text>
+          </View>
+        )}
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }
@@ -454,223 +443,225 @@ const styles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
   },
-  gradient: {
-    flex: 1,
-  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
+    columnGap: 12,
     paddingHorizontal: 20,
-    paddingBottom: 15,
+    paddingBottom: 16,
   },
   backButton: {
-    marginRight: 12,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: theme.colors.card,
+    borderWidth: 1,
+    borderColor: theme.colors.cardBorder,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   headerTitle: {
+    fontFamily: theme.typography.fontFamily.displaySemibold,
     fontSize: 24,
-    fontWeight: '700',
+    letterSpacing: -0.2,
     color: theme.colors.textPrimary,
   },
   content: {
     flex: 1,
     paddingHorizontal: 20,
   },
-  infoBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(139, 92, 246, 0.1)',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 20,
-    overflow: 'hidden',
-  },
-  infoTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: theme.colors.textPrimary,
-    marginBottom: 4,
-  },
-  infoText: {
-    fontSize: 14,
-    color: theme.colors.textSecondary,
-  },
-  card: {
-    backgroundColor: 'rgba(27, 29, 42, 0.6)',
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 20,
-    overflow: 'hidden',
-  },
-  cardTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: theme.colors.textPrimary,
-    marginBottom: 20,
-  },
   label: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontFamily: theme.typography.fontFamily.bodyBold,
+    fontSize: 16,
     color: theme.colors.textPrimary,
     marginBottom: 8,
-    marginTop: 12,
   },
   input: {
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: 12,
+    backgroundColor: theme.colors.card,
+    borderRadius: theme.borderRadius.lg,
     padding: 16,
     fontSize: 16,
+    fontFamily: theme.typography.fontFamily.body,
     color: theme.colors.textPrimary,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: theme.colors.cardBorder,
+    marginBottom: 12,
   },
   textArea: {
-    minHeight: 120,
-    textAlignVertical: 'top',
+    minHeight: 110,
   },
   submitButton: {
-    marginTop: 20,
-    borderRadius: 12,
-    overflow: 'hidden',
+    height: 56,
+    borderRadius: theme.borderRadius.lg,
+    backgroundColor: theme.colors.ctaBackground,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 16,
   },
   submitButtonDisabled: {
     opacity: 0.6,
   },
-  submitButtonGradient: {
-    ...StyleSheet.absoluteFillObject,
-  },
   submitButtonText: {
+    fontFamily: theme.typography.fontFamily.bodyBold,
     fontSize: 16,
-    fontWeight: '600',
-    color: theme.colors.textPrimary,
-    marginLeft: 8,
+    color: theme.colors.ctaText,
   },
-  requestItem: {
-    backgroundColor: 'rgba(255, 255, 255, 0.03)',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-  },
-  requestHeader: {
+  errorBanner: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    columnGap: 8,
+    backgroundColor: theme.colors.cardOverlay,
+    borderWidth: 1,
+    borderColor: theme.colors.danger,
+    borderRadius: theme.borderRadius.md,
+    padding: 12,
+    marginTop: 12,
+  },
+  errorBannerText: {
+    flex: 1,
+    fontFamily: theme.typography.fontFamily.bodyMedium,
+    fontSize: 13,
+    color: theme.colors.danger,
+  },
+  ideasSection: {
+    marginTop: 24,
+    rowGap: 8,
+  },
+  sectionLabel: {
+    fontFamily: theme.typography.fontFamily.bodyBold,
+    fontSize: 13,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    color: theme.colors.textTertiary,
     marginBottom: 8,
   },
-  requestTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: theme.colors.textPrimary,
+  listCard: {
+    backgroundColor: theme.colors.card,
+    borderWidth: 1,
+    borderColor: theme.colors.cardBorder,
+    borderRadius: theme.borderRadius.card,
+    paddingHorizontal: 16,
+  },
+  ideaRow: {
+    minHeight: 64,
+    flexDirection: 'row',
+    alignItems: 'center',
+    columnGap: 12,
+    paddingVertical: 14,
+  },
+  ideaRowDivider: {
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.cardBorder,
+  },
+  ideaRowText: {
     flex: 1,
-    marginRight: 12,
+    rowGap: 2,
+  },
+  ideaName: {
+    fontFamily: theme.typography.fontFamily.bodyBold,
+    fontSize: 15,
+    color: theme.colors.textPrimary,
+  },
+  ideaDescription: {
+    fontFamily: theme.typography.fontFamily.body,
+    fontSize: 13,
+    color: theme.colors.textSecondary,
+    lineHeight: 18,
+  },
+  ideaMeta: {
+    fontFamily: theme.typography.fontFamily.body,
+    fontSize: 12,
+    color: theme.colors.textTertiary,
   },
   statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
+    columnGap: 4,
     paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 8,
+    paddingVertical: 6,
+    borderRadius: theme.borderRadius.sm,
     borderWidth: 1,
   },
   statusText: {
+    fontFamily: theme.typography.fontFamily.bodySemibold,
     fontSize: 12,
-    fontWeight: '600',
-    marginLeft: 4,
-  },
-  requestDescription: {
-    fontSize: 14,
-    color: theme.colors.textSecondary,
-    marginBottom: 8,
-    lineHeight: 20,
-  },
-  requestDate: {
-    fontSize: 12,
-    color: theme.colors.textSecondary,
-    opacity: 0.7,
   },
   emptyState: {
-    backgroundColor: 'rgba(27, 29, 42, 0.6)',
-    borderRadius: 16,
+    backgroundColor: theme.colors.card,
+    borderWidth: 1,
+    borderColor: theme.colors.cardBorder,
+    borderRadius: theme.borderRadius.card,
     padding: 40,
     alignItems: 'center',
-    overflow: 'hidden',
+    marginTop: 20,
+    rowGap: 8,
   },
   emptyStateTitle: {
+    fontFamily: theme.typography.fontFamily.bodyBold,
     fontSize: 18,
-    fontWeight: '600',
     color: theme.colors.textPrimary,
-    marginTop: 16,
-    marginBottom: 8,
   },
   emptyStateText: {
+    fontFamily: theme.typography.fontFamily.body,
     fontSize: 14,
     color: theme.colors.textSecondary,
     textAlign: 'center',
   },
   adminToggle: {
-    borderRadius: 16,
-    padding: 16,
+    borderRadius: theme.borderRadius.lg,
+    paddingVertical: 16,
     marginBottom: 20,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    overflow: 'hidden',
-    position: 'relative',
-  },
-  adminToggleGradient: {
-    ...StyleSheet.absoluteFillObject,
-    opacity: 0.9,
+    columnGap: 10,
+    backgroundColor: theme.colors.ctaBackground,
   },
   adminToggleText: {
-    color: '#FFF',
+    fontFamily: theme.typography.fontFamily.bodyBold,
+    color: theme.colors.ctaText,
     fontSize: 16,
-    fontWeight: '700',
-    marginLeft: 10,
   },
   adminHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 15,
+    marginBottom: 12,
   },
   filterBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(139, 92, 246, 0.1)',
+    columnGap: 6,
+    backgroundColor: theme.colors.accentLight,
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 8,
+    borderRadius: theme.borderRadius.sm,
     borderWidth: 1,
-    borderColor: 'rgba(139, 92, 246, 0.2)',
+    borderColor: theme.colors.accentBorder,
   },
   filterBtnText: {
+    fontFamily: theme.typography.fontFamily.bodySemibold,
     color: theme.colors.accent,
     fontSize: 13,
-    fontWeight: '600',
-    marginLeft: 6,
     textTransform: 'capitalize',
   },
-  requestItemAdmin: {
-    backgroundColor: 'rgba(255, 255, 255, 0.03)',
-    borderRadius: 16,
-    padding: 18,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
+  loadingBlock: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    columnGap: 10,
+    paddingVertical: 40,
   },
-  requestFooter: {
-    marginTop: 12,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.05)',
+  loadingText: {
+    fontFamily: theme.typography.fontFamily.body,
+    fontSize: 14,
+    color: theme.colors.textTertiary,
   },
   emptyText: {
-    color: theme.colors.textSecondary,
+    fontFamily: theme.typography.fontFamily.body,
+    color: theme.colors.textTertiary,
     textAlign: 'center',
-    marginTop: 40,
-    fontSize: 16,
+    paddingVertical: 24,
+    fontSize: 15,
   },
 });
