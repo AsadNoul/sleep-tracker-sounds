@@ -6,12 +6,8 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Animated,
   Platform,
-  Dimensions,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
 import {
   ChevronLeft,
   CheckCircle2,
@@ -23,13 +19,18 @@ import {
   Smartphone,
   Play,
   Pause,
-  RotateCcw
+  RotateCcw,
+  Bell,
 } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme } from '../hooks/useAppTheme';
 
-const { width } = Dimensions.get('window');
+// Canvas reference: Rlx-Routine.dc.html (+ D-Rlx-Routine.dc.html day variant).
+// Numbered step rows inside one card, duration pill + bell glyph per row,
+// big "Start routine now" CTA. All data/logic below (steps, completion,
+// timer, AsyncStorage persistence) is unchanged from the previous build —
+// only JSX/styling was rebuilt to match the canvas.
 
 interface RoutineStep {
   id: string;
@@ -44,38 +45,40 @@ const DEFAULT_STEPS: RoutineStep[] = [
     id: '1',
     title: 'Digital Detox',
     duration: 5,
-    icon: <Smartphone size={24} color="#FF6B6B" />,
+    icon: <Smartphone size={20} color="#FF6B6B" />,
     description: 'Put away all electronic devices to reduce blue light exposure.'
   },
   {
     id: '2',
     title: 'Light Stretching',
     duration: 10,
-    icon: <Wind size={24} color="#4ECDC4" />,
+    icon: <Wind size={20} color="#4ECDC4" />,
     description: 'Gentle movements to release physical tension from the day.'
   },
   {
     id: '3',
     title: 'Reading',
     duration: 15,
-    icon: <BookOpen size={24} color="#FFE66D" />,
+    icon: <BookOpen size={20} color="#FFE66D" />,
     description: 'Read a physical book to calm your mind.'
   },
   {
     id: '4',
     title: 'Herbal Tea',
     duration: 5,
-    icon: <Coffee size={24} color="#95A5A6" />,
+    icon: <Coffee size={20} color="#95A5A6" />,
     description: 'Enjoy a warm, caffeine-free beverage.'
   },
   {
     id: '5',
     title: 'Meditation',
     duration: 10,
-    icon: <Moon size={24} color="#8B5CF6" />,
+    icon: <Moon size={20} color="#8B5CF6" />,
     description: 'Focus on your breath and clear your thoughts.'
   }
 ];
+
+const TOTAL_MINUTES = DEFAULT_STEPS.reduce((sum, step) => sum + step.duration, 0);
 
 export default function BedtimeRoutineScreen() {
   const { theme } = useAppTheme();
@@ -152,184 +155,163 @@ export default function BedtimeRoutineScreen() {
     return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
   };
 
+  const s = styles(theme);
+  const activeStepData = activeStep ? DEFAULT_STEPS.find(st => st.id === activeStep) : null;
+  const allDone = completedSteps.length === DEFAULT_STEPS.length;
+
   return (
-    <View style={styles(theme).container}>
-      <LinearGradient
-        colors={[theme.colors.background, theme.colors.backgroundSecondary]}
-        style={styles(theme).gradient}
-      >
-        {/* Header */}
-        <View style={[styles(theme).header, { paddingTop: insets.top + 10 }]}>
-          <TouchableOpacity
-            style={styles(theme).backButton}
-            onPress={() => navigation.goBack()}
-          >
-            <ChevronLeft size={24} color={theme.colors.textPrimary} />
-          </TouchableOpacity>
-          <Text style={styles(theme).headerTitle}>Bedtime Routine</Text>
-          <TouchableOpacity onPress={resetRoutine} style={styles(theme).resetButton}>
-            <RotateCcw size={20} color={theme.colors.textSecondary} />
-          </TouchableOpacity>
-        </View>
-
-        <ScrollView
-          style={styles(theme).content}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles(theme).scrollContent}
+    <View style={[s.container, { backgroundColor: theme.colors.background }]}>
+      {/* Header */}
+      <View style={[s.header, { paddingTop: insets.top + 10 }]}>
+        <TouchableOpacity
+          style={[s.backButton, { backgroundColor: theme.colors.card, borderColor: theme.colors.cardBorder }]}
+          onPress={() => navigation.goBack()}
         >
-          {/* Active Timer Card */}
-          {activeStep && (
-            Platform.OS === 'ios' ? (
-              <BlurView intensity={30} tint="dark" style={styles(theme).timerCard}>
-                <Text style={styles(theme).timerLabel}>
-                  {DEFAULT_STEPS.find(s => s.id === activeStep)?.title}
-                </Text>
-                <Text style={styles(theme).timerValue}>{formatTime(timeLeft)}</Text>
-                <View style={styles(theme).timerControls}>
-                  <TouchableOpacity
-                    style={styles(theme).controlButton}
-                    onPress={() => setIsActive(!isActive)}
-                  >
-                    {isActive ? <Pause size={24} color="#FFF" /> : <Play size={24} color="#FFF" />}
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles(theme).controlButton, { backgroundColor: 'rgba(255,255,255,0.1)' }]}
-                    onPress={() => {
-                      setIsActive(false);
-                      setActiveStep(null);
-                    }}
-                  >
-                    <RotateCcw size={24} color="#FFF" />
-                  </TouchableOpacity>
-                </View>
-              </BlurView>
-            ) : (
-              <View style={styles(theme).timerCard}>
-                <Text style={styles(theme).timerLabel}>
-                  {DEFAULT_STEPS.find(s => s.id === activeStep)?.title}
-                </Text>
-                <Text style={styles(theme).timerValue}>{formatTime(timeLeft)}</Text>
-                <View style={styles(theme).timerControls}>
-                  <TouchableOpacity
-                    style={styles(theme).controlButton}
-                    onPress={() => setIsActive(!isActive)}
-                  >
-                    {isActive ? <Pause size={24} color="#FFF" /> : <Play size={24} color="#FFF" />}
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles(theme).controlButton, { backgroundColor: 'rgba(255,255,255,0.1)' }]}
-                    onPress={() => {
-                      setIsActive(false);
-                      setActiveStep(null);
-                    }}
-                  >
-                    <RotateCcw size={24} color="#FFF" />
-                  </TouchableOpacity>
-                </View>
-              </View>
-            )
-          )}
-
-          <Text style={styles(theme).sectionTitle}>Tonight's Routine</Text>
-          <Text style={styles(theme).sectionSubtitle}>
-            Complete these steps to prepare your mind and body for deep sleep.
+          <ChevronLeft size={20} color={theme.colors.textPrimary} strokeWidth={2.2} />
+        </TouchableOpacity>
+        <View style={s.headerTitleBlock}>
+          <Text style={[s.headerTitle, { color: theme.colors.textPrimary, fontFamily: theme.typography.fontFamily.displaySemibold }]}>
+            Bedtime routine
           </Text>
-
-          {DEFAULT_STEPS.map((step) => (
-            <TouchableOpacity
-              key={step.id}
-              style={[
-                styles(theme).stepCard,
-                completedSteps.includes(step.id) && styles(theme).stepCardCompleted
-              ]}
-              onPress={() => handleToggleStep(step.id)}
-            >
-              {Platform.OS === 'ios' ? (
-                <BlurView intensity={20} tint="dark" style={styles(theme).stepBlur}>
-                  <View style={styles(theme).stepHeader}>
-                    <View style={styles(theme).iconContainer}>
-                      {step.icon}
-                    </View>
-                    <View style={styles(theme).stepInfo}>
-                      <Text style={styles(theme).stepTitle}>{step.title}</Text>
-                      <Text style={styles(theme).stepDuration}>{step.duration} mins</Text>
-                    </View>
-                    <TouchableOpacity
-                      onPress={(e) => {
-                        e.stopPropagation();
-                        startTimer(step);
-                      }}
-                      style={styles(theme).playButton}
-                    >
-                      <Play size={20} color={theme.colors.accent} fill={theme.colors.accent} />
-                    </TouchableOpacity>
-                    {completedSteps.includes(step.id) ? (
-                      <CheckCircle2 size={24} color={theme.colors.accent} />
-                    ) : (
-                      <Circle size={24} color="rgba(255,255,255,0.3)" />
-                    )}
-                  </View>
-                  <Text style={styles(theme).stepDescription}>{step.description}</Text>
-                </BlurView>
-              ) : (
-                <View style={styles(theme).stepBlur}>
-                  <View style={styles(theme).stepHeader}>
-                    <View style={styles(theme).iconContainer}>
-                      {step.icon}
-                    </View>
-                    <View style={styles(theme).stepInfo}>
-                      <Text style={styles(theme).stepTitle}>{step.title}</Text>
-                      <Text style={styles(theme).stepDuration}>{step.duration} mins</Text>
-                    </View>
-                    <TouchableOpacity
-                      onPress={(e) => {
-                        e.stopPropagation();
-                        startTimer(step);
-                      }}
-                      style={styles(theme).playButton}
-                    >
-                      <Play size={20} color={theme.colors.accent} fill={theme.colors.accent} />
-                    </TouchableOpacity>
-                    {completedSteps.includes(step.id) ? (
-                      <CheckCircle2 size={24} color={theme.colors.accent} />
-                    ) : (
-                      <Circle size={24} color="rgba(255,255,255,0.3)" />
-                    )}
-                  </View>
-                  <Text style={styles(theme).stepDescription}>{step.description}</Text>
-                </View>
-              )}
-            </TouchableOpacity>
-          ))}
-
-          <View style={styles(theme).bottomSpacing} />
-        </ScrollView>
-
-        {/* Complete Button */}
-        <View style={styles(theme).footer}>
-          <TouchableOpacity
-            style={[
-              styles(theme).completeButton,
-              completedSteps.length === DEFAULT_STEPS.length && styles(theme).completeButtonActive
-            ]}
-            onPress={() => navigation.goBack()}
-          >
-            <LinearGradient
-              colors={completedSteps.length === DEFAULT_STEPS.length
-                ? [theme.colors.accent, theme.colors.highlight]
-                : ['rgba(255,255,255,0.1)', 'rgba(255,255,255,0.05)']}
-              style={styles(theme).completeGradient}
-            >
-              <Text style={[
-                styles(theme).completeText,
-                completedSteps.length === DEFAULT_STEPS.length && { color: theme.colors.background }
-              ]}>
-                {completedSteps.length === DEFAULT_STEPS.length ? 'Routine Complete' : `${completedSteps.length}/${DEFAULT_STEPS.length} Steps Done`}
-              </Text>
-            </LinearGradient>
-          </TouchableOpacity>
+          <Text style={[s.headerSubtitle, { color: theme.colors.textSecondary }]}>
+            {TOTAL_MINUTES} min total · {completedSteps.length}/{DEFAULT_STEPS.length} done
+          </Text>
         </View>
-      </LinearGradient>
+        <TouchableOpacity
+          onPress={resetRoutine}
+          style={[s.resetButton, { backgroundColor: theme.colors.card, borderColor: theme.colors.cardBorder }]}
+        >
+          <RotateCcw size={18} color={theme.colors.textSecondary} />
+        </TouchableOpacity>
+      </View>
+
+      <ScrollView
+        style={s.content}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={s.scrollContent}
+      >
+        {/* Active Timer Card */}
+        {activeStepData && (
+          <View style={[s.timerCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.accentBorder }]}>
+            <View pointerEvents="none" style={[s.timerGlow, { backgroundColor: theme.colors.accentLight }]} />
+            <Text style={[s.timerLabel, { color: theme.colors.textSecondary }]}>
+              {activeStepData.title}
+            </Text>
+            <Text style={[s.timerValue, { color: theme.colors.textPrimary, fontFamily: theme.typography.fontFamily.displaySemibold }]}>
+              {formatTime(timeLeft)}
+            </Text>
+            <View style={s.timerControls}>
+              <TouchableOpacity
+                style={[s.controlButton, { backgroundColor: theme.colors.ctaBackground }]}
+                onPress={() => setIsActive(!isActive)}
+              >
+                {isActive ? (
+                  <Pause size={22} color={theme.colors.ctaText} fill={theme.colors.ctaText} />
+                ) : (
+                  <Play size={22} color={theme.colors.ctaText} fill={theme.colors.ctaText} />
+                )}
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[s.controlButton, { backgroundColor: theme.colors.backgroundTertiary, borderWidth: 1, borderColor: theme.colors.cardBorder }]}
+                onPress={() => {
+                  setIsActive(false);
+                  setActiveStep(null);
+                }}
+              >
+                <RotateCcw size={20} color={theme.colors.textPrimary} />
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {/* Steps card — canvas: numbered rows with duration pill + bell glyph */}
+        <View style={[s.stepsCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.cardBorder }]}>
+          {DEFAULT_STEPS.map((step, index) => {
+            const isDone = completedSteps.includes(step.id);
+            const isLast = index === DEFAULT_STEPS.length - 1;
+            return (
+              <TouchableOpacity
+                key={step.id}
+                style={[s.stepRow, !isLast && { borderBottomWidth: 1, borderBottomColor: theme.colors.cardBorder }]}
+                onPress={() => handleToggleStep(step.id)}
+                activeOpacity={0.8}
+              >
+                <View style={[s.stepNumber, { backgroundColor: theme.colors.backgroundTertiary, borderColor: theme.colors.cardBorder }]}>
+                  {isDone ? (
+                    <CheckCircle2 size={16} color={theme.colors.accent} />
+                  ) : (
+                    <Text style={[s.stepNumberText, { color: theme.colors.textPrimary }]}>{index + 1}</Text>
+                  )}
+                </View>
+                <View style={s.stepIconWrap}>{step.icon}</View>
+                <View style={s.stepTextCol}>
+                  <Text
+                    style={[
+                      s.stepTitle,
+                      { color: theme.colors.textPrimary },
+                      isDone && { color: theme.colors.textTertiary, textDecorationLine: 'line-through' },
+                    ]}
+                  >
+                    {step.title}
+                  </Text>
+                  <Text style={[s.stepDescription, { color: theme.colors.textSecondary }]} numberOfLines={1}>
+                    {step.description}
+                  </Text>
+                </View>
+                <View style={[s.durationPill, { backgroundColor: theme.colors.backgroundTertiary, borderColor: theme.colors.cardBorder }]}>
+                  <Text style={[s.durationPillText, { color: theme.colors.textPrimary }]}>{step.duration} min</Text>
+                </View>
+                <TouchableOpacity
+                  onPress={(e) => {
+                    e.stopPropagation();
+                    startTimer(step);
+                  }}
+                  style={[s.playButton, { backgroundColor: theme.colors.accentLight }]}
+                >
+                  <Play size={15} color={theme.colors.accent} fill={theme.colors.accent} />
+                </TouchableOpacity>
+                {isDone ? (
+                  <CheckCircle2 size={22} color={theme.colors.accent} />
+                ) : (
+                  <Circle size={22} color={theme.colors.cardBorder} />
+                )}
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        {/* Reminder note — static bell row, mirrors canvas's reminder card tone */}
+        <View style={[s.reminderCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.cardBorder }]}>
+          <View style={[s.reminderIconWrap, { backgroundColor: theme.colors.accentLight }]}>
+            <Bell size={16} color={theme.colors.accent} />
+          </View>
+          <Text style={[s.reminderText, { color: theme.colors.textSecondary }]}>
+            Complete each step to prepare your mind and body for deep sleep.
+          </Text>
+        </View>
+
+        <Text style={[s.footerHint, { color: theme.colors.textTertiary }]}>
+          {allDone ? 'Routine complete tonight 🌙' : `${DEFAULT_STEPS.length - completedSteps.length} steps left`}
+        </Text>
+
+        <View style={s.bottomSpacing} />
+      </ScrollView>
+
+      {/* Complete Button */}
+      <View style={[s.footer, { paddingBottom: insets.bottom + (Platform.OS === 'ios' ? 20 : 20) }]}>
+        <TouchableOpacity
+          style={[
+            s.completeButton,
+            { backgroundColor: allDone ? theme.colors.ctaBackground : theme.colors.backgroundTertiary },
+          ]}
+          onPress={() => navigation.goBack()}
+          activeOpacity={0.9}
+        >
+          <Text style={[s.completeText, { color: allDone ? theme.colors.ctaText : theme.colors.textSecondary }]}>
+            {allDone ? 'Routine Complete' : `${completedSteps.length}/${DEFAULT_STEPS.length} Steps Done`}
+          </Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
@@ -337,38 +319,41 @@ export default function BedtimeRoutineScreen() {
 const styles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.colors.background,
-  },
-  gradient: {
-    flex: 1,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    columnGap: 12,
     paddingHorizontal: 20,
-    paddingBottom: 20,
+    paddingBottom: 18,
   },
   backButton: {
-    width: 40,
-    height: 40,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    borderRadius: 12,
+  },
+  headerTitleBlock: {
+    flex: 1,
   },
   headerTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: theme.colors.textPrimary,
+    fontSize: 22,
+    letterSpacing: -0.2,
+  },
+  headerSubtitle: {
+    fontFamily: theme.typography.fontFamily.body,
+    fontSize: 13,
+    marginTop: 2,
   },
   resetButton: {
-    width: 40,
-    height: 40,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    borderRadius: 12,
   },
   content: {
     flex: 1,
@@ -377,131 +362,152 @@ const styles = (theme: any) => StyleSheet.create({
     paddingHorizontal: 20,
   },
   timerCard: {
-    borderRadius: 24,
+    borderRadius: theme.borderRadius.card,
+    borderWidth: 1,
     padding: 24,
     alignItems: 'center',
-    marginBottom: 30,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
+    marginBottom: 20,
     overflow: 'hidden',
   },
+  timerGlow: {
+    position: 'absolute',
+    top: -60,
+    right: -50,
+    width: 200,
+    height: 200,
+    borderRadius: 999,
+  },
   timerLabel: {
-    fontSize: 16,
-    color: theme.colors.textSecondary,
-    marginBottom: 8,
+    fontFamily: theme.typography.fontFamily.body,
+    fontSize: 15,
+    marginBottom: 6,
   },
   timerValue: {
-    fontSize: 48,
-    fontWeight: '800',
-    color: theme.colors.textPrimary,
-    fontVariant: ['tabular-nums'],
+    fontSize: 44,
+    letterSpacing: -0.5,
   },
   timerControls: {
     flexDirection: 'row',
-    marginTop: 20,
-    rowGap: 15, columnGap: 15,
+    columnGap: 14,
+    marginTop: 18,
   },
   controlButton: {
     width: 50,
     height: 50,
     borderRadius: 25,
-    backgroundColor: theme.colors.accent,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  sectionTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: theme.colors.textPrimary,
-    marginBottom: 8,
-  },
-  sectionSubtitle: {
-    fontSize: 15,
-    color: theme.colors.textSecondary,
-    lineHeight: 22,
-    marginBottom: 24,
-  },
-  stepCard: {
-    marginBottom: 16,
-    borderRadius: 20,
-    overflow: 'hidden',
+  stepsCard: {
+    borderRadius: theme.borderRadius.card,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.05)',
+    marginBottom: 16,
   },
-  stepCardCompleted: {
-    borderColor: theme.colors.accent,
-    opacity: 0.8,
-  },
-  stepBlur: {
-    padding: 20,
-  },
-  stepHeader: {
+  stepRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    columnGap: 12,
+    minHeight: 72,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
   },
-  iconContainer: {
-    width: 48,
-    height: 48,
+  stepNumber: {
+    width: 28,
+    height: 28,
     borderRadius: 14,
-    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderWidth: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 16,
+    flexShrink: 0,
   },
-  stepInfo: {
+  stepNumberText: {
+    fontFamily: theme.typography.fontFamily.bodyBold,
+    fontSize: 13,
+  },
+  stepIconWrap: {
+    width: 32,
+    height: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexShrink: 0,
+  },
+  stepTextCol: {
     flex: 1,
+    rowGap: 2,
   },
   stepTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: theme.colors.textPrimary,
-    marginBottom: 2,
+    fontFamily: theme.typography.fontFamily.bodyBold,
+    fontSize: 15,
   },
-  stepDuration: {
-    fontSize: 13,
-    color: theme.colors.textSecondary,
+  stepDescription: {
+    fontFamily: theme.typography.fontFamily.body,
+    fontSize: 12,
+  },
+  durationPill: {
+    height: 30,
+    paddingHorizontal: 10,
+    borderRadius: 99,
+    borderWidth: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexShrink: 0,
+  },
+  durationPillText: {
+    fontFamily: theme.typography.fontFamily.bodySemibold,
+    fontSize: 12,
   },
   playButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexShrink: 0,
+  },
+  reminderCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    columnGap: 12,
+    borderRadius: theme.borderRadius.card,
+    borderWidth: 1,
+    padding: 16,
+    marginBottom: 16,
+  },
+  reminderIconWrap: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: 'rgba(0, 255, 209, 0.1)',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    flexShrink: 0,
   },
-  stepDescription: {
-    fontSize: 14,
-    color: theme.colors.textSecondary,
-    lineHeight: 20,
-    marginTop: 12,
-    opacity: 0.8,
+  reminderText: {
+    flex: 1,
+    fontFamily: theme.typography.fontFamily.body,
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  footerHint: {
+    fontFamily: theme.typography.fontFamily.body,
+    fontSize: 13,
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  bottomSpacing: {
+    height: 24,
   },
   footer: {
-    padding: 20,
-    paddingBottom: Platform.OS === 'ios' ? 40 : 20,
+    paddingHorizontal: 20,
+    paddingTop: 12,
   },
   completeButton: {
-    borderRadius: 16,
-    overflow: 'hidden',
-  },
-  completeButtonActive: {
-    shadowColor: theme.colors.accent,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  completeGradient: {
-    paddingVertical: 18,
+    height: 58,
+    borderRadius: theme.borderRadius.xl,
+    justifyContent: 'center',
     alignItems: 'center',
   },
   completeText: {
+    fontFamily: theme.typography.fontFamily.bodyBold,
     fontSize: 16,
-    fontWeight: '700',
-    color: theme.colors.textSecondary,
-  },
-  bottomSpacing: {
-    height: 40,
   },
 });

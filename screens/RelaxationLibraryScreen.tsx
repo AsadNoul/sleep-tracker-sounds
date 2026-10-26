@@ -5,19 +5,31 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAudio } from '../contexts/AudioContext';
 import { useNavigation } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
 import {
   Heart,
   Play,
   Pause,
-  SkipBack,
-  SkipForward,
   Volume2,
   Clock,
   Save,
   Trash2,
-  Settings
+  ChevronLeft,
+  BookOpen,
+  Music2,
+  Sparkles,
+  X,
 } from 'lucide-react-native';
+
+// Canvas reference: Rlx-Library.dc.html (+ D-Rlx-Library.dc.html day variant).
+// Canvas layout: back-button header, hero "Tonight's pick" card with glow +
+// Start button, horizontal pill filter row, then one bordered card containing
+// icon-row list entries with duration/category subtext and a play/unlock
+// control. That shape is reused here for all three tabs (Stories / Sounds /
+// Meditation) — the pill row becomes the tab selector, the hero card
+// highlights the first item of the active tab, and each tab's existing data
+// renders through the shared icon-row list. All state/logic below (tab
+// selection, sound mixer, custom mixes, sleep timer, story modal, AsyncStorage
+// persistence) is unchanged — only JSX/styling was rebuilt.
 
 const GITHUB_BASE_URL = 'https://raw.githubusercontent.com/AsadNoul/sleep-tracker-sounds/main';
 
@@ -266,73 +278,156 @@ export default function RelaxationLibraryScreen() {
     await playSound(meditation);
   };
 
+  const s = styles(theme);
+
+  const TABS: { id: 'stories' | 'sounds' | 'meditation'; label: string; icon: any }[] = [
+    { id: 'stories', label: 'Stories', icon: BookOpen },
+    { id: 'sounds', label: 'Sounds', icon: Music2 },
+    { id: 'meditation', label: 'Meditation', icon: Sparkles },
+  ];
+
+  const heroStory = BEDTIME_STORIES[0];
+  const heroMeditation = MEDITATIONS[0];
+
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]} edges={['top']}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <Ionicons name="chevron-back" size={28} color={theme.colors.textPrimary} />
+    <SafeAreaView style={[s.container, { backgroundColor: theme.colors.background }]} edges={['top']}>
+      {/* Header — canvas: back button + Fraunces title */}
+      <View style={s.header}>
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={[s.backButton, { backgroundColor: theme.colors.card, borderColor: theme.colors.cardBorder }]}
+        >
+          <ChevronLeft size={20} color={theme.colors.textPrimary} strokeWidth={2.2} />
         </TouchableOpacity>
-        <View style={styles.headerText}>
-          <Text style={[styles.title, { color: theme.colors.textPrimary }]}>Relaxation Library</Text>
-          <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>
-            Stories, sounds & guided meditation
+        <View style={s.headerText}>
+          <Text style={[s.title, { color: theme.colors.textPrimary, fontFamily: theme.typography.fontFamily.displaySemibold }]}>
+            Relax
+          </Text>
+          <Text style={[s.subtitle, { color: theme.colors.textSecondary }]}>
+            Stories, sounds &amp; guided meditation
           </Text>
         </View>
       </View>
 
-      <View style={[styles.tabBar, { backgroundColor: theme.colors.card }]}>
-        <TouchableOpacity
-          style={[styles.tab, selectedTab === 'stories' && { backgroundColor: theme.colors.accent }]}
-          onPress={() => setSelectedTab('stories')}
-        >
-          <Text style={[styles.tabText, selectedTab === 'stories' && styles.tabTextActive]}>
-            Stories
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tab, selectedTab === 'sounds' && { backgroundColor: theme.colors.accent }]}
-          onPress={() => setSelectedTab('sounds')}
-        >
-          <Text style={[styles.tabText, selectedTab === 'sounds' && styles.tabTextActive]}>
-            Sounds
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tab, selectedTab === 'meditation' && { backgroundColor: theme.colors.accent }]}
-          onPress={() => setSelectedTab('meditation')}
-        >
-          <Text style={[styles.tabText, selectedTab === 'meditation' && styles.tabTextActive]}>
-            Meditation
-          </Text>
-        </TouchableOpacity>
-      </View>
+      <ScrollView style={s.content} showsVerticalScrollIndicator={false}>
+        {/* Hero card — canvas: "Tonight's pick" with glow + Start button */}
+        {selectedTab === 'stories' && heroStory && (
+          <TouchableOpacity
+            style={[s.heroCard, { backgroundColor: theme.colors.backgroundSecondary, borderColor: theme.colors.accentBorder }]}
+            onPress={() => playStory(heroStory)}
+            activeOpacity={0.9}
+          >
+            <View pointerEvents="none" style={[s.heroGlow, { backgroundColor: theme.colors.accentLight }]} />
+            <Text style={[s.heroEyebrow, { color: theme.colors.textTertiary }]}>TONIGHT'S PICK</Text>
+            <Text style={[s.heroTitle, { color: theme.colors.textPrimary, fontFamily: theme.typography.fontFamily.displaySemibold }]}>
+              {heroStory.title}
+            </Text>
+            <Text style={[s.heroSubtitle, { color: theme.colors.textSecondary }]}>
+              {heroStory.duration} · {heroStory.description}
+            </Text>
+            <View style={[s.heroButton, { backgroundColor: theme.colors.ctaBackground }]}>
+              <Play size={14} color={theme.colors.ctaText} fill={theme.colors.ctaText} />
+              <Text style={[s.heroButtonText, { color: theme.colors.ctaText }]}>Start</Text>
+            </View>
+          </TouchableOpacity>
+        )}
 
-      <ScrollView style={styles.content}>
+        {selectedTab === 'meditation' && heroMeditation && (
+          <TouchableOpacity
+            style={[s.heroCard, { backgroundColor: theme.colors.backgroundSecondary, borderColor: theme.colors.accentBorder }]}
+            onPress={() => startMeditation(heroMeditation)}
+            activeOpacity={0.9}
+          >
+            <View pointerEvents="none" style={[s.heroGlow, { backgroundColor: theme.colors.accentLight }]} />
+            <Text style={[s.heroEyebrow, { color: theme.colors.textTertiary }]}>TONIGHT'S PICK</Text>
+            <Text style={[s.heroTitle, { color: theme.colors.textPrimary, fontFamily: theme.typography.fontFamily.displaySemibold }]}>
+              {heroMeditation.title}
+            </Text>
+            <Text style={[s.heroSubtitle, { color: theme.colors.textSecondary }]}>
+              {heroMeditation.duration} · {heroMeditation.description}
+            </Text>
+            <View style={[s.heroButton, { backgroundColor: theme.colors.ctaBackground }]}>
+              <Play size={14} color={theme.colors.ctaText} fill={theme.colors.ctaText} />
+              <Text style={[s.heroButtonText, { color: theme.colors.ctaText }]}>Start</Text>
+            </View>
+          </TouchableOpacity>
+        )}
+
+        {selectedTab === 'sounds' && (
+          <View style={[s.heroCard, { backgroundColor: theme.colors.backgroundSecondary, borderColor: theme.colors.accentBorder }]}>
+            <View pointerEvents="none" style={[s.heroGlow, { backgroundColor: theme.colors.accentLight }]} />
+            <Text style={[s.heroEyebrow, { color: theme.colors.textTertiary }]}>MIX &amp; MATCH</Text>
+            <Text style={[s.heroTitle, { color: theme.colors.textPrimary, fontFamily: theme.typography.fontFamily.displaySemibold }]}>
+              Build your sound mix
+            </Text>
+            <Text style={[s.heroSubtitle, { color: theme.colors.textSecondary }]}>
+              Tap sounds below to layer them together
+            </Text>
+          </View>
+        )}
+
+        {/* Pill filter row — canvas: horizontal scroll of category pills, reused as tab selector */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={s.pillRow}
+          contentContainerStyle={s.pillRowContent}
+        >
+          {TABS.map((tab) => {
+            const Icon = tab.icon;
+            const isSelected = selectedTab === tab.id;
+            return (
+              <TouchableOpacity
+                key={tab.id}
+                style={[
+                  s.pill,
+                  {
+                    backgroundColor: isSelected ? theme.colors.textPrimary : theme.colors.card,
+                    borderColor: isSelected ? theme.colors.textPrimary : theme.colors.cardBorder,
+                  },
+                ]}
+                onPress={() => setSelectedTab(tab.id)}
+              >
+                <Icon size={14} color={isSelected ? theme.colors.background : theme.colors.textSecondary} />
+                <Text
+                  style={[
+                    s.pillText,
+                    { color: isSelected ? theme.colors.background : theme.colors.textSecondary },
+                  ]}
+                >
+                  {tab.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+
         {selectedTab === 'stories' && (
-          <View>
-            {BEDTIME_STORIES.map((story) => (
+          <View style={[s.listCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.cardBorder }]}>
+            {BEDTIME_STORIES.map((story, index) => (
               <TouchableOpacity
                 key={story.id}
-                style={[styles.card, { backgroundColor: theme.colors.card }]}
+                style={[s.listRow, index < BEDTIME_STORIES.length - 1 && { borderBottomWidth: 1, borderBottomColor: theme.colors.cardBorder }]}
                 onPress={() => playStory(story)}
+                activeOpacity={0.8}
               >
-                <View style={styles.cardHeader}>
-                  <Text style={[styles.cardTitle, { color: theme.colors.textPrimary }]}>{story.title}</Text>
-                  <Text style={[styles.duration, { color: theme.colors.textSecondary }]}>
-                    {story.duration}
+                <View style={[s.listRowIcon, { backgroundColor: theme.colors.backgroundTertiary }]}>
+                  <BookOpen size={18} color={theme.colors.accent} />
+                </View>
+                <View style={s.listRowTextCol}>
+                  <Text style={[s.listRowTitle, { color: theme.colors.textPrimary }]} numberOfLines={1}>
+                    {story.title}
+                  </Text>
+                  <Text style={[s.listRowSub, { color: theme.colors.textTertiary }]} numberOfLines={1}>
+                    {story.category} · {story.duration} · {story.narrator}
                   </Text>
                 </View>
-                <Text style={[styles.narrator, { color: theme.colors.textSecondary }]}>
-                  Narrated by {story.narrator}
-                </Text>
-                <Text style={[styles.description, { color: theme.colors.textSecondary }]}>
-                  {story.description}
-                </Text>
-                <View style={[styles.categoryBadge, { backgroundColor: theme.colors.accent + '20' }]}>
-                  <Text style={[styles.categoryText, { color: theme.colors.accent }]}>
-                    {story.category}
-                  </Text>
-                </View>
+                <TouchableOpacity
+                  style={[s.listRowPlay, { borderColor: theme.colors.accent }]}
+                  onPress={() => playStory(story)}
+                >
+                  <Play size={13} color={theme.colors.accent} fill={theme.colors.accent} />
+                </TouchableOpacity>
               </TouchableOpacity>
             ))}
           </View>
@@ -340,50 +435,50 @@ export default function RelaxationLibraryScreen() {
 
         {selectedTab === 'sounds' && (
           <View>
-            <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>
-              Mix & Match Sounds
-            </Text>
-            <Text style={[styles.sectionSubtitle, { color: theme.colors.textSecondary }]}>
-              Tap sounds to add them to your mix
-            </Text>
-
-            <View style={styles.soundGrid}>
-              {SOUNDS.map((sound) => (
-                <TouchableOpacity
-                  key={sound.id}
-                  style={[
-                    styles.soundCard,
-                    { backgroundColor: theme.colors.card },
-                    activeSounds.includes(sound.id) && { backgroundColor: theme.colors.accent },
-                  ]}
-                  onPress={() => toggleSound(sound)}
-                >
-                  <Text style={styles.soundIcon}>{sound.icon}</Text>
-                  <Text
+            <View style={s.soundGrid}>
+              {SOUNDS.map((sound) => {
+                const isActive = activeSounds.includes(sound.id);
+                return (
+                  <TouchableOpacity
+                    key={sound.id}
                     style={[
-                      styles.soundName,
-                      { color: activeSounds.includes(sound.id) ? '#fff' : theme.colors.textPrimary },
+                      s.soundCard,
+                      {
+                        backgroundColor: isActive ? theme.colors.selectedBackground : theme.colors.card,
+                        borderColor: isActive ? theme.colors.accent : theme.colors.cardBorder,
+                      },
                     ]}
+                    onPress={() => toggleSound(sound)}
                   >
-                    {sound.name}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+                    <Text style={s.soundIcon}>{sound.icon}</Text>
+                    <Text
+                      style={[
+                        s.soundName,
+                        { color: isActive ? theme.colors.accent : theme.colors.textPrimary },
+                      ]}
+                    >
+                      {sound.name}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
 
             {customMixes.length > 0 && (
-              <View style={styles.sectionHeader}>
-                <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>Your Mixes</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.mixList}>
+              <View style={s.sectionHeader}>
+                <Text style={[s.sectionTitle, { color: theme.colors.textPrimary, fontFamily: theme.typography.fontFamily.displaySemibold }]}>
+                  Your Mixes
+                </Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.mixList}>
                   {customMixes.map((mix, idx) => (
                     <TouchableOpacity
                       key={idx}
-                      style={[styles.mixChip, { backgroundColor: theme.colors.card }]}
+                      style={[s.mixChip, { backgroundColor: theme.colors.card, borderColor: theme.colors.cardBorder }]}
                       onPress={() => loadMix(mix.sounds)}
                     >
-                      <Text style={[styles.mixChipText, { color: theme.colors.textPrimary }]}>{mix.name}</Text>
+                      <Text style={[s.mixChipText, { color: theme.colors.textPrimary }]}>{mix.name}</Text>
                       <TouchableOpacity onPress={() => deleteMix(idx)}>
-                        <Trash2 size={14} color={theme.colors.danger} />
+                        <Trash2 size={14} color={theme.colors.error} />
                       </TouchableOpacity>
                     </TouchableOpacity>
                   ))}
@@ -392,21 +487,24 @@ export default function RelaxationLibraryScreen() {
             )}
 
             {activeSounds.length > 0 && (
-              <View style={[styles.mixerCard, { backgroundColor: theme.colors.card }]}>
-                <View style={styles.mixerHeader}>
-                  <Heart size={24} color={theme.colors.accent} />
-                  <Text style={[styles.mixerTitle, { color: theme.colors.textPrimary }]}>
-                    Active Mix ({activeSounds.length} sounds)
+              <View style={[s.mixerCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.cardBorder }]}>
+                <View style={s.mixerHeader}>
+                  <Heart size={20} color={theme.colors.accent} />
+                  <Text style={[s.mixerTitle, { color: theme.colors.textPrimary }]}>
+                    Active Mix ({activeSounds.length})
                   </Text>
-                  <Volume2 size={20} color={theme.colors.textSecondary} />
+                  <Volume2 size={18} color={theme.colors.textSecondary} />
                 </View>
 
-                <View style={styles.soundsList}>
+                <View style={s.soundsList}>
                   {activeSounds.map((soundId) => {
-                    const sound = SOUNDS.find(s => s.id === soundId);
+                    const sound = SOUNDS.find(sd => sd.id === soundId);
                     return (
-                      <View key={soundId} style={[styles.activeSoundChip, { backgroundColor: theme.colors.accent + '20', borderColor: theme.colors.accent + '40' }]}>
-                        <Text style={[styles.activeSoundText, { color: theme.colors.accent }]}>
+                      <View
+                        key={soundId}
+                        style={[s.activeSoundChip, { backgroundColor: theme.colors.accentLight, borderColor: theme.colors.accentBorder }]}
+                      >
+                        <Text style={[s.activeSoundText, { color: theme.colors.accent }]}>
                           {sound?.icon} {sound?.name}
                         </Text>
                       </View>
@@ -414,54 +512,61 @@ export default function RelaxationLibraryScreen() {
                   })}
                 </View>
 
-                <View style={styles.timerSection}>
-                  <View style={styles.timerHeader}>
-                    <Clock size={16} color={theme.colors.textSecondary} />
-                    <Text style={[styles.timerTitle, { color: theme.colors.textSecondary }]}>
+                <View style={[s.timerSection, { backgroundColor: theme.colors.backgroundTertiary }]}>
+                  <View style={s.timerHeader}>
+                    <Clock size={14} color={theme.colors.textSecondary} />
+                    <Text style={[s.timerTitle, { color: theme.colors.textSecondary }]}>
                       {timeLeft > 0 ? `Ends in ${formatTime(timeLeft)}` : 'Sleep Timer'}
                     </Text>
                   </View>
-                  <View style={styles.timerOptions}>
+                  <View style={s.timerOptions}>
                     {[5, 15, 30, 60].map(m => (
                       <TouchableOpacity
                         key={m}
                         onPress={() => startTimer(m)}
-                        style={[styles.timerBtn, sleepTimer === m && { backgroundColor: theme.colors.accent + '40' }]}
+                        style={[
+                          s.timerBtn,
+                          { backgroundColor: theme.colors.card, borderColor: theme.colors.cardBorder },
+                          sleepTimer === m && { backgroundColor: theme.colors.selectedBackground, borderColor: theme.colors.accent },
+                        ]}
                       >
-                        <Text style={[styles.timerBtnText, { color: theme.colors.textPrimary }]}>{m}m</Text>
+                        <Text style={[s.timerBtnText, { color: theme.colors.textPrimary }]}>{m}m</Text>
                       </TouchableOpacity>
                     ))}
-                    <TouchableOpacity onPress={() => { setSleepTimer(null); setTimeLeft(0); }} style={styles.timerBtn}>
-                      <Trash2 size={14} color={theme.colors.danger} />
+                    <TouchableOpacity
+                      onPress={() => { setSleepTimer(null); setTimeLeft(0); }}
+                      style={[s.timerBtn, { backgroundColor: theme.colors.card, borderColor: theme.colors.cardBorder }]}
+                    >
+                      <Trash2 size={14} color={theme.colors.error} />
                     </TouchableOpacity>
                   </View>
                 </View>
 
-                <View style={styles.playerControls}>
-                  <TouchableOpacity style={styles.controlButton} onPress={saveCurrentMix}>
-                    <Save size={24} color={theme.colors.accent} />
+                <View style={s.playerControls}>
+                  <TouchableOpacity style={s.controlButton} onPress={saveCurrentMix}>
+                    <Save size={22} color={theme.colors.accent} />
                   </TouchableOpacity>
 
                   <TouchableOpacity
-                    style={[styles.mainPlayButton, { backgroundColor: theme.colors.accent }]}
+                    style={[s.mainPlayButton, { backgroundColor: theme.colors.ctaBackground }]}
                     onPress={mixPlaying ? pauseMix : playMix}
                   >
                     {mixPlaying ? (
-                      <Pause size={28} color="#fff" fill="#fff" />
+                      <Pause size={26} color={theme.colors.ctaText} fill={theme.colors.ctaText} />
                     ) : (
-                      <Play size={28} color="#fff" fill="#fff" />
+                      <Play size={26} color={theme.colors.ctaText} fill={theme.colors.ctaText} />
                     )}
                   </TouchableOpacity>
 
-                  <TouchableOpacity style={styles.controlButton} onPress={() => setActiveSounds([])}>
-                    <Trash2 size={24} color={theme.colors.danger} />
+                  <TouchableOpacity style={s.controlButton} onPress={() => setActiveSounds([])}>
+                    <Trash2 size={22} color={theme.colors.error} />
                   </TouchableOpacity>
                 </View>
 
                 {mixPlaying && (
-                  <View style={styles.playingIndicator}>
-                    <View style={[styles.playingDot, { backgroundColor: theme.colors.accent }]} />
-                    <Text style={[styles.playingText, { color: theme.colors.accent }]}>
+                  <View style={s.playingIndicator}>
+                    <View style={[s.playingDot, { backgroundColor: theme.colors.accent }]} />
+                    <Text style={[s.playingText, { color: theme.colors.accent }]}>
                       Now Playing
                     </Text>
                   </View>
@@ -472,33 +577,37 @@ export default function RelaxationLibraryScreen() {
         )}
 
         {selectedTab === 'meditation' && (
-          <View>
-            {MEDITATIONS.map((meditation) => (
+          <View style={[s.listCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.cardBorder }]}>
+            {MEDITATIONS.map((meditation, index) => (
               <TouchableOpacity
                 key={meditation.id}
-                style={[styles.card, { backgroundColor: theme.colors.card }]}
+                style={[s.listRow, index < MEDITATIONS.length - 1 && { borderBottomWidth: 1, borderBottomColor: theme.colors.cardBorder }]}
                 onPress={() => startMeditation(meditation)}
+                activeOpacity={0.8}
               >
-                <View style={styles.cardHeader}>
-                  <Text style={[styles.cardTitle, { color: theme.colors.textPrimary }]}>
+                <View style={[s.listRowIcon, { backgroundColor: theme.colors.backgroundTertiary }]}>
+                  <Sparkles size={18} color={theme.colors.accent} />
+                </View>
+                <View style={s.listRowTextCol}>
+                  <Text style={[s.listRowTitle, { color: theme.colors.textPrimary }]} numberOfLines={1}>
                     {meditation.title}
                   </Text>
-                  <Text style={[styles.duration, { color: theme.colors.textSecondary }]}>
-                    {meditation.duration}
+                  <Text style={[s.listRowSub, { color: theme.colors.textTertiary }]} numberOfLines={1}>
+                    {meditation.type} · {meditation.duration}
                   </Text>
                 </View>
-                <Text style={[styles.description, { color: theme.colors.textSecondary }]}>
-                  {meditation.description}
-                </Text>
-                <View style={[styles.categoryBadge, { backgroundColor: theme.colors.accent + '20' }]}>
-                  <Text style={[styles.categoryText, { color: theme.colors.accent }]}>
-                    {meditation.type}
-                  </Text>
-                </View>
+                <TouchableOpacity
+                  style={[s.listRowPlay, { borderColor: theme.colors.accent }]}
+                  onPress={() => startMeditation(meditation)}
+                >
+                  <Play size={13} color={theme.colors.accent} fill={theme.colors.accent} />
+                </TouchableOpacity>
               </TouchableOpacity>
             ))}
           </View>
         )}
+
+        <View style={s.bottomSpacing} />
       </ScrollView>
 
       <Modal
@@ -506,20 +615,26 @@ export default function RelaxationLibraryScreen() {
         animationType="slide"
         onRequestClose={() => setSelectedStory(null)}
       >
-        <SafeAreaView style={[styles.modalContainer, { backgroundColor: theme.colors.background }]} edges={['top', 'bottom']}>
-          <View style={styles.modalHeader}>
-            <TouchableOpacity onPress={() => setSelectedStory(null)} style={styles.closeButton}>
-              <Ionicons name="close" size={28} color={theme.colors.textPrimary} />
+        <SafeAreaView style={[s.modalContainer, { backgroundColor: theme.colors.background }]} edges={['top', 'bottom']}>
+          <View style={[s.modalHeader, { borderBottomColor: theme.colors.cardBorder }]}>
+            <TouchableOpacity
+              onPress={() => setSelectedStory(null)}
+              style={[s.closeButton, { backgroundColor: theme.colors.card, borderColor: theme.colors.cardBorder }]}
+            >
+              <X size={20} color={theme.colors.textPrimary} />
             </TouchableOpacity>
-            <Text style={[styles.modalTitle, { color: theme.colors.textPrimary }]}>
+            <Text
+              style={[s.modalTitle, { color: theme.colors.textPrimary, fontFamily: theme.typography.fontFamily.displaySemibold }]}
+              numberOfLines={1}
+            >
               {selectedStory?.title}
             </Text>
           </View>
-          <ScrollView style={styles.modalContent}>
-            <Text style={[styles.modalNarrator, { color: theme.colors.textSecondary }]}>
+          <ScrollView style={s.modalContent}>
+            <Text style={[s.modalNarrator, { color: theme.colors.textSecondary }]}>
               Narrated by {selectedStory?.narrator}
             </Text>
-            <Text style={[styles.modalStoryText, { color: theme.colors.textPrimary }]}>
+            <Text style={[s.modalStoryText, { color: theme.colors.textPrimary }]}>
               {selectedStory?.content}
             </Text>
           </ScrollView>
@@ -529,99 +644,157 @@ export default function RelaxationLibraryScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
+    columnGap: 12,
     padding: 20,
     paddingTop: 10,
   },
   backButton: {
-    marginRight: 12,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   headerText: {
     flex: 1,
   },
   title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    marginBottom: 4,
+    fontSize: 24,
+    letterSpacing: -0.2,
+    marginBottom: 2,
   },
   subtitle: {
-    fontSize: 16,
-  },
-  tabBar: {
-    flexDirection: 'row',
-    margin: 20,
-    borderRadius: 12,
-    padding: 4,
-  },
-  tab: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  tabText: {
+    fontFamily: theme.typography.fontFamily.body,
     fontSize: 14,
-    fontWeight: '600',
-  },
-  tabTextActive: {
-    color: '#fff',
   },
   content: {
     flex: 1,
     paddingHorizontal: 20,
   },
+  heroCard: {
+    position: 'relative',
+    overflow: 'hidden',
+    borderRadius: theme.borderRadius.card,
+    borderWidth: 1,
+    padding: 18,
+    rowGap: 8,
+    marginBottom: 16,
+  },
+  heroGlow: {
+    position: 'absolute',
+    top: -60,
+    right: -50,
+    width: 220,
+    height: 220,
+    borderRadius: 999,
+  },
+  heroEyebrow: {
+    fontFamily: theme.typography.fontFamily.bodyBold,
+    fontSize: 12,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+  },
+  heroTitle: {
+    fontSize: 22,
+    letterSpacing: -0.2,
+  },
+  heroSubtitle: {
+    fontFamily: theme.typography.fontFamily.body,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  heroButton: {
+    alignSelf: 'flex-start',
+    height: 44,
+    paddingHorizontal: 18,
+    borderRadius: theme.borderRadius.lg,
+    flexDirection: 'row',
+    alignItems: 'center',
+    columnGap: 8,
+    marginTop: 4,
+  },
+  heroButtonText: {
+    fontFamily: theme.typography.fontFamily.bodyBold,
+    fontSize: 14,
+  },
+  pillRow: {
+    marginBottom: 16,
+  },
+  pillRowContent: {
+    columnGap: 8,
+    paddingRight: 8,
+  },
+  pill: {
+    height: 40,
+    paddingHorizontal: 16,
+    borderRadius: 99,
+    borderWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    columnGap: 7,
+  },
+  pillText: {
+    fontFamily: theme.typography.fontFamily.bodySemibold,
+    fontSize: 13,
+  },
   sectionTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
+    fontSize: 18,
     marginBottom: 8,
   },
   sectionSubtitle: {
+    fontFamily: theme.typography.fontFamily.body,
     fontSize: 14,
     marginBottom: 16,
   },
-  card: {
-    padding: 20,
-    borderRadius: 16,
+  listCard: {
+    borderRadius: theme.borderRadius.card,
+    borderWidth: 1,
     marginBottom: 16,
   },
-  cardHeader: {
+  listRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    columnGap: 12,
+    minHeight: 72,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
   },
-  cardTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
+  listRowIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexShrink: 0,
+  },
+  listRowTextCol: {
     flex: 1,
+    rowGap: 2,
   },
-  duration: {
-    fontSize: 14,
+  listRowTitle: {
+    fontFamily: theme.typography.fontFamily.bodyBold,
+    fontSize: 15,
   },
-  narrator: {
-    fontSize: 14,
-    marginBottom: 8,
-  },
-  description: {
-    fontSize: 14,
-    lineHeight: 20,
-    marginBottom: 12,
-  },
-  categoryBadge: {
-    alignSelf: 'flex-start',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-  },
-  categoryText: {
+  listRowSub: {
+    fontFamily: theme.typography.fontFamily.body,
     fontSize: 12,
-    fontWeight: '600',
+  },
+  listRowPlay: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexShrink: 0,
   },
   soundGrid: {
     flexDirection: 'row',
@@ -632,7 +805,8 @@ const styles = StyleSheet.create({
   soundCard: {
     width: '47%',
     aspectRatio: 1.5,
-    borderRadius: 16,
+    borderRadius: theme.borderRadius.lg,
+    borderWidth: 1,
     padding: 16,
     alignItems: 'center',
     justifyContent: 'center',
@@ -642,13 +816,14 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   soundName: {
+    fontFamily: theme.typography.fontFamily.bodySemibold,
     fontSize: 14,
-    fontWeight: '600',
     textAlign: 'center',
   },
   mixerCard: {
     padding: 20,
-    borderRadius: 16,
+    borderRadius: theme.borderRadius.card,
+    borderWidth: 1,
     marginBottom: 20,
   },
   mixerHeader: {
@@ -656,13 +831,13 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 16,
-    rowGap: 12, columnGap: 12,
+    columnGap: 12,
   },
   mixerTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
+    fontFamily: theme.typography.fontFamily.bodyBold,
+    fontSize: 16,
     flex: 1,
-    marginLeft: 8,
+    marginLeft: 4,
   },
   soundsList: {
     flexDirection: 'row',
@@ -677,14 +852,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   activeSoundText: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontFamily: theme.typography.fontFamily.bodySemibold,
+    fontSize: 13,
   },
   playerControls: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    rowGap: 24, columnGap: 24,
+    columnGap: 24,
     marginBottom: 12,
   },
   controlButton: {
@@ -699,17 +874,12 @@ const styles = StyleSheet.create({
     borderRadius: 32,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
   },
   playingIndicator: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    rowGap: 8, columnGap: 8,
+    columnGap: 8,
   },
   playingDot: {
     width: 8,
@@ -717,52 +887,38 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   playingText: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  playButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  mixerRow: {
-    paddingVertical: 8,
-  },
-  mixerSound: {
-    fontSize: 16,
+    fontFamily: theme.typography.fontFamily.bodySemibold,
+    fontSize: 13,
   },
   timerSection: {
     marginBottom: 20,
-    backgroundColor: 'rgba(255,255,255,0.03)',
     padding: 12,
-    borderRadius: 12,
+    borderRadius: theme.borderRadius.md,
   },
   timerHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    rowGap: 8, columnGap: 8,
+    columnGap: 8,
     marginBottom: 10,
   },
   timerTitle: {
+    fontFamily: theme.typography.fontFamily.bodySemibold,
     fontSize: 12,
-    fontWeight: '600',
     textTransform: 'uppercase',
   },
   timerOptions: {
     flexDirection: 'row',
-    rowGap: 8, columnGap: 8,
+    columnGap: 8,
   },
   timerBtn: {
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 8,
-    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderWidth: 1,
   },
   timerBtnText: {
+    fontFamily: theme.typography.fontFamily.bodySemibold,
     fontSize: 12,
-    fontWeight: '600',
   },
   sectionHeader: {
     marginBottom: 20,
@@ -773,17 +929,16 @@ const styles = StyleSheet.create({
   mixChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    rowGap: 8, columnGap: 8,
+    columnGap: 8,
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 20,
     marginRight: 10,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
   },
   mixChipText: {
+    fontFamily: theme.typography.fontFamily.bodySemibold,
     fontSize: 14,
-    fontWeight: '600',
   },
   modalContainer: {
     flex: 1,
@@ -791,16 +946,20 @@ const styles = StyleSheet.create({
   modalHeader: {
     flexDirection: 'row',
     alignItems: 'center',
+    columnGap: 12,
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.1)',
   },
   closeButton: {
-    marginRight: 12,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   modalTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
+    fontSize: 20,
     flex: 1,
   },
   modalContent: {
@@ -808,11 +967,13 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   modalNarrator: {
+    fontFamily: theme.typography.fontFamily.body,
     fontSize: 14,
     marginBottom: 16,
     fontStyle: 'italic',
   },
   modalStoryText: {
+    fontFamily: theme.typography.fontFamily.body,
     fontSize: 16,
     lineHeight: 28,
   },
