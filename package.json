@@ -71,6 +71,12 @@
   },
   "devDependencies": {
     "@babel/core": "^7.29.0",
+    "@babel/plugin-transform-react-jsx-self": "^7.29.7",
+    "@babel/plugin-transform-react-jsx-source": "^7.29.7",
+    "@babel/plugin-transform-regenerator": "^7.29.8",
+    "@react-native/babel-preset": "0.88.0",
+    "@react-native/metro-babel-transformer": "0.88.0",
+    "@react-native/metro-config": "0.88.0",
     "typescript": "~6.0.3"
   },
   "overrides": {
