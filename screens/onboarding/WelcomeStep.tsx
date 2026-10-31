@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import SleepPrintMark from '../../components/SleepPrintMark';
+import NightprintLogo from '../../components/brand/NightprintLogo';
+import { useAppTheme } from '../../hooks/useAppTheme';
 
 // Onboarding step -1 — the very first screen. No header chrome (no back
 // button, no progress bar), per the canvas: the brand mark carries the screen.
@@ -18,13 +19,14 @@ interface WelcomeStepProps {
 
 export default function WelcomeStep({ theme, onNext, onLogin }: WelcomeStepProps) {
   const s = styles(theme);
+  const { isDark } = useAppTheme();
 
   return (
     <View style={s.container}>
       <View pointerEvents="none" style={s.glow} />
 
       <View style={s.content}>
-        <SleepPrintMark size={260} colors={theme.sleepPrintMark} />
+        <NightprintLogo size={200} variant={isDark ? 'dark' : 'light'} />
 
         <View style={s.textBlock}>
           <Text style={s.heading}>Every night{'\n'}leaves a print</Text>

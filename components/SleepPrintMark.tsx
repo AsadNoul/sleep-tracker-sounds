@@ -79,7 +79,7 @@ export default function SleepPrintMark({ size, colors }: SleepPrintMarkProps) {
     <View
       style={[styles.container, { width: size, height: size }]}
       accessibilityRole="image"
-      accessibilityLabel="Sleep Architect logo: a Sleep Print"
+      accessibilityLabel="Sleep Print: a visual summary of tonight's sleep stages"
     >
       {bars.map((bar) => (
         <View key={bar.key} style={bar.style} />

@@ -16,7 +16,7 @@ import { useSleep } from '../contexts/SleepContext';
 import achievementsService, { Achievement, ACHIEVEMENTS } from '../services/achievementsService';
 
 // ============================================================================
-// Sleep Architect — Achievements (redesign/ui-ux-v3)
+// Nightprint — Achievements (redesign/ui-ux-v3)
 // ============================================================================
 // Rebuilt to match the design canvas's `Ins-Achieve.dc.html` / `D-Ins-Achieve.dc.html`
 // (the "app" / "dayapp" Insights group): back button + title/subtitle, a

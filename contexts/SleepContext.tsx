@@ -174,7 +174,7 @@ export function SleepProvider({ children }: { children: ReactNode }) {
     if (!user || user.id === 'guest') return;
 
     try {
-      console.log('🤖 Generating AI Sleep Architect insights...');
+      console.log('🤖 Generating AI Nightprint insights...');
 
       let insight = '';
       let recommendation = '';

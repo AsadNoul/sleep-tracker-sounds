@@ -36,7 +36,7 @@ The OTA Update Modal features a stunning, modern design that captures user atten
 │  │                               │  │
 │  │    ✨ New Update Available    │  │
 │  │                               │  │
-│  │   We've made Sleep Architect  │  │
+│  │   We've made Nightprint  │  │
 │  │      even better!             │  │
 │  │                               │  │
 │  │   ┌─────────────────┐         │  │
@@ -226,5 +226,5 @@ The OTA Update Modal features a stunning, modern design that captures user atten
 
 ---
 
-**Design System:** Sleep Architect v2.1
+**Design System:** Nightprint v2.1
 **Last Updated:** February 2026

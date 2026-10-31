@@ -1,5 +1,5 @@
 // ============================================================================
-// Sleep Architect — Theme Tokens
+// Nightprint — Theme Tokens
 // ============================================================================
 // Checkpoint A (redesign/ui-ux-v3): introduces the real "Night" / "Day" theme
 // pair that backs the new 3-way mode system ('sunset' | 'night' | 'day').

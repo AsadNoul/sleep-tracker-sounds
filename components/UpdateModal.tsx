@@ -157,7 +157,7 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({
             <Text style={styles.subtitle}>
               {isEmergency
                 ? 'A required security update must be installed to continue.'
-                : "We've improved Sleep Architect. Update now for the best experience."}
+                : "We've improved Nightprint. Update now for the best experience."}
             </Text>
 
             {/* Version pill */}

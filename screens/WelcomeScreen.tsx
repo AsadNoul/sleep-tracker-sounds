@@ -2,10 +2,11 @@ import { useAppTheme } from '../hooks/useAppTheme';
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { BarChart3, Music, Lightbulb, Moon } from 'lucide-react-native';
+import { BarChart3, Music, Lightbulb } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAuth } from '../contexts/AuthContext';
+import NightprintLogo from '../components/brand/NightprintLogo';
 
 type RootStackParamList = {
   Onboarding: undefined;
@@ -31,32 +32,32 @@ export default function WelcomeScreen() {
           style={styles(theme).heroImage}
           resizeMode="cover"
         />
-        {/* Fade left edge so image blends into dark background */}
+        {/* Fade left edge so image blends into background */}
         <LinearGradient
-          colors={['#0A0D1A', 'transparent']}
+          colors={[theme.colors.background, 'transparent']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 0 }}
           style={styles(theme).heroFadeLeft}
         />
         {/* Fade bottom edge */}
         <LinearGradient
-          colors={['transparent', '#0A0D1A']}
+          colors={['transparent', theme.colors.background]}
           start={{ x: 0, y: 0 }}
           end={{ x: 0, y: 1 }}
           style={styles(theme).heroFadeBottom}
         />
       </View>
 
-      {/* Moon icon floating top-right */}
+      {/* Nightprint logo mark floating top-right */}
       <View style={styles(theme).moonBadge}>
-        <Moon size={28} color="#A78BFA" fill="#A78BFA" />
+        <NightprintLogo size={32} variant="dark" />
       </View>
 
       {/* Main content — sits on top of dark bg */}
       <View style={styles(theme).content}>
         {/* Top text section — left aligned, clear dark bg */}
         <View style={styles(theme).topSection}>
-          <Text style={styles(theme).appName}>Sleep Tracker</Text>
+          <Text style={styles(theme).appName}>Nightprint</Text>
           <Text style={styles(theme).tagline}>Your VIP Personalized{'\n'}Sleep Intelligence</Text>
         </View>
 
@@ -132,7 +133,7 @@ export default function WelcomeScreen() {
 const styles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0A0D1A',
+    backgroundColor: theme.colors.background,
   },
   // Hero image: right half of screen, top 55%
   heroImageContainer: {
@@ -194,14 +195,14 @@ const styles = (theme: any) => StyleSheet.create({
   appName: {
     fontSize: 38,
     fontWeight: '800',
-    color: '#FFFFFF',
+    color: theme.colors.textPrimary,
     letterSpacing: 0.5,
     marginBottom: 10,
     lineHeight: 44,
   },
   tagline: {
     fontSize: 15,
-    color: 'rgba(255,255,255,0.55)',
+    color: theme.colors.textSecondary,
     fontWeight: '500',
     letterSpacing: 0.2,
     lineHeight: 22,
@@ -212,13 +213,13 @@ const styles = (theme: any) => StyleSheet.create({
   featureItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(27, 29, 42, 0.85)',
+    backgroundColor: theme.colors.card,
     paddingVertical: 14,
     paddingHorizontal: 16,
     borderRadius: 16,
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.07)',
+    borderColor: theme.colors.cardBorder,
   },
   featureIconBox: {
     width: 42,
@@ -269,10 +270,10 @@ const styles = (theme: any) => StyleSheet.create({
     paddingVertical: 17,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    backgroundColor: theme.colors.backgroundTertiary,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.12)',
+    borderColor: theme.colors.cardBorder,
     marginBottom: 12,
   },
   secondaryButtonText: {
@@ -288,6 +289,6 @@ const styles = (theme: any) => StyleSheet.create({
   skipButtonText: {
     fontSize: 14,
     fontWeight: '500',
-    color: 'rgba(255, 255, 255, 0.35)',
+    color: theme.colors.textTertiary,
   },
 });

@@ -246,12 +246,12 @@ export default function TrackerScreen() {
             </View>
           </GlassView>
 
-          {/* AI Sleep Architect Insights */}
+          {/* AI Nightprint Insights */}
           <GlassView intensity={20} tint="dark" style={styles(theme).card}>
             <View style={styles(theme).cardHeader}>
               <View style={styles(theme).aiHeader}>
                 <Moon size={24} color={theme.colors.premium} />
-                <Text style={styles(theme).cardTitle}>AI Sleep Architect</Text>
+                <Text style={styles(theme).cardTitle}>AI Nightprint</Text>
               </View>
               <View style={styles(theme).premiumBadge}>
                 <Text style={styles(theme).premiumText}>AI POWERED</Text>

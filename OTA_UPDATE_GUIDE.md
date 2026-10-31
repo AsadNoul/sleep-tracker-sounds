@@ -1,6 +1,6 @@
 # OTA Update System Guide
 
-This guide explains how the Over-The-Air (OTA) update system works in Sleep Architect and how to publish updates to users.
+This guide explains how the Over-The-Air (OTA) update system works in Nightprint and how to publish updates to users.
 
 ## Overview
 

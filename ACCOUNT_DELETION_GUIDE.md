@@ -122,7 +122,7 @@ Go to your Supabase Dashboard → SQL Editor and run:
    ```
    Users can delete their account and all associated data directly from the app:
    
-   1. Open Sleep Architect app
+   1. Open Nightprint app
    2. Go to Settings
    3. Navigate to Data & Privacy section
    4. Tap "Delete Account"

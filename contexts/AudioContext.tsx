@@ -48,6 +48,8 @@ interface AudioContextType {
   activeMix: { [soundId: string]: MixedSound };
   startMixing: () => void;
   stopMixing: () => Promise<void>;
+  pauseMixing: () => void;
+  resumeMixing: () => void;
   addSoundToMix: (soundId: string, source: any, name: string) => Promise<void>;
   removeSoundFromMix: (soundId: string) => Promise<void>;
   setMixSoundVolume: (soundId: string, volume: number) => Promise<void>;
@@ -404,6 +406,31 @@ export function AudioProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // Pause every sound in the mix without unloading it, so resumeMixing can
+  // pick up exactly where it left off (unlike stopMixing, which clears
+  // activeMix entirely).
+  const pauseMixing = () => {
+    Object.values(activeMix).forEach(mixedSound => {
+      try {
+        mixedSound.sound.pause();
+      } catch (e) {
+        console.warn('Error pausing mixed sound:', e);
+      }
+    });
+    setIsPlaying(false);
+  };
+
+  const resumeMixing = () => {
+    Object.values(activeMix).forEach(mixedSound => {
+      try {
+        mixedSound.sound.play();
+      } catch (e) {
+        console.warn('Error resuming mixed sound:', e);
+      }
+    });
+    setIsPlaying(true);
+  };
+
   const addSoundToMix = async (soundId: string, source: any, name: string) => {
     try {
       setIsLoading(true);
@@ -524,8 +551,6 @@ export function AudioProvider({ children }: { children: ReactNode }) {
       const updatedPresets = [...presets, preset];
       await AsyncStorage.setItem('sound_presets', JSON.stringify(updatedPresets));
       setPresets(updatedPresets);
-
-      Alert.alert('Success', `Preset "${name}" saved!`);
     } catch (error) {
       console.error('Error saving preset:', error);
       Alert.alert('Error', 'Failed to save preset');
@@ -591,6 +616,8 @@ export function AudioProvider({ children }: { children: ReactNode }) {
     activeMix,
     startMixing,
     stopMixing,
+    pauseMixing,
+    resumeMixing,
     addSoundToMix,
     removeSoundFromMix,
     setMixSoundVolume,

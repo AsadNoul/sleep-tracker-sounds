@@ -37,6 +37,7 @@ class SleepRecorderService {
   private monitoringInterval: NodeJS.Timeout | null = null;
   private sessionStartTime: Date | null = null;
   private noiseThreshold: number = 0.5; // Volume threshold to detect sounds (0-1)
+  private silenceGapMs: number = 8000; // Pause length that ends a speech/snoring segment
   private recordingDuration: number = 0;
   private audioBuffer: number[] = []; // Rolling buffer for pattern analysis
   private sessionAudioUri: string | null = null;
@@ -259,15 +260,32 @@ class SleepRecorderService {
         volume,
       };
 
-      // Check if this is a continuation of the previous event
+      // Check if this is a continuation of the previous event. A real pause
+      // (silence gap) ends a segment — a momentary type flicker between
+      // speech-like categories (sleep_talk/dreaming/breathing/snoring, which
+      // the 1-second pattern analysis can flip between even mid-utterance)
+      // must NOT start a brand-new "recording" every second someone keeps
+      // talking. Only "noise" is excluded from the speech-like group, since
+      // that genuinely means something else happened.
+      const SPEECH_LIKE = new Set(['sleep_talk', 'dreaming', 'breathing', 'snoring']);
       const lastEvent = this.events[this.events.length - 1];
-      if (lastEvent &&
-        lastEvent.type === eventType &&
-        (event.timestamp.getTime() - lastEvent.timestamp.getTime()) < 5000) {
-        // Extend duration of existing event
+      const gapMs = lastEvent ? event.timestamp.getTime() - lastEvent.timestamp.getTime() : Infinity;
+      const isContinuation = lastEvent && gapMs < this.silenceGapMs && (
+        lastEvent.type === eventType ||
+        (SPEECH_LIKE.has(lastEvent.type) && SPEECH_LIKE.has(eventType))
+      );
+
+      if (isContinuation) {
+        // Extend the existing segment — keep its dominant/most-specific type
+        // (snoring/sleep_talk outrank the quieter breathing/dreaming labels)
+        // rather than silently relabeling a whole segment from one flicker.
         lastEvent.duration += 1;
+        const specificity: Record<string, number> = { snoring: 3, sleep_talk: 3, dreaming: 2, breathing: 1 };
+        if ((specificity[eventType] || 0) > (specificity[lastEvent.type] || 0)) {
+          lastEvent.type = eventType;
+        }
       } else {
-        // Add new event
+        // Start a new segment — genuine pause or a non-speech-like event
         this.events.push(event);
         console.log(`🔊 [SleepRecorder] Detected ${eventType} (Vol: ${volume.toFixed(2)}) at ${event.timestamp.toLocaleTimeString()}`);
       }

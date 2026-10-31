@@ -4,7 +4,7 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAuth } from '../contexts/AuthContext';
 import { useAppTheme } from '../hooks/useAppTheme';
-import SleepPrintMark from '../components/SleepPrintMark';
+import NightprintWordmark from '../components/brand/NightprintWordmark';
 
 const { height } = Dimensions.get('window');
 
@@ -77,10 +77,9 @@ export default function SplashScreen({ onFinish, splashDuration = 2000 }: Splash
           },
         ]}
       >
-        <SleepPrintMark size={140} colors={theme.sleepPrintMark} />
+        <NightprintWordmark size={140} layout="stacked" />
 
         <View style={styles(theme).textBlock}>
-          <Text style={styles(theme).title}>Sleep Architect</Text>
           <Text style={styles(theme).subtitle}>Every night leaves a print.</Text>
         </View>
       </Animated.View>

@@ -383,6 +383,17 @@ class NotificationService {
     return N.addNotificationResponseReceivedListener(handler);
   }
 
+  // Fires whenever a notification is actually delivered while the app is
+  // running (foreground or backgrounded-but-alive) — this, not schedule
+  // time, is when it belongs in the in-app notification history/inbox.
+  addNotificationReceivedListener(handler: (notification: NotificationsType.Notification) => void) {
+    const N = getNotifications();
+    if (!N) {
+      return { remove: () => {} };
+    }
+    return N.addNotificationReceivedListener(handler);
+  }
+
   // Cancel all notifications
   async cancelAllNotifications(): Promise<void> {
     try {

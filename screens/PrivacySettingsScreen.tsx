@@ -199,7 +199,7 @@ export default function PrivacySettingsScreen() {
       console.error('Data export error:', error);
       Alert.alert(
         'Export Failed',
-        'Failed to export data. Please try again later or contact support at asadalibscs20@gmail.com'
+        'Failed to export data. Please try again later or contact support at support@naulx.com'
       );
     } finally {
       setIsDownloading(false);
@@ -267,7 +267,7 @@ export default function PrivacySettingsScreen() {
               console.error('Data deletion error:', error);
               Alert.alert(
                 'Deletion Failed',
-                'Failed to delete some data. Please contact support at asadalibscs20@gmail.com'
+                'Failed to delete some data. Please contact support at support@naulx.com'
               );
             } finally {
               setIsDeleting(false);

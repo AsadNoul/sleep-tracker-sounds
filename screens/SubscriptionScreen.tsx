@@ -33,7 +33,6 @@ import {
   Headphones,
   FileText,
   Users,
-  Clock,
   Star,
   Zap,
   Award,
@@ -48,10 +47,10 @@ import ConfettiCannon from 'react-native-confetti-cannon';
 import revenueCatService from '../services/revenueCatService';
 import { PurchasesPackage } from 'react-native-purchases';
 import { useAppTheme } from '../hooks/useAppTheme';
-import SleepPrintMark from '../components/SleepPrintMark';
+import NightprintLogo from '../components/brand/NightprintLogo';
 
 // ============================================================================
-// Sleep Architect — Subscription / Paywall screen (redesign/ui-ux-v3)
+// Nightprint — Subscription / Paywall screen (redesign/ui-ux-v3)
 // ============================================================================
 // Canvas reference: `Ac-Paywall.dc.html` (close button + "Compare plans" link,
 // Sleep Print mark, Fraunces h1, checklist, plan radio cards, CTA + fine
@@ -124,7 +123,7 @@ export default function SubscriptionScreen() {
   const { user, profile, session } = useAuth();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
-  const { theme } = useAppTheme();
+  const { theme, isDark } = useAppTheme();
   const s = styles(theme);
 
   // source tells us which feature triggered the paywall (for analytics)
@@ -364,7 +363,7 @@ export default function SubscriptionScreen() {
           [{ text: 'OK', onPress: () => navigation.goBack() }]
         );
       } else {
-        Alert.alert('No Subscription Found', 'No active subscription found. Contact support at asadalibscs20@gmail.com', [{ text: 'OK' }]);
+        Alert.alert('No Subscription Found', 'No active subscription found. Contact support at support@naulx.com', [{ text: 'OK' }]);
       }
     } catch (_) {
       Alert.alert('Error', 'Something went wrong restoring purchases. Please try again.');
@@ -375,8 +374,8 @@ export default function SubscriptionScreen() {
 
   const handleCancelSubscription = async () => {
     const msg = Platform.OS === 'ios'
-      ? 'To cancel, go to Settings > Apple ID > Subscriptions > Sleep Architect > Cancel.\n\nYou keep access until the billing period ends.'
-      : 'To cancel, go to Google Play Store > Subscriptions > Sleep Architect > Cancel.\n\nYou keep access until the billing period ends.';
+      ? 'To cancel, go to Settings > Apple ID > Subscriptions > Nightprint > Cancel.\n\nYou keep access until the billing period ends.'
+      : 'To cancel, go to Google Play Store > Subscriptions > Nightprint > Cancel.\n\nYou keep access until the billing period ends.';
     Alert.alert('Cancel Subscription', msg, [{ text: 'OK' }]);
   };
 
@@ -396,7 +395,7 @@ export default function SubscriptionScreen() {
         </View>
         <View style={s.centeredContent}>
           <View style={s.premiumMarkWrap}>
-            <SleepPrintMark size={120} colors={theme.sleepPrintMark} />
+            <NightprintLogo size={120} variant={isDark ? 'dark' : 'light'} />
           </View>
           <View style={s.premiumCrownBadge}>
             <Crown size={26} color={theme.colors.premiumBadgeText} />
@@ -432,7 +431,7 @@ export default function SubscriptionScreen() {
       <View style={[s.container, { backgroundColor: theme.colors.background }]}>
         <View style={s.loadingContainer}>
           <View style={s.loadingMarkWrap}>
-            <SleepPrintMark size={100} colors={theme.sleepPrintMark} />
+            <NightprintLogo size={100} variant={isDark ? 'dark' : 'light'} />
           </View>
           <ActivityIndicator size="large" color={theme.colors.accent} style={{ marginTop: 8 }} />
           <Text style={s.loadingText}>Loading your plans…</Text>
@@ -512,9 +511,9 @@ export default function SubscriptionScreen() {
         {/* Hero — Sleep Print mark + title, matching Ac-Paywall.dc.html */}
         <View style={s.hero}>
           <View style={s.heroMarkWrap}>
-            <SleepPrintMark size={110} colors={theme.sleepPrintMark} />
+            <NightprintLogo size={110} variant={isDark ? 'dark' : 'light'} />
           </View>
-          <Text style={s.heroTitle}>Sleep Architect Premium</Text>
+          <Text style={s.heroTitle}>Nightprint Premium</Text>
           <Text style={s.heroSubtitle}>Everything you need to wind down and wake up better.</Text>
 
           {/* Free trial banner — only shown when trial is actually configured in stores */}
@@ -709,32 +708,12 @@ export default function SubscriptionScreen() {
               { icon: FileText, text: 'Sleep Reports' },
               { icon: Users, text: 'Partner Mode' },
               { icon: Zap, text: 'Sleep Recorder' },
+              { icon: FileText, text: 'PDF & CSV Export' },
+              { icon: Star, text: 'Sleep Coach' },
             ].map((f, i) => (
               <View key={i} style={s.featureChip}>
                 <View style={s.featureChipIcon}><f.icon size={16} color={theme.colors.accent} /></View>
                 <Text style={s.featureChipText}>{f.text}</Text>
-              </View>
-            ))}
-          </View>
-        </View>
-
-        {/* Upcoming features teaser — self-designed, same card system */}
-        <View style={s.upcomingSection}>
-          <Text style={s.sectionTitle}>Coming Soon</Text>
-          <View style={s.upcomingCard}>
-            {[
-              { icon: Users, text: 'Partner Mode', desc: 'Share & compare sleep with a partner' },
-              { icon: FileText, text: 'PDF & CSV Export', desc: 'Detailed sleep reports exportable anytime' },
-              { icon: Star, text: 'Sleep Coach', desc: 'Personalized sleep improvement program' },
-              { icon: Clock, text: 'Smart Alarm', desc: 'Wake up at your lightest sleep stage' },
-            ].map((item, i) => (
-              <View key={i} style={[s.upcomingRow, i < 3 && s.upcomingRowBorder]}>
-                <View style={s.upcomingIcon}><item.icon size={17} color={theme.colors.accent} /></View>
-                <View style={s.upcomingText}>
-                  <Text style={s.upcomingTitle}>{item.text}</Text>
-                  <Text style={s.upcomingDesc}>{item.desc}</Text>
-                </View>
-                <View style={s.upcomingBadge}><Text style={s.upcomingBadgeText}>SOON</Text></View>
               </View>
             ))}
           </View>
@@ -1215,53 +1194,6 @@ const styles = (theme: any) => StyleSheet.create({
     fontSize: 13,
   },
 
-  // Upcoming features
-  upcomingSection: { marginBottom: 20 },
-  upcomingCard: {
-    borderRadius: theme.borderRadius.card,
-    borderWidth: 1,
-    borderColor: theme.colors.cardBorder,
-    backgroundColor: theme.colors.card,
-    paddingHorizontal: 4,
-  },
-  upcomingRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 14 },
-  upcomingRowBorder: { borderBottomWidth: 1, borderBottomColor: theme.colors.cardBorder },
-  upcomingIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: theme.colors.navActiveBackground,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  upcomingText: { flex: 1 },
-  upcomingTitle: {
-    fontFamily: theme.typography.fontFamily.bodyBold,
-    color: theme.colors.textPrimary,
-    fontSize: 13,
-    marginBottom: 2,
-  },
-  upcomingDesc: {
-    fontFamily: theme.typography.fontFamily.body,
-    color: theme.colors.textTertiary,
-    fontSize: 11,
-    lineHeight: 15,
-  },
-  upcomingBadge: {
-    backgroundColor: theme.colors.premiumBadgeBackground,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: theme.colors.premiumBadgeBorder,
-  },
-  upcomingBadgeText: {
-    fontFamily: theme.typography.fontFamily.bodyBold,
-    color: theme.colors.premiumBadgeText,
-    fontSize: 9,
-    letterSpacing: 0.5,
-  },
 
   // Comparison — canvas's Gp-Compare table pattern
   comparisonSection: { marginBottom: 20 },

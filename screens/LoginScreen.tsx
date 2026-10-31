@@ -113,7 +113,7 @@ export default function LoginScreen() {
                 />
               </View>
               <Text style={styles(theme).title}>Welcome Back</Text>
-              <Text style={styles(theme).subtitle}>Sign in to your Sleep Architect</Text>
+              <Text style={styles(theme).subtitle}>Sign in to your Nightprint</Text>
             </View>
 
             {/* Form */}
@@ -125,7 +125,7 @@ export default function LoginScreen() {
                 <TextInput
                   style={styles(theme).input}
                   placeholder="Email address"
-                  placeholderTextColor="rgba(255,255,255,0.3)"
+                  placeholderTextColor={theme.colors.textTertiary}
                   value={email}
                   onChangeText={setEmail}
                   keyboardType="email-address"
@@ -141,7 +141,7 @@ export default function LoginScreen() {
                 <TextInput
                   style={styles(theme).input}
                   placeholder="Password"
-                  placeholderTextColor="rgba(255,255,255,0.3)"
+                  placeholderTextColor={theme.colors.textTertiary}
                   value={password}
                   onChangeText={setPassword}
                   secureTextEntry={!showPassword}
@@ -153,9 +153,9 @@ export default function LoginScreen() {
                   style={styles(theme).eyeIcon}
                 >
                   {showPassword ? (
-                    <Eye size={18} color="rgba(255,255,255,0.4)" />
+                    <Eye size={18} color={theme.colors.textTertiary} />
                   ) : (
-                    <EyeOff size={18} color="rgba(255,255,255,0.4)" />
+                    <EyeOff size={18} color={theme.colors.textTertiary} />
                   )}
                 </TouchableOpacity>
               </View>
@@ -256,10 +256,10 @@ const styles = (theme: any) => StyleSheet.create({
     height: 42,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    backgroundColor: theme.colors.backgroundTertiary,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: theme.colors.cardBorder,
   },
   logoContainer: {
     alignItems: 'center',
@@ -290,7 +290,7 @@ const styles = (theme: any) => StyleSheet.create({
   },
   subtitle: {
     fontSize: 15,
-    color: 'rgba(255,255,255,0.45)',
+    color: theme.colors.textSecondary,
     textAlign: 'center',
   },
   formContainer: {
@@ -299,12 +299,12 @@ const styles = (theme: any) => StyleSheet.create({
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    backgroundColor: theme.colors.backgroundTertiary,
     borderRadius: 14,
     paddingHorizontal: 14,
     marginBottom: 14,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.09)',
+    borderColor: theme.colors.cardBorder,
   },
   inputIconBox: {
     width: 34,
@@ -361,11 +361,11 @@ const styles = (theme: any) => StyleSheet.create({
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    backgroundColor: theme.colors.cardBorder,
   },
   dividerText: {
     fontSize: 11,
-    color: 'rgba(255,255,255,0.3)',
+    color: theme.colors.textTertiary,
     marginHorizontal: 14,
     fontWeight: '700',
     letterSpacing: 1,
@@ -380,11 +380,11 @@ const styles = (theme: any) => StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 16,
-    backgroundColor: 'rgba(27, 29, 42, 0.7)',
+    backgroundColor: theme.colors.backgroundTertiary,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
+    borderColor: theme.colors.cardBorder,
   },
   signupContainer: {
     flexDirection: 'row',
@@ -394,7 +394,7 @@ const styles = (theme: any) => StyleSheet.create({
   },
   signupText: {
     fontSize: 15,
-    color: 'rgba(255,255,255,0.4)',
+    color: theme.colors.textTertiary,
   },
   signupLink: {
     fontSize: 15,
@@ -411,13 +411,13 @@ const styles = (theme: any) => StyleSheet.create({
   skipButtonText: {
     fontSize: 14,
     fontWeight: '500',
-    color: 'rgba(255,255,255,0.3)',
+    color: theme.colors.textTertiary,
   },
   googleButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    backgroundColor: theme.colors.backgroundTertiary,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: theme.colors.cardBorder,
     marginBottom: 20,
   },
   googleButtonContent: {

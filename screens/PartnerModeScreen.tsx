@@ -117,7 +117,7 @@ export default function PartnerModeScreen() {
   const handleShareInvite = () => {
     if (!connection?.invite_code) return;
     Share.share({
-      message: `Connect with me on Sleep Architect so we can compare our sleep! Open the app, go to Partner Mode, and enter this code: ${connection.invite_code}`,
+      message: `Connect with me on Nightprint so we can compare our sleep! Open the app, go to Partner Mode, and enter this code: ${connection.invite_code}`,
     }).catch(() => {});
   };
 

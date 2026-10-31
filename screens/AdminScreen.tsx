@@ -10,8 +10,6 @@ import {
   ActivityIndicator,
   RefreshControl,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
 import {
   ChevronLeft,
   Users,
@@ -20,15 +18,15 @@ import {
   Trash2,
   Search,
   Eye,
-  Ban,
-  Check,
   Bell,
   Send,
   BarChart3,
+  X,
 } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme } from '../hooks/useAppTheme';
+import { useSafeBottomMargin } from '../hooks/useSafeBottomMargin';
 import { supabase } from '../lib/supabase';
 
 interface UserData {
@@ -57,8 +55,9 @@ interface Stats {
 }
 
 export default function AdminScreen() {
-  const { theme, isDark } = useAppTheme();
+  const { theme } = useAppTheme();
   const insets = useSafeAreaInsets();
+  const bottomMargin = useSafeBottomMargin();
   const navigation = useNavigation();
   const s = useMemo(() => styles(theme), [theme]);
   const [loading, setLoading] = useState(true);
@@ -150,6 +149,9 @@ export default function AdminScreen() {
     };
     return names[countryCode.toUpperCase()] || countryCode.toUpperCase();
   };
+
+  const flagEmoji = (countryCode: string) =>
+    String.fromCodePoint(...[...countryCode.toUpperCase()].map((c) => 0x1F1E6 - 65 + c.charCodeAt(0)));
 
   const filterUsers = () => {
     const query = searchQuery.trim().toLowerCase();
@@ -256,7 +258,7 @@ export default function AdminScreen() {
       // Load statistics
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-      
+
       const [
         { count: totalUsers },
         { count: premiumUsers },
@@ -308,19 +310,18 @@ export default function AdminScreen() {
       const hourCounts: { [key: string]: number } = {};
       const dayCounts: { [key: string]: number } = {};
       const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-      
+
       sleepRecords?.forEach(record => {
         const date = new Date(record.created_at);
         const hour = date.getHours();
         const day = date.getDay();
-        
-        // Group into time periods
+
         let period = '';
         if (hour >= 0 && hour < 6) period = 'Night (0-6)';
         else if (hour >= 6 && hour < 12) period = 'Morning (6-12)';
         else if (hour >= 12 && hour < 18) period = 'Afternoon (12-18)';
         else period = 'Evening (18-24)';
-        
+
         hourCounts[period] = (hourCounts[period] || 0) + 1;
         dayCounts[dayNames[day]] = (dayCounts[dayNames[day]] || 0) + 1;
       });
@@ -372,15 +373,6 @@ export default function AdminScreen() {
 
   const viewUserDetails = async (userId: string) => {
     try {
-      const { data: sessions, error } = await supabase
-        .from('sleep_records')
-        .select('*')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false })
-        .limit(10);
-
-      if (error) throw error;
-
       const userInfo = users.find((u) => u.id === userId);
 
       Alert.alert(
@@ -398,6 +390,7 @@ export default function AdminScreen() {
       Alert.alert('Error', error.message);
     }
   };
+
   const sendNotificationToAll = async () => {
     if (!notificationTitle.trim() || !notificationMessage.trim()) {
       Alert.alert('Error', 'Please enter both title and message');
@@ -414,8 +407,7 @@ export default function AdminScreen() {
           onPress: async () => {
             try {
               setSendingNotification(true);
-              
-              // Get all users with push tokens
+
               const { data: usersWithTokens } = await supabase
                 .from('user_profiles')
                 .select('expo_push_token')
@@ -430,7 +422,6 @@ export default function AdminScreen() {
                 .map(u => u.expo_push_token)
                 .filter(t => t && t.startsWith('ExponentPushToken'));
 
-              // Send notifications in batches
               const messages = tokens.map(token => ({
                 to: token,
                 sound: 'default',
@@ -465,6 +456,7 @@ export default function AdminScreen() {
       ]
     );
   };
+
   const deleteUser = async (userId: string, email: string) => {
     Alert.alert(
       'Delete User',
@@ -476,7 +468,6 @@ export default function AdminScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              // Delete all user data
               await Promise.all([
                 supabase.from('sleep_records').delete().eq('user_id', userId),
                 supabase.from('sleep_insights').delete().eq('user_id', userId),
@@ -497,498 +488,502 @@ export default function AdminScreen() {
     );
   };
 
+  const heatmapBarColor = (percentage: number, thresholds: [number, string][]) => {
+    for (const [min, color] of thresholds) {
+      if (percentage > min) return color;
+    }
+    return theme.colors.textTertiary;
+  };
+
   if (loading) {
     return (
-      <View style={s.container}>
-        <LinearGradient
-          colors={[theme.colors.background, theme.colors.backgroundSecondary]}
-          style={s.gradient}
-        >
-          <View style={[s.header, { paddingTop: insets.top + 10 }]}>
-            <TouchableOpacity onPress={() => navigation.goBack()} style={s.backButton}>
-              <ChevronLeft size={24} color={theme.colors.textPrimary} />
-            </TouchableOpacity>
-            <Text style={s.headerTitle}>Admin Dashboard</Text>
-            <View style={s.backButton} />
-          </View>
-          <View style={s.loadingContainer}>
-            <ActivityIndicator size="large" color={theme.colors.accent} />
-            <Text style={s.loadingText}>Loading admin data...</Text>
-          </View>
-        </LinearGradient>
+      <View style={[s.container, { backgroundColor: theme.colors.background }]}>
+        <View style={[s.header, { paddingTop: insets.top + 10 }]}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={s.backButton}>
+            <ChevronLeft size={20} color={theme.colors.textPrimary} />
+          </TouchableOpacity>
+          <Text style={s.headerTitle}>Admin Dashboard</Text>
+          <View style={s.backButton} />
+        </View>
+        <View style={s.loadingContainer}>
+          <ActivityIndicator size="large" color={theme.colors.accent} />
+          <Text style={s.loadingText}>Loading admin data...</Text>
+        </View>
       </View>
     );
   }
 
   return (
-    <View style={s.container}>
-      <LinearGradient
-        colors={[theme.colors.background, theme.colors.backgroundSecondary]}
-        style={s.gradient}
-      >
-        {/* Header */}
-        <View style={[s.header, { paddingTop: insets.top + 10 }]}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={s.backButton}>
-            <ChevronLeft size={24} color={theme.colors.textPrimary} />
-          </TouchableOpacity>
-          <Text style={s.headerTitle}>Admin Dashboard</Text>
-          <View style={s.backButton} />
-        </View>
+    <View style={[s.container, { backgroundColor: theme.colors.background }]}>
+      <View style={[s.header, { paddingTop: insets.top + 10 }]}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={s.backButton}>
+          <ChevronLeft size={20} color={theme.colors.textPrimary} />
+        </TouchableOpacity>
+        <Text style={s.headerTitle}>Admin Dashboard</Text>
+        <View style={s.backButton} />
+      </View>
 
-        <FlatList
-          data={filteredUsers}
-          keyExtractor={(item) => item.id}
-          numColumns={2}
-          style={s.content}
-          contentContainerStyle={[s.listContent, { paddingBottom: insets.bottom + 100 }]}
-          columnWrapperStyle={s.userGridRow}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={theme.colors.accent} />
-          }
-          ListHeaderComponent={
-            <>
-              {/* Stats Cards */}
-              <View style={s.statsRow}>
-                <BlurView intensity={20} tint="dark" style={s.statCard}>
-                  <Users size={24} color={theme.colors.accent} />
-                  <Text style={s.statValue}>{stats.total_users}</Text>
-                  <Text style={s.statLabel}>Total Users</Text>
-                </BlurView>
-
-                <BlurView intensity={20} tint="dark" style={s.statCard}>
-                  <TrendingUp size={24} color={theme.colors.premium} />
-                  <Text style={s.statValue}>{stats.premium_users}</Text>
-                  <Text style={s.statLabel}>Premium</Text>
-                </BlurView>
-
-                <BlurView intensity={20} tint="dark" style={s.statCard}>
-                  <Database size={24} color={theme.colors.highlight} />
-                  <Text style={s.statValue}>{stats.total_sessions}</Text>
-                  <Text style={s.statLabel}>Sessions</Text>
-                </BlurView>
+      <FlatList
+        data={filteredUsers}
+        keyExtractor={(item) => item.id}
+        numColumns={2}
+        style={s.content}
+        contentContainerStyle={[s.listContent, { paddingBottom: bottomMargin + 40 }]}
+        columnWrapperStyle={s.userGridRow}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={theme.colors.accent} />
+        }
+        ListHeaderComponent={
+          <>
+            {/* Stats Cards */}
+            <View style={s.statsRow}>
+              <View style={s.statCard}>
+                <Users size={22} color={theme.colors.accent} />
+                <Text style={s.statValue}>{stats.total_users}</Text>
+                <Text style={s.statLabel}>Total Users</Text>
               </View>
-
-              <View style={s.statsRow}>
-                <BlurView intensity={20} tint="dark" style={s.statCard}>
-                  <BarChart3 size={24} color="#10B981" />
-                  <Text style={s.statValue}>{stats.active_today}</Text>
-                  <Text style={s.statLabel}>Active Today</Text>
-                </BlurView>
-
-                <BlurView intensity={20} tint="dark" style={s.statCard}>
-                  <Users size={24} color="#F59E0B" />
-                  <Text style={s.statValue}>{stats.new_users_today}</Text>
-                  <Text style={s.statLabel}>New Today</Text>
-                </BlurView>
-
-                <BlurView intensity={20} tint="dark" style={s.statCard}>
-                  <Bell size={24} color="#10B981" />
-                  <Text style={s.statValue}>{stats.push_enabled_users}</Text>
-                  <Text style={s.statLabel}>Push Enabled</Text>
-                </BlurView>
+              <View style={s.statCard}>
+                <TrendingUp size={22} color={theme.colors.premium} />
+                <Text style={s.statValue}>{stats.premium_users}</Text>
+                <Text style={s.statLabel}>Premium</Text>
               </View>
-
-              <View style={s.statsRow}>
-                <BlurView intensity={20} tint="dark" style={s.statCard}>
-                  <TrendingUp size={24} color="#8B5CF6" />
-                  <Text style={s.statValue}>
-                    {stats.total_users > 0
-                      ? ((stats.premium_users / stats.total_users) * 100).toFixed(1)
-                      : '0'}%
-                  </Text>
-                  <Text style={s.statLabel}>Conversion</Text>
-                </BlurView>
-
-                <BlurView intensity={20} tint="dark" style={s.statCard}>
-                  <Bell size={24} color="#8B5CF6" />
-                  <Text style={s.statValue}>
-                    {stats.total_users > 0
-                      ? ((stats.push_enabled_users / stats.total_users) * 100).toFixed(1)
-                      : '0'}%
-                  </Text>
-                  <Text style={s.statLabel}>Push Rate</Text>
-                </BlurView>
-
-                <BlurView intensity={20} tint="dark" style={s.statCard}>
-                  <TrendingUp size={24} color="#EC4899" />
-                  <Text style={s.statValue}>
-                    {stats.premium_users > 0 && stats.push_enabled_users > 0
-                      ? ((stats.premium_users / stats.push_enabled_users)).toFixed(1)
-                      : '0'}x
-                  </Text>
-                  <Text style={s.statLabel}>Premium Reach</Text>
-                </BlurView>
+              <View style={s.statCard}>
+                <Database size={22} color={theme.colors.highlight} />
+                <Text style={s.statValue}>{stats.total_sessions}</Text>
+                <Text style={s.statLabel}>Sessions</Text>
               </View>
-
-              {/* Top Countries */}
-              {countries.length > 0 && (
-                <>
-                  <Text style={s.sectionTitle}>Top Countries ({countries.length})</Text>
-                  <BlurView intensity={20} tint="dark" style={s.countriesCard}>
-                    {countries.slice(0, 8).map((country) => {
-                      const count = users.filter(u => u.country === country).length;
-                      const percentage = ((count / users.length) * 100).toFixed(1);
-                      return (
-                        <TouchableOpacity
-                          key={country}
-                          onPress={() => setCountryFilter(country)}
-                          style={s.countryRow}
-                        >
-                          <Text style={s.countryFlag}>
-                            {String.fromCodePoint(...[...country.toUpperCase()].map(c => 0x1F1E6 - 65 + c.charCodeAt(0)))}
-                          </Text>
-                          <Text style={s.countryName}>{getCountryName(country)}</Text>
-                          <View style={{ flex: 1 }} />
-                          <Text style={s.countryCount}>{count}</Text>
-                          <Text style={s.countryPercent}>({percentage}%)</Text>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </BlurView>
-                </>
-              )}
-
-              {/* Tab Navigation */}
-              <View style={s.tabContainer}>
-                <TouchableOpacity
-                  onPress={() => setActiveTab('users')}
-                  style={[s.tab, activeTab === 'users' && s.tabActive]}
-                >
-                  <Users size={18} color={activeTab === 'users' ? '#FFFFFF' : '#94A3B8'} />
-                  <Text style={[s.tabText, activeTab === 'users' && s.tabTextActive]}>Users</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => setActiveTab('analytics')}
-                  style={[s.tab, activeTab === 'analytics' && s.tabActive]}
-                >
-                  <BarChart3 size={18} color={activeTab === 'analytics' ? '#FFFFFF' : '#94A3B8'} />
-                  <Text style={[s.tabText, activeTab === 'analytics' && s.tabTextActive]}>Analytics</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => setActiveTab('heatmap')}
-                  style={[s.tab, activeTab === 'heatmap' && s.tabActive]}
-                >
-                  <TrendingUp size={18} color={activeTab === 'heatmap' ? '#FFFFFF' : '#94A3B8'} />
-                  <Text style={[s.tabText, activeTab === 'heatmap' && s.tabTextActive]}>Heatmap</Text>
-                </TouchableOpacity>
-              </View>
-
-              {activeTab === 'users' && (
-                <>
-                  {/* Filter Toggle Button */}
-                  <TouchableOpacity
-                    onPress={() => setShowFilters(!showFilters)}
-                    style={s.filterToggle}
-                  >
-                    <Search size={18} color="#FFFFFF" />
-                    <Text style={s.filterToggleText}>
-                      {showFilters ? 'Hide Filters' : 'Show Filters'}
-                    </Text>
-                  </TouchableOpacity>
-
-                  {/* Collapsible Filters */}
-                  {showFilters && (
-                    <BlurView intensity={20} tint="dark" style={s.filtersCard}>
-                      <View style={s.filterRow}>
-                        <Text style={s.filterLabel}>Signup Method</Text>
-                        <View style={s.pillsRow}>
-                          {(['all', 'email', 'google', 'apple'] as const).map((m) => (
-                            <TouchableOpacity
-                              key={m}
-                              onPress={() => setSignupMethodFilter(m)}
-                              style={[s.pill, signupMethodFilter === m && s.pillActive]}
-                            >
-                              <Text style={[s.pillText, signupMethodFilter === m && s.pillTextActive]}>
-                                {m === 'all' ? 'All' : m.charAt(0).toUpperCase() + m.slice(1)}
-                              </Text>
-                            </TouchableOpacity>
-                          ))}
-                        </View>
-                      </View>
-
-                      {countries.length > 0 && (
-                        <View style={s.filterRow}>
-                          <Text style={s.filterLabel}>Country</Text>
-                          <View style={s.pillsRow}>
-                            <TouchableOpacity
-                              onPress={() => setCountryFilter('all')}
-                              style={[s.pill, countryFilter === 'all' && s.pillActive]}
-                            >
-                              <Text style={[s.pillText, countryFilter === 'all' && s.pillTextActive]}>All</Text>
-                            </TouchableOpacity>
-                            {countries.slice(0, 6).map((c) => (
-                              <TouchableOpacity
-                                key={c}
-                                onPress={() => setCountryFilter(c)}
-                                style={[s.pill, countryFilter === c && s.pillActive]}
-                              >
-                                <Text style={[s.pillText, countryFilter === c && s.pillTextActive]}>
-                                  {String.fromCodePoint(...[...c.toUpperCase()].map(ch => 0x1F1E6 - 65 + ch.charCodeAt(0)))} {c}
-                                </Text>
-                              </TouchableOpacity>
-                            ))}
-                          </View>
-                        </View>
-                      )}
-
-                      <View style={s.filterRow}>
-                        <Text style={s.filterLabel}>Subscription</Text>
-                        <View style={s.pillsRow}>
-                          {(['all', 'premium', 'free', 'expired'] as const).map((f) => (
-                            <TouchableOpacity
-                              key={f}
-                              onPress={() => setSubscriptionFilter(f)}
-                              style={[s.pill, subscriptionFilter === f && s.pillActive]}
-                            >
-                              <Text style={[s.pillText, subscriptionFilter === f && s.pillTextActive]}>
-                                {f === 'all' ? 'All' : f.charAt(0).toUpperCase() + f.slice(1)}
-                              </Text>
-                            </TouchableOpacity>
-                          ))}
-                        </View>
-                      </View>
-
-                      <View style={s.filterRow}>
-                        <Text style={s.filterLabel}>Time Range</Text>
-                        <View style={s.pillsRow}>
-                          {(['all', '24h', '7d', '30d'] as const).map((r) => (
-                            <TouchableOpacity
-                              key={r}
-                              onPress={() => setTimeRange(r)}
-                              style={[s.pill, timeRange === r && s.pillActive]}
-                            >
-                              <Text style={[s.pillText, timeRange === r && s.pillTextActive]}>
-                                {r === 'all' ? 'All' : r}
-                              </Text>
-                            </TouchableOpacity>
-                          ))}
-                        </View>
-                      </View>
-                    </BlurView>
-                  )}
-
-                  <Text style={s.sectionTitle}>Users ({filteredUsers.length})</Text>
-                </>
-              )}
-
-              {activeTab === 'analytics' && (
-                <>
-                  <Text style={s.sectionTitle}>Analytics Dashboard</Text>
-                  <BlurView intensity={20} tint="dark" style={s.analyticsCard}>
-                    <Text style={s.analyticsTitle}>📈 User Growth (Last 7 Days)</Text>
-                    <Text style={s.analyticsText}>New signups: {stats.new_users_today} today</Text>
-                    <Text style={s.analyticsText}>Total users: {stats.total_users}</Text>
-                    <Text style={s.analyticsText}>Premium conversion: {stats.total_users > 0 ? ((stats.premium_users / stats.total_users) * 100).toFixed(1) : '0'}%</Text>
-                  </BlurView>
-
-                  <BlurView intensity={20} tint="dark" style={s.analyticsCard}>
-                    <Text style={s.analyticsTitle}>💰 Revenue Insights</Text>
-                    <Text style={s.analyticsText}>Premium users: {stats.premium_users}</Text>
-                    <Text style={s.analyticsText}>Total sessions: {stats.total_sessions}</Text>
-                    <Text style={s.analyticsText}>Avg sessions/user: {stats.total_users > 0 ? (stats.total_sessions / stats.total_users).toFixed(1) : '0'}</Text>
-                  </BlurView>
-
-                  <BlurView intensity={20} tint="dark" style={s.analyticsCard}>
-                    <Text style={s.analyticsTitle}>🎯 Engagement Metrics</Text>
-                    <Text style={s.analyticsText}>Active today: {stats.active_today}</Text>
-                    <Text style={s.analyticsText}>Activity rate: {stats.total_users > 0 ? ((stats.active_today / stats.total_users) * 100).toFixed(1) : '0'}%</Text>
-                  </BlurView>
-                </>
-              )}
-
-              {activeTab === 'heatmap' && (
-                <>
-                  <Text style={s.sectionTitle}>Usage Heatmap</Text>
-                  
-                  {heatmapData.hourly.length > 0 ? (
-                    <>
-                      <BlurView intensity={20} tint="dark" style={s.heatmapCard}>
-                        <Text style={s.heatmapTitle}>🕐 Peak Usage Times</Text>
-                        {heatmapData.hourly.map((item) => {
-                          const color = item.percentage > 60 ? '#8B5CF6' : item.percentage > 40 ? '#10B981' : item.percentage > 20 ? '#F59E0B' : '#3B82F6';
-                          return (
-                            <View key={item.hour} style={s.heatmapRow}>
-                              <Text style={s.heatmapLabel}>{item.hour}</Text>
-                              <View style={s.heatmapBar}>
-                                <View style={[s.heatmapFill, { width: `${item.percentage}%`, backgroundColor: color }]} />
-                              </View>
-                              <Text style={s.heatmapValue}>{item.percentage}%</Text>
-                            </View>
-                          );
-                        })}
-                      </BlurView>
-
-                      <BlurView intensity={20} tint="dark" style={s.heatmapCard}>
-                        <Text style={s.heatmapTitle}>📅 Weekly Activity</Text>
-                        {heatmapData.daily.map((item) => {
-                          const color = item.percentage > 20 ? '#10B981' : item.percentage > 12 ? '#F59E0B' : '#EF4444';
-                          return (
-                            <View key={item.day} style={s.heatmapRow}>
-                              <Text style={s.heatmapLabel}>{item.day}</Text>
-                              <View style={s.heatmapBar}>
-                                <View style={[s.heatmapFill, { width: `${item.percentage}%`, backgroundColor: color }]} />
-                              </View>
-                              <Text style={s.heatmapValue}>{item.percentage}%</Text>
-                            </View>
-                          );
-                        })}
-                      </BlurView>
-
-                      {heatmapData.topSounds.length > 0 && (
-                        <BlurView intensity={20} tint="dark" style={s.heatmapCard}>
-                          <Text style={s.heatmapTitle}>🎵 Most Popular Sounds</Text>
-                          {heatmapData.topSounds.map((sound, index) => (
-                            <View key={sound.name} style={s.heatmapRow}>
-                              <Text style={s.heatmapLabel}>{index + 1}. {sound.name}</Text>
-                              <View style={{ flex: 1 }} />
-                              <Text style={s.heatmapValue}>{sound.count} uses</Text>
-                            </View>
-                          ))}
-                        </BlurView>
-                      )}
-                    </>
-                  ) : (
-                    <BlurView intensity={20} tint="dark" style={s.heatmapCard}>
-                      <Text style={s.analyticsText}>📊 No usage data available yet. Data will appear as users track sleep sessions.</Text>
-                    </BlurView>
-                  )}
-                </>
-              )}
-
-              {/* Send Notification Section */}
-              <Text style={s.sectionTitle}>Send Push Notification</Text>
-              <BlurView intensity={20} tint="dark" style={s.notificationCard}>
-                <Bell size={24} color={theme.colors.accent} style={{ marginBottom: 12 }} />
-                <TextInput
-                  style={s.notificationInput}
-                  placeholder="Notification Title"
-                  placeholderTextColor="#A0AEC0"
-                  value={notificationTitle}
-                  onChangeText={setNotificationTitle}
-                />
-                <TextInput
-                  style={[s.notificationInput, { height: 80, textAlignVertical: 'top' }]}
-                  placeholder="Notification Message"
-                  placeholderTextColor="#A0AEC0"
-                  value={notificationMessage}
-                  onChangeText={setNotificationMessage}
-                  multiline
-                />
-                <TouchableOpacity
-                  style={[
-                    s.sendButton,
-                    (!notificationTitle || !notificationMessage || sendingNotification) &&
-                      s.sendButtonDisabled,
-                  ]}
-                  onPress={sendNotificationToAll}
-                  disabled={!notificationTitle || !notificationMessage || sendingNotification}
-                >
-                  {sendingNotification ? (
-                    <ActivityIndicator color="#FFF" />
-                  ) : (
-                    <>
-                      <Send size={20} color="#FFF" />
-                      <Text style={s.sendButtonText}>Send to All Users</Text>
-                    </>
-                  )}
-                </TouchableOpacity>
-              </BlurView>
-
-              {/* Search Bar */}
-              <BlurView intensity={20} tint="dark" style={s.searchContainer}>
-                <Search size={20} color="#A0AEC0" />
-                <TextInput
-                  style={s.searchInput}
-                  placeholder="Search users by email or name..."
-                  placeholderTextColor="#A0AEC0"
-                  value={searchQuery}
-                  onChangeText={setSearchQuery}
-                />
-              </BlurView>
-            </>
-          }
-          renderItem={({ item: user }) => {
-            const premium = isPremiumStatus(user.subscription_status);
-            const expired = isExpiredPremium(user);
-            const signupIcon = user.signup_method === 'google' ? '🔵' : user.signup_method === 'apple' ? '' : '📧';
-            return (
-              <BlurView intensity={20} tint="dark" style={s.userCard}>
-                <View style={s.userInfo}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', columnGap: 6, rowGap: 6 }}>
-                    {user.country && (
-                      <Text style={{ fontSize: 16 }}>
-                        {String.fromCodePoint(...[...user.country.toUpperCase()].map(c => 0x1F1E6 - 65 + c.charCodeAt(0)))}
-                      </Text>
-                    )}
-                    {signupIcon && <Text style={{ fontSize: 14 }}>{signupIcon}</Text>}
-                    <Text style={s.userEmail} numberOfLines={1}>
-                      {user.email || 'No email'}
-                    </Text>
-                  </View>
-                  {user.full_name && (
-                    <Text style={s.userName} numberOfLines={1}>
-                      {user.full_name}
-                    </Text>
-                  )}
-
-                  <View style={s.badgeRow}>
-                    <View
-                      style={[
-                        s.badge,
-                        premium ? s.badgePremium : s.badgeFree,
-                        expired && s.badgeExpired,
-                      ]}
-                    >
-                      <Text style={s.badgeText}>{getSubscriptionLabel(user)}</Text>
-                    </View>
-                  </View>
-
-                  <View style={s.userMetaColumn}>
-                    <Text style={s.metaText}>{user.total_sleep_sessions} sessions</Text>
-                    <Text style={s.metaText}>Active: {formatRelativeTime(user.last_active)}</Text>
-                    <Text style={s.metaText}>
-                      Joined: {new Date(user.created_at).toLocaleDateString()}
-                    </Text>
-                    {user.signup_method && (
-                      <Text style={s.metaText}>
-                        Via: {user.signup_method.charAt(0).toUpperCase() + user.signup_method.slice(1)}
-                      </Text>
-                    )}
-                    {user.subscription_end_date && (
-                      <Text style={s.metaText}>
-                        Sub Ends: {new Date(user.subscription_end_date).toLocaleDateString()}
-                      </Text>
-                    )}
-                    <View style={{ flexDirection: 'row', alignItems: 'center', rowGap: 6, columnGap: 6, marginTop: 4 }}>
-                      <Bell size={12} color={user.expo_push_token ? '#10B981' : '#EF4444'} />
-                      <Text style={[s.metaText, { color: user.expo_push_token ? '#10B981' : '#EF4444' }]}>
-                        Notifications: {user.expo_push_token ? 'Enabled' : 'Disabled'}
-                      </Text>
-                    </View>
-                  </View>
-                </View>
-
-                <View style={s.userActions}>
-                  <TouchableOpacity style={s.actionButton} onPress={() => viewUserDetails(user.id)}>
-                    <Eye size={18} color={theme.colors.accent} />
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[s.actionButton, s.deleteButton]}
-                    onPress={() => deleteUser(user.id, user.email)}
-                  >
-                    <Trash2 size={18} color={theme.colors.danger} />
-                  </TouchableOpacity>
-                </View>
-              </BlurView>
-            );
-          }}
-          ListEmptyComponent={
-            <View style={s.emptyState}>
-              <Text style={s.emptyText}>No users found</Text>
             </View>
-          }
-        />
-      </LinearGradient>
+
+            <View style={s.statsRow}>
+              <View style={s.statCard}>
+                <BarChart3 size={22} color={theme.colors.success} />
+                <Text style={s.statValue}>{stats.active_today}</Text>
+                <Text style={s.statLabel}>Active Today</Text>
+              </View>
+              <View style={s.statCard}>
+                <Users size={22} color={theme.colors.warning} />
+                <Text style={s.statValue}>{stats.new_users_today}</Text>
+                <Text style={s.statLabel}>New Today</Text>
+              </View>
+              <View style={s.statCard}>
+                <Bell size={22} color={theme.colors.success} />
+                <Text style={s.statValue}>{stats.push_enabled_users}</Text>
+                <Text style={s.statLabel}>Push Enabled</Text>
+              </View>
+            </View>
+
+            <View style={s.statsRow}>
+              <View style={s.statCard}>
+                <TrendingUp size={22} color={theme.colors.accent} />
+                <Text style={s.statValue}>
+                  {stats.total_users > 0
+                    ? ((stats.premium_users / stats.total_users) * 100).toFixed(1)
+                    : '0'}%
+                </Text>
+                <Text style={s.statLabel}>Conversion</Text>
+              </View>
+              <View style={s.statCard}>
+                <Bell size={22} color={theme.colors.accent} />
+                <Text style={s.statValue}>
+                  {stats.total_users > 0
+                    ? ((stats.push_enabled_users / stats.total_users) * 100).toFixed(1)
+                    : '0'}%
+                </Text>
+                <Text style={s.statLabel}>Push Rate</Text>
+              </View>
+              <View style={s.statCard}>
+                <TrendingUp size={22} color={theme.colors.highlight} />
+                <Text style={s.statValue}>
+                  {stats.premium_users > 0 && stats.push_enabled_users > 0
+                    ? ((stats.premium_users / stats.push_enabled_users)).toFixed(1)
+                    : '0'}x
+                </Text>
+                <Text style={s.statLabel}>Premium Reach</Text>
+              </View>
+            </View>
+
+            {/* Top Countries */}
+            {countries.length > 0 && (
+              <>
+                <Text style={s.sectionTitle}>Top Countries ({countries.length})</Text>
+                <View style={s.groupCard}>
+                  {countries.slice(0, 8).map((country, index) => {
+                    const count = users.filter(u => u.country === country).length;
+                    const percentage = ((count / users.length) * 100).toFixed(1);
+                    return (
+                      <TouchableOpacity
+                        key={country}
+                        onPress={() => setCountryFilter(country)}
+                        style={[s.countryRow, index < countries.slice(0, 8).length - 1 && s.rowDivider]}
+                      >
+                        <Text style={s.countryFlag}>{flagEmoji(country)}</Text>
+                        <Text style={s.countryName}>{getCountryName(country)}</Text>
+                        <View style={{ flex: 1 }} />
+                        <Text style={s.countryCount}>{count}</Text>
+                        <Text style={s.countryPercent}>({percentage}%)</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </>
+            )}
+
+            {/* Tab Navigation */}
+            <View style={s.tabContainer}>
+              <TouchableOpacity
+                onPress={() => setActiveTab('users')}
+                style={[s.tab, activeTab === 'users' && s.tabActive]}
+              >
+                <Users size={16} color={activeTab === 'users' ? theme.colors.background : theme.colors.textSecondary} />
+                <Text style={[s.tabText, activeTab === 'users' && s.tabTextActive]}>Users</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => setActiveTab('analytics')}
+                style={[s.tab, activeTab === 'analytics' && s.tabActive]}
+              >
+                <BarChart3 size={16} color={activeTab === 'analytics' ? theme.colors.background : theme.colors.textSecondary} />
+                <Text style={[s.tabText, activeTab === 'analytics' && s.tabTextActive]}>Analytics</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => setActiveTab('heatmap')}
+                style={[s.tab, activeTab === 'heatmap' && s.tabActive]}
+              >
+                <TrendingUp size={16} color={activeTab === 'heatmap' ? theme.colors.background : theme.colors.textSecondary} />
+                <Text style={[s.tabText, activeTab === 'heatmap' && s.tabTextActive]}>Heatmap</Text>
+              </TouchableOpacity>
+            </View>
+
+            {activeTab === 'users' && (
+              <>
+                {/* Filter Toggle Button */}
+                <TouchableOpacity
+                  onPress={() => setShowFilters(!showFilters)}
+                  style={s.filterToggle}
+                  activeOpacity={0.85}
+                >
+                  <Search size={16} color={theme.colors.background} />
+                  <Text style={s.filterToggleText}>
+                    {showFilters ? 'Hide Filters' : 'Show Filters'}
+                  </Text>
+                </TouchableOpacity>
+
+                {/* Collapsible Filters */}
+                {showFilters && (
+                  <View style={s.filtersCard}>
+                    <View style={s.filterRow}>
+                      <Text style={s.filterLabel}>Signup Method</Text>
+                      <View style={s.pillsRow}>
+                        {(['all', 'email', 'google', 'apple'] as const).map((m) => (
+                          <TouchableOpacity
+                            key={m}
+                            onPress={() => setSignupMethodFilter(m)}
+                            style={[s.pill, signupMethodFilter === m && s.pillActive]}
+                          >
+                            <Text style={[s.pillText, signupMethodFilter === m && s.pillTextActive]}>
+                              {m === 'all' ? 'All' : m.charAt(0).toUpperCase() + m.slice(1)}
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    </View>
+
+                    {countries.length > 0 && (
+                      <View style={s.filterRow}>
+                        <Text style={s.filterLabel}>Country</Text>
+                        <View style={s.pillsRow}>
+                          <TouchableOpacity
+                            onPress={() => setCountryFilter('all')}
+                            style={[s.pill, countryFilter === 'all' && s.pillActive]}
+                          >
+                            <Text style={[s.pillText, countryFilter === 'all' && s.pillTextActive]}>All</Text>
+                          </TouchableOpacity>
+                          {countries.slice(0, 6).map((c) => (
+                            <TouchableOpacity
+                              key={c}
+                              onPress={() => setCountryFilter(c)}
+                              style={[s.pill, countryFilter === c && s.pillActive]}
+                            >
+                              <Text style={[s.pillText, countryFilter === c && s.pillTextActive]}>
+                                {flagEmoji(c)} {c}
+                              </Text>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      </View>
+                    )}
+
+                    <View style={s.filterRow}>
+                      <Text style={s.filterLabel}>Subscription</Text>
+                      <View style={s.pillsRow}>
+                        {(['all', 'premium', 'free', 'expired'] as const).map((f) => (
+                          <TouchableOpacity
+                            key={f}
+                            onPress={() => setSubscriptionFilter(f)}
+                            style={[s.pill, subscriptionFilter === f && s.pillActive]}
+                          >
+                            <Text style={[s.pillText, subscriptionFilter === f && s.pillTextActive]}>
+                              {f === 'all' ? 'All' : f.charAt(0).toUpperCase() + f.slice(1)}
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    </View>
+
+                    <View style={[s.filterRow, { marginBottom: 0 }]}>
+                      <Text style={s.filterLabel}>Time Range</Text>
+                      <View style={s.pillsRow}>
+                        {(['all', '24h', '7d', '30d'] as const).map((r) => (
+                          <TouchableOpacity
+                            key={r}
+                            onPress={() => setTimeRange(r)}
+                            style={[s.pill, timeRange === r && s.pillActive]}
+                          >
+                            <Text style={[s.pillText, timeRange === r && s.pillTextActive]}>
+                              {r === 'all' ? 'All' : r}
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    </View>
+                  </View>
+                )}
+
+                {/* Search Bar */}
+                <View style={s.searchContainer}>
+                  <Search size={18} color={theme.colors.textTertiary} />
+                  <TextInput
+                    style={s.searchInput}
+                    placeholder="Search users by email or name..."
+                    placeholderTextColor={theme.colors.textTertiary}
+                    value={searchQuery}
+                    onChangeText={setSearchQuery}
+                  />
+                  {searchQuery.length > 0 && (
+                    <TouchableOpacity onPress={() => setSearchQuery('')}>
+                      <X size={18} color={theme.colors.textTertiary} />
+                    </TouchableOpacity>
+                  )}
+                </View>
+
+                <Text style={s.sectionTitle}>Users ({filteredUsers.length})</Text>
+              </>
+            )}
+
+            {activeTab === 'analytics' && (
+              <>
+                <Text style={s.sectionTitle}>Analytics Dashboard</Text>
+                <View style={s.infoCard}>
+                  <Text style={s.infoCardTitle}>User Growth</Text>
+                  <Text style={s.infoCardText}>New signups: {stats.new_users_today} today</Text>
+                  <Text style={s.infoCardText}>Total users: {stats.total_users}</Text>
+                  <Text style={s.infoCardText}>
+                    Premium conversion: {stats.total_users > 0 ? ((stats.premium_users / stats.total_users) * 100).toFixed(1) : '0'}%
+                  </Text>
+                </View>
+
+                <View style={s.infoCard}>
+                  <Text style={s.infoCardTitle}>Revenue Insights</Text>
+                  <Text style={s.infoCardText}>Premium users: {stats.premium_users}</Text>
+                  <Text style={s.infoCardText}>Total sessions: {stats.total_sessions}</Text>
+                  <Text style={s.infoCardText}>
+                    Avg sessions/user: {stats.total_users > 0 ? (stats.total_sessions / stats.total_users).toFixed(1) : '0'}
+                  </Text>
+                </View>
+
+                <View style={s.infoCard}>
+                  <Text style={s.infoCardTitle}>Engagement Metrics</Text>
+                  <Text style={s.infoCardText}>Active today: {stats.active_today}</Text>
+                  <Text style={s.infoCardText}>
+                    Activity rate: {stats.total_users > 0 ? ((stats.active_today / stats.total_users) * 100).toFixed(1) : '0'}%
+                  </Text>
+                </View>
+              </>
+            )}
+
+            {activeTab === 'heatmap' && (
+              <>
+                <Text style={s.sectionTitle}>Usage Heatmap</Text>
+
+                {heatmapData.hourly.length > 0 ? (
+                  <>
+                    <View style={s.infoCard}>
+                      <Text style={s.infoCardTitle}>Peak Usage Times</Text>
+                      {heatmapData.hourly.map((item) => {
+                        const color = heatmapBarColor(item.percentage, [
+                          [60, theme.colors.accent],
+                          [40, theme.colors.success],
+                          [20, theme.colors.warning],
+                        ]);
+                        return (
+                          <View key={item.hour} style={s.heatmapRow}>
+                            <Text style={s.heatmapLabel}>{item.hour}</Text>
+                            <View style={s.heatmapBar}>
+                              <View style={[s.heatmapFill, { width: `${item.percentage}%`, backgroundColor: color }]} />
+                            </View>
+                            <Text style={s.heatmapValue}>{item.percentage}%</Text>
+                          </View>
+                        );
+                      })}
+                    </View>
+
+                    <View style={s.infoCard}>
+                      <Text style={s.infoCardTitle}>Weekly Activity</Text>
+                      {heatmapData.daily.map((item) => {
+                        const color = heatmapBarColor(item.percentage, [
+                          [20, theme.colors.success],
+                          [12, theme.colors.warning],
+                        ]);
+                        return (
+                          <View key={item.day} style={s.heatmapRow}>
+                            <Text style={s.heatmapLabel}>{item.day}</Text>
+                            <View style={s.heatmapBar}>
+                              <View style={[s.heatmapFill, { width: `${item.percentage}%`, backgroundColor: color }]} />
+                            </View>
+                            <Text style={s.heatmapValue}>{item.percentage}%</Text>
+                          </View>
+                        );
+                      })}
+                    </View>
+
+                    {heatmapData.topSounds.length > 0 && (
+                      <View style={s.infoCard}>
+                        <Text style={s.infoCardTitle}>Most Popular Sounds</Text>
+                        {heatmapData.topSounds.map((sound, index) => (
+                          <View key={sound.name} style={s.heatmapRow}>
+                            <Text style={s.heatmapLabel}>{index + 1}. {sound.name}</Text>
+                            <View style={{ flex: 1 }} />
+                            <Text style={s.heatmapValue}>{sound.count} uses</Text>
+                          </View>
+                        ))}
+                      </View>
+                    )}
+                  </>
+                ) : (
+                  <View style={s.infoCard}>
+                    <Text style={s.infoCardText}>No usage data available yet. Data will appear as users track sleep sessions.</Text>
+                  </View>
+                )}
+              </>
+            )}
+
+            {/* Send Notification Section */}
+            <Text style={s.sectionTitle}>Send Push Notification</Text>
+            <View style={s.notificationCard}>
+              <Bell size={22} color={theme.colors.accent} style={{ marginBottom: 12 }} />
+              <TextInput
+                style={s.notificationInput}
+                placeholder="Notification Title"
+                placeholderTextColor={theme.colors.textTertiary}
+                value={notificationTitle}
+                onChangeText={setNotificationTitle}
+              />
+              <TextInput
+                style={[s.notificationInput, { height: 80, textAlignVertical: 'top' }]}
+                placeholder="Notification Message"
+                placeholderTextColor={theme.colors.textTertiary}
+                value={notificationMessage}
+                onChangeText={setNotificationMessage}
+                multiline
+              />
+              <TouchableOpacity
+                style={[
+                  s.sendButton,
+                  (!notificationTitle || !notificationMessage || sendingNotification) &&
+                    s.sendButtonDisabled,
+                ]}
+                onPress={sendNotificationToAll}
+                disabled={!notificationTitle || !notificationMessage || sendingNotification}
+                activeOpacity={0.85}
+              >
+                {sendingNotification ? (
+                  <ActivityIndicator color={theme.colors.background} />
+                ) : (
+                  <>
+                    <Send size={18} color={theme.colors.background} />
+                    <Text style={s.sendButtonText}>Send to All Users</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+          </>
+        }
+        renderItem={({ item: user }) => {
+          const premium = isPremiumStatus(user.subscription_status);
+          const expired = isExpiredPremium(user);
+          const signupIcon = user.signup_method === 'google' ? '🔵' : user.signup_method === 'apple' ? '' : '📧';
+          return (
+            <View style={s.userCard}>
+              <View style={s.userInfo}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', columnGap: 6, rowGap: 6 }}>
+                  {user.country && <Text style={{ fontSize: 16 }}>{flagEmoji(user.country)}</Text>}
+                  {signupIcon && <Text style={{ fontSize: 14 }}>{signupIcon}</Text>}
+                  <Text style={s.userEmail} numberOfLines={1}>
+                    {user.email || 'No email'}
+                  </Text>
+                </View>
+                {user.full_name && (
+                  <Text style={s.userName} numberOfLines={1}>
+                    {user.full_name}
+                  </Text>
+                )}
+
+                <View style={s.badgeRow}>
+                  <View
+                    style={[
+                      s.badge,
+                      premium ? s.badgePremium : s.badgeFree,
+                      expired && s.badgeExpired,
+                    ]}
+                  >
+                    <Text style={s.badgeText}>{getSubscriptionLabel(user)}</Text>
+                  </View>
+                </View>
+
+                <View style={s.userMetaColumn}>
+                  <Text style={s.metaText}>{user.total_sleep_sessions} sessions</Text>
+                  <Text style={s.metaText}>Active: {formatRelativeTime(user.last_active)}</Text>
+                  <Text style={s.metaText}>
+                    Joined: {new Date(user.created_at).toLocaleDateString()}
+                  </Text>
+                  {user.signup_method && (
+                    <Text style={s.metaText}>
+                      Via: {user.signup_method.charAt(0).toUpperCase() + user.signup_method.slice(1)}
+                    </Text>
+                  )}
+                  {user.subscription_end_date && (
+                    <Text style={s.metaText}>
+                      Sub Ends: {new Date(user.subscription_end_date).toLocaleDateString()}
+                    </Text>
+                  )}
+                  <View style={{ flexDirection: 'row', alignItems: 'center', rowGap: 6, columnGap: 6, marginTop: 4 }}>
+                    <Bell size={12} color={user.expo_push_token ? theme.colors.success : theme.colors.danger} />
+                    <Text style={[s.metaText, { color: user.expo_push_token ? theme.colors.success : theme.colors.danger }]}>
+                      Notifications: {user.expo_push_token ? 'Enabled' : 'Disabled'}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+
+              <View style={s.userActions}>
+                <TouchableOpacity style={s.actionButton} onPress={() => viewUserDetails(user.id)}>
+                  <Eye size={16} color={theme.colors.accent} />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[s.actionButton, s.deleteButton]}
+                  onPress={() => deleteUser(user.id, user.email)}
+                >
+                  <Trash2 size={16} color={theme.colors.danger} />
+                </TouchableOpacity>
+              </View>
+            </View>
+          );
+        }}
+        ListEmptyComponent={
+          <View style={s.emptyState}>
+            <Text style={s.emptyText}>No users found</Text>
+          </View>
+        }
+      />
     </View>
   );
 }
@@ -996,10 +991,6 @@ export default function AdminScreen() {
 const styles = (theme: any) =>
   StyleSheet.create({
     container: {
-      flex: 1,
-      backgroundColor: theme.colors.background,
-    },
-    gradient: {
       flex: 1,
     },
     header: {
@@ -1010,14 +1001,18 @@ const styles = (theme: any) =>
       paddingBottom: 15,
     },
     backButton: {
-      width: 40,
-      height: 40,
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      backgroundColor: theme.colors.card,
+      borderWidth: 1,
+      borderColor: theme.colors.cardBorder,
       alignItems: 'center',
       justifyContent: 'center',
     },
     headerTitle: {
+      fontFamily: theme.typography.fontFamily.displaySemibold,
       fontSize: 20,
-      fontWeight: '700',
       color: theme.colors.textPrimary,
     },
     content: {
@@ -1033,190 +1028,234 @@ const styles = (theme: any) =>
     },
     loadingText: {
       marginTop: 10,
+      fontFamily: theme.typography.fontFamily.body,
       color: theme.colors.textSecondary,
     },
+
     statsRow: {
       flexDirection: 'row',
-      rowGap: 12, columnGap: 12,
-      marginBottom: 20,
+      rowGap: 12,
+      columnGap: 12,
+      marginBottom: 12,
     },
     statCard: {
       flex: 1,
-      padding: 16,
-      borderRadius: 16,
+      padding: 14,
+      borderRadius: theme.borderRadius.card,
       alignItems: 'center',
+      backgroundColor: theme.colors.card,
       borderWidth: 1,
-      borderColor: 'rgba(255, 255, 255, 0.1)',
-      overflow: 'hidden',
+      borderColor: theme.colors.cardBorder,
     },
     statValue: {
-      fontSize: 24,
-      fontWeight: '700',
-      color: '#FFFFFF',
+      fontFamily: theme.typography.fontFamily.displaySemibold,
+      fontSize: 20,
+      color: theme.colors.textPrimary,
       marginTop: 8,
     },
     statLabel: {
-      fontSize: 12,
-      color: '#A0AEC0',
+      fontFamily: theme.typography.fontFamily.body,
+      fontSize: 11,
+      color: theme.colors.textTertiary,
       marginTop: 4,
+      textAlign: 'center',
     },
+
     searchContainer: {
       flexDirection: 'row',
       alignItems: 'center',
-      padding: 12,
-      borderRadius: 12,
-      marginBottom: 20,
+      columnGap: 10,
+      height: 52,
+      paddingHorizontal: 14,
+      borderRadius: theme.borderRadius.card,
+      marginBottom: 16,
+      backgroundColor: theme.colors.card,
       borderWidth: 1,
-      borderColor: 'rgba(255, 255, 255, 0.1)',
-      overflow: 'hidden',
+      borderColor: theme.colors.cardBorder,
     },
     searchInput: {
       flex: 1,
-      marginLeft: 10,
-      fontSize: 16,
-      color: '#FFFFFF',
+      fontFamily: theme.typography.fontFamily.body,
+      fontSize: 15,
+      color: theme.colors.textPrimary,
     },
+
     sectionTitle: {
-      fontSize: 18,
-      fontWeight: '700',
-      color: '#FFFFFF',
-      marginBottom: 12,
+      fontFamily: theme.typography.fontFamily.bodyBold,
+      fontSize: 13,
+      letterSpacing: 1,
+      textTransform: 'uppercase',
+      color: theme.colors.textTertiary,
+      marginTop: 12,
+      marginBottom: 10,
     },
+
+    groupCard: {
+      backgroundColor: theme.colors.card,
+      borderWidth: 1,
+      borderColor: theme.colors.cardBorder,
+      borderRadius: theme.borderRadius.card,
+      paddingHorizontal: 16,
+      marginBottom: 8,
+    },
+    rowDivider: {
+      borderBottomWidth: 1,
+      borderBottomColor: theme.colors.cardBorder,
+    },
+
     userCard: {
       flex: 1,
       padding: 14,
-      borderRadius: 12,
+      borderRadius: theme.borderRadius.card,
       marginBottom: 12,
+      backgroundColor: theme.colors.card,
       borderWidth: 1,
-      borderColor: 'rgba(255, 255, 255, 0.1)',
-      overflow: 'hidden',
+      borderColor: theme.colors.cardBorder,
     },
     userGridRow: {
-      rowGap: 12, columnGap: 12,
+      rowGap: 12,
+      columnGap: 12,
     },
     userInfo: {
       flex: 1,
     },
     userEmail: {
-      fontSize: 16,
-      fontWeight: '600',
-      color: '#FFFFFF',
-      marginBottom: 4,
+      flexShrink: 1,
+      fontFamily: theme.typography.fontFamily.bodyBold,
+      fontSize: 14,
+      color: theme.colors.textPrimary,
     },
     userName: {
-      fontSize: 14,
-      color: '#A0AEC0',
-      marginBottom: 6,
+      fontFamily: theme.typography.fontFamily.body,
+      fontSize: 13,
+      color: theme.colors.textTertiary,
+      marginTop: 4,
     },
     userMetaColumn: {
       marginTop: 10,
-      rowGap: 4, columnGap: 4,
+      rowGap: 4,
     },
     metaText: {
+      fontFamily: theme.typography.fontFamily.body,
       fontSize: 12,
-      color: '#A0AEC0',
+      color: theme.colors.textTertiary,
     },
     userActions: {
       flexDirection: 'row',
-      rowGap: 8, columnGap: 8,
+      columnGap: 8,
       marginTop: 12,
     },
     actionButton: {
-      padding: 8,
-      borderRadius: 8,
-      backgroundColor: 'rgba(255, 255, 255, 0.05)',
+      width: 34,
+      height: 34,
+      borderRadius: 10,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: theme.colors.accentLight,
     },
     deleteButton: {
-      backgroundColor: 'rgba(239, 68, 68, 0.1)',
+      backgroundColor: theme.colors.danger + '1F',
     },
     emptyState: {
       padding: 40,
       alignItems: 'center',
     },
     emptyText: {
-      fontSize: 16,
-      color: '#A0AEC0',
+      fontFamily: theme.typography.fontFamily.body,
+      fontSize: 15,
+      color: theme.colors.textTertiary,
     },
+
     notificationCard: {
-      padding: 20,
-      borderRadius: 16,
-      marginBottom: 20,
-      overflow: 'hidden',
+      padding: 18,
+      borderRadius: theme.borderRadius.card,
+      marginBottom: 16,
+      backgroundColor: theme.colors.card,
+      borderWidth: 1,
+      borderColor: theme.colors.cardBorder,
     },
     filtersCard: {
-      padding: 14,
-      borderRadius: 16,
+      padding: 16,
+      borderRadius: theme.borderRadius.card,
       marginBottom: 16,
+      backgroundColor: theme.colors.card,
       borderWidth: 1,
-      borderColor: 'rgba(255, 255, 255, 0.1)',
-      overflow: 'hidden',
+      borderColor: theme.colors.cardBorder,
     },
     filterRow: {
-      marginBottom: 10,
+      marginBottom: 14,
     },
     filterLabel: {
-      color: '#A0AEC0',
+      fontFamily: theme.typography.fontFamily.bodyBold,
+      color: theme.colors.textTertiary,
       fontSize: 12,
-      fontWeight: '600',
+      textTransform: 'uppercase',
+      letterSpacing: 0.6,
       marginBottom: 8,
     },
     pillsRow: {
       flexDirection: 'row',
       flexWrap: 'wrap',
-      rowGap: 8, columnGap: 8,
+      rowGap: 8,
+      columnGap: 8,
     },
     pill: {
-      paddingHorizontal: 10,
+      paddingHorizontal: 12,
       paddingVertical: 8,
       borderRadius: 999,
       borderWidth: 1,
-      borderColor: 'rgba(255, 255, 255, 0.12)',
-      backgroundColor: 'rgba(255, 255, 255, 0.04)',
+      borderColor: theme.colors.cardBorder,
+      backgroundColor: theme.colors.backgroundTertiary,
     },
     pillActive: {
       borderColor: theme.colors.accent,
-      backgroundColor: 'rgba(139, 92, 246, 0.22)',
+      backgroundColor: theme.colors.selectedBackground,
     },
     pillText: {
-      color: '#A0AEC0',
+      fontFamily: theme.typography.fontFamily.bodySemibold,
+      color: theme.colors.textSecondary,
       fontSize: 12,
-      fontWeight: '600',
     },
     pillTextActive: {
-      color: '#FFFFFF',
+      color: theme.colors.textPrimary,
     },
+
     badgeRow: {
       flexDirection: 'row',
-      marginTop: 6,
+      marginTop: 8,
     },
     badge: {
       paddingHorizontal: 10,
-      paddingVertical: 6,
+      paddingVertical: 5,
       borderRadius: 999,
       borderWidth: 1,
     },
     badgePremium: {
-      backgroundColor: 'rgba(245, 158, 11, 0.14)',
-      borderColor: 'rgba(245, 158, 11, 0.35)',
+      backgroundColor: theme.colors.premiumBadgeBackground,
+      borderColor: theme.colors.premiumBadgeBorder,
     },
     badgeFree: {
-      backgroundColor: 'rgba(160, 174, 192, 0.08)',
-      borderColor: 'rgba(160, 174, 192, 0.2)',
+      backgroundColor: theme.colors.backgroundTertiary,
+      borderColor: theme.colors.cardBorder,
     },
     badgeExpired: {
-      backgroundColor: 'rgba(239, 68, 68, 0.12)',
-      borderColor: 'rgba(239, 68, 68, 0.32)',
+      backgroundColor: theme.colors.danger + '1F',
+      borderColor: theme.colors.danger,
     },
     badgeText: {
-      color: '#FFFFFF',
+      fontFamily: theme.typography.fontFamily.bodyBold,
+      color: theme.colors.textPrimary,
       fontSize: 11,
-      fontWeight: '700',
     },
+
     notificationInput: {
-      backgroundColor: 'rgba(255, 255, 255, 0.05)',
+      backgroundColor: theme.colors.backgroundTertiary,
       borderRadius: 12,
+      borderWidth: 1,
+      borderColor: theme.colors.cardBorder,
       padding: 12,
-      color: '#FFFFFF',
+      fontFamily: theme.typography.fontFamily.body,
+      color: theme.colors.textPrimary,
       fontSize: 14,
       marginBottom: 12,
     },
@@ -1224,151 +1263,132 @@ const styles = (theme: any) =>
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
-      rowGap: 8, columnGap: 8,
+      columnGap: 8,
       backgroundColor: theme.colors.accent,
       padding: 14,
-      borderRadius: 12,
+      borderRadius: 14,
       marginTop: 8,
     },
     sendButtonDisabled: {
       opacity: 0.5,
     },
     sendButtonText: {
-      color: '#FFFFFF',
-      fontSize: 16,
-      fontWeight: '600',
+      fontFamily: theme.typography.fontFamily.bodyBold,
+      color: theme.colors.background,
+      fontSize: 15,
     },
-    countriesCard: {
-      backgroundColor: 'rgba(255, 255, 255, 0.04)',
-      borderRadius: 16,
-      padding: 16,
-      marginBottom: 20,
-      borderWidth: 1,
-      borderColor: 'rgba(255, 255, 255, 0.08)',
-    },
+
     countryRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      paddingVertical: 10,
-      rowGap: 12, columnGap: 12,
-      borderBottomWidth: 1,
-      borderBottomColor: 'rgba(255, 255, 255, 0.05)',
+      paddingVertical: 12,
+      columnGap: 12,
     },
     countryFlag: {
-      fontSize: 24,
+      fontSize: 22,
     },
     countryName: {
-      color: '#FFFFFF',
+      fontFamily: theme.typography.fontFamily.bodySemibold,
+      color: theme.colors.textPrimary,
       fontSize: 14,
-      fontWeight: '600',
     },
     countryCount: {
+      fontFamily: theme.typography.fontFamily.bodyBold,
       color: theme.colors.accent,
-      fontSize: 16,
-      fontWeight: '700',
+      fontSize: 15,
     },
     countryPercent: {
-      color: '#94A3B8',
-      fontSize: 13,
-      fontWeight: '500',
+      fontFamily: theme.typography.fontFamily.body,
+      color: theme.colors.textTertiary,
+      fontSize: 12,
       minWidth: 50,
       textAlign: 'right',
     },
+
     tabContainer: {
       flexDirection: 'row',
-      rowGap: 8, columnGap: 8,
-      marginBottom: 20,
-      marginTop: 10,
+      columnGap: 8,
+      marginBottom: 16,
+      marginTop: 4,
     },
     tab: {
       flex: 1,
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
-      rowGap: 6, columnGap: 6,
-      padding: 12,
-      borderRadius: 12,
-      backgroundColor: 'rgba(255, 255, 255, 0.05)',
+      columnGap: 6,
+      paddingVertical: 12,
+      borderRadius: 14,
+      backgroundColor: theme.colors.card,
       borderWidth: 1,
-      borderColor: 'rgba(255, 255, 255, 0.08)',
+      borderColor: theme.colors.cardBorder,
     },
     tabActive: {
       backgroundColor: theme.colors.accent,
       borderColor: theme.colors.accent,
     },
     tabText: {
-      color: '#94A3B8',
+      fontFamily: theme.typography.fontFamily.bodySemibold,
+      color: theme.colors.textSecondary,
       fontSize: 13,
-      fontWeight: '600',
     },
     tabTextActive: {
-      color: '#FFFFFF',
+      color: theme.colors.background,
     },
+
     filterToggle: {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
-      rowGap: 8, columnGap: 8,
+      columnGap: 8,
       backgroundColor: theme.colors.accent,
-      padding: 14,
-      borderRadius: 12,
+      paddingVertical: 14,
+      borderRadius: 14,
       marginBottom: 16,
     },
     filterToggleText: {
-      color: '#FFFFFF',
-      fontSize: 15,
-      fontWeight: '600',
+      fontFamily: theme.typography.fontFamily.bodyBold,
+      color: theme.colors.background,
+      fontSize: 14,
     },
-    analyticsCard: {
-      backgroundColor: 'rgba(255, 255, 255, 0.04)',
-      borderRadius: 16,
-      padding: 20,
-      marginBottom: 16,
+
+    infoCard: {
+      backgroundColor: theme.colors.card,
+      borderRadius: theme.borderRadius.card,
+      padding: 18,
+      marginBottom: 12,
       borderWidth: 1,
-      borderColor: 'rgba(255, 255, 255, 0.08)',
+      borderColor: theme.colors.cardBorder,
     },
-    analyticsTitle: {
-      color: '#FFFFFF',
-      fontSize: 16,
-      fontWeight: '700',
+    infoCardTitle: {
+      fontFamily: theme.typography.fontFamily.bodyBold,
+      color: theme.colors.textPrimary,
+      fontSize: 15,
       marginBottom: 12,
     },
-    analyticsText: {
-      color: '#CBD5E1',
+    infoCardText: {
+      fontFamily: theme.typography.fontFamily.body,
+      color: theme.colors.textSecondary,
       fontSize: 14,
-      fontWeight: '500',
-      marginBottom: 8,
+      marginBottom: 6,
     },
-    heatmapCard: {
-      backgroundColor: 'rgba(255, 255, 255, 0.04)',
-      borderRadius: 16,
-      padding: 20,
-      marginBottom: 16,
-      borderWidth: 1,
-      borderColor: 'rgba(255, 255, 255, 0.08)',
-    },
-    heatmapTitle: {
-      color: '#FFFFFF',
-      fontSize: 16,
-      fontWeight: '700',
-      marginBottom: 16,
-    },
+
     heatmapRow: {
       flexDirection: 'row',
       alignItems: 'center',
       marginBottom: 12,
-      rowGap: 12, columnGap: 12,
+      columnGap: 12,
     },
     heatmapLabel: {
-      color: '#CBD5E1',
-      fontSize: 13,
-      fontWeight: '600',
+      fontFamily: theme.typography.fontFamily.bodySemibold,
+      color: theme.colors.textSecondary,
+      fontSize: 12,
       width: 100,
     },
     heatmapBar: {
       flex: 1,
       height: 8,
-      backgroundColor: 'rgba(255, 255, 255, 0.1)',
+      backgroundColor: theme.colors.backgroundTertiary,
       borderRadius: 4,
       overflow: 'hidden',
     },
@@ -1377,10 +1397,10 @@ const styles = (theme: any) =>
       borderRadius: 4,
     },
     heatmapValue: {
-      color: '#FFFFFF',
-      fontSize: 13,
-      fontWeight: '700',
-      width: 45,
+      fontFamily: theme.typography.fontFamily.bodyBold,
+      color: theme.colors.textPrimary,
+      fontSize: 12,
+      width: 50,
       textAlign: 'right',
     },
   });

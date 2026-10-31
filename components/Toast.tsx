@@ -135,7 +135,8 @@ const styles = (theme: any) => StyleSheet.create({
     top: 60,
     left: 20,
     right: 20,
-    zIndex: 10000,
+    zIndex: 30000,
+    elevation: 30,
   },
   toastContent: {
     flexDirection: 'row',

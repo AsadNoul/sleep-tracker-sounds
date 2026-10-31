@@ -1,8 +1,8 @@
-# Sleep Architect - Color Scheme Documentation
+# Nightprint - Color Scheme Documentation
 
 ## 🎨 Design Philosophy
 
-Sleep Architect uses a **premium dark-themed** color palette with vibrant purple accents and subtle gradients to create a calming yet sophisticated nocturnal atmosphere.
+Nightprint uses a **premium dark-themed** color palette with vibrant purple accents and subtle gradients to create a calming yet sophisticated nocturnal atmosphere.
 
 ---
 

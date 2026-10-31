@@ -83,7 +83,7 @@ export default function HealthStep({
       <View style={sh.callout}>
         <Lock size={18} color={theme.colors.accent} strokeWidth={2} style={s.calloutIcon} />
         <Text style={sh.calloutText}>
-          Private and never shared. Sleep Architect is not a medical device. Talk to a
+          Private and never shared. Nightprint is not a medical device. Talk to a
           doctor about any sleep condition.
         </Text>
       </View>

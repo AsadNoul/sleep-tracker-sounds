@@ -127,7 +127,7 @@ const ModalHeader = ({ theme, onClose, themedStyles }: any) => (
     </TouchableOpacity>
     <View style={themedStyles.headerTextContainer}>
       <Text style={themedStyles.headerTitle}>Now Playing</Text>
-      <Text style={themedStyles.headerSubtitle}>Sleep Architect Suite</Text>
+      <Text style={themedStyles.headerSubtitle}>Nightprint Suite</Text>
     </View>
     <View style={{ width: 44 }} />
   </View>
@@ -156,7 +156,7 @@ const ArtworkSection = ({ SoundIcon, theme, themedStyles }: any) => (
 const TrackInfo = ({ currentSoundName, themedStyles }: any) => (
   <View style={themedStyles.trackInfo}>
     <Text style={themedStyles.trackName}>{currentSoundName || 'Celestial Drift'}</Text>
-    <Text style={themedStyles.trackArtist}>Sleep Architect • Ambient Collection</Text>
+    <Text style={themedStyles.trackArtist}>Nightprint • Ambient Collection</Text>
   </View>
 );
 

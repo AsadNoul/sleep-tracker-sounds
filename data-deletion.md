@@ -1,11 +1,11 @@
-# Sleep Architect - Data Deletion Request
+# Nightprint - Data Deletion Request
 
 ## Delete Your Account In-App (Recommended)
 
 The easiest and fastest way to delete your account and all associated data:
 
 ### Steps:
-1. Open the **Sleep Architect** app on your device
+1. Open the **Nightprint** app on your device
 2. Tap **Settings** in the bottom navigation bar
 3. Scroll down to the **Data & Privacy** section
 4. Tap **Delete Account**
@@ -30,9 +30,9 @@ Your deletion request will immediately and permanently remove:
 
 If you cannot access the app or need assistance with account deletion, you can contact us:
 
-**Email:** asadalibscs20@gmail.com
+**Email:** support@naulx.com
 
-**Subject Line:** Account Deletion Request - Sleep Architect
+**Subject Line:** Account Deletion Request - Nightprint
 
 **Please include:**
 - Your registered email address
@@ -45,7 +45,7 @@ If you cannot access the app or need assistance with account deletion, you can c
 
 ## Privacy & Data Protection
 
-Sleep Architect is committed to protecting your privacy and respecting your rights:
+Nightprint is committed to protecting your privacy and respecting your rights:
 
 - **Right to Erasure:** You can request deletion of your data at any time
 - **No Data Recovery:** Once deleted, data cannot be recovered
@@ -58,9 +58,8 @@ Sleep Architect is committed to protecting your privacy and respecting your righ
 
 If you have questions about data deletion or privacy:
 
-📧 **Email:** asadalibscs20@gmail.com  
-🌐 **GitHub:** https://github.com/AsadNoul/sleep-tracker-sounds  
-📱 **App:** Sleep Architect on Google Play Store
+📧 **Email:** support@naulx.com  
+📱 **App:** Nightprint on Google Play Store
 
 ---
 

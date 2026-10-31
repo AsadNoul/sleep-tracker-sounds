@@ -1,4 +1,4 @@
-# 🚀 Deployment Guide - Sleep Architect
+# 🚀 Deployment Guide - Nightprint
 
 ## 📦 Prerequisites
 

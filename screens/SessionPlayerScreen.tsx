@@ -13,7 +13,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import { X, Activity, Clock, Gauge, Volume2 } from 'lucide-react-native';
+import { X, Activity, Clock, Gauge, Volume2, Flower2, Baby, GraduationCap, Heart, Music2, Sunrise, BatteryCharging, BookOpen, Wind } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const ICON_MAP: Record<string, any> = {
@@ -171,6 +171,28 @@ const SESSION_TEMPLATES: Record<string, SessionStepTemplate[]> = {
   ],
 };
 
+interface SessionKindTheme {
+  gradient: [string, string, string];
+  icon: any;
+  label: string;
+}
+
+// Distinct visual identity per session kind — gradient + icon + label used
+// in the visualization circle, so yoga/kids/story/music/breathing etc no
+// longer render the exact same purple/cyan/blue "Activity" visual.
+const SESSION_KIND_THEME: Record<SessionKind, SessionKindTheme> = {
+  yoga: { gradient: ['rgba(16, 185, 129, 0.35)', 'rgba(5, 150, 105, 0.3)', 'rgba(132, 204, 22, 0.3)'], icon: Flower2, label: 'Yoga' },
+  kids: { gradient: ['rgba(251, 191, 36, 0.35)', 'rgba(249, 115, 22, 0.3)', 'rgba(236, 72, 153, 0.3)'], icon: Baby, label: 'Kids' },
+  'cbti-course': { gradient: ['rgba(59, 130, 246, 0.35)', 'rgba(37, 99, 235, 0.3)', 'rgba(99, 102, 241, 0.3)'], icon: GraduationCap, label: 'Course' },
+  meditation: { gradient: ['rgba(157, 78, 221, 0.3)', 'rgba(0, 255, 209, 0.3)', 'rgba(51, 198, 255, 0.3)'], icon: Activity, label: 'Meditation' },
+  'quick-relief': { gradient: ['rgba(239, 68, 68, 0.3)', 'rgba(248, 113, 113, 0.25)', 'rgba(251, 191, 36, 0.25)'], icon: Heart, label: 'Quick Relief' },
+  breathing: { gradient: ['rgba(96, 165, 250, 0.35)', 'rgba(52, 211, 153, 0.3)', 'rgba(167, 139, 250, 0.3)'], icon: Wind, label: 'Breathing' },
+  morning: { gradient: ['rgba(251, 146, 60, 0.35)', 'rgba(250, 204, 21, 0.3)', 'rgba(254, 240, 138, 0.25)'], icon: Sunrise, label: 'Morning' },
+  'power-nap': { gradient: ['rgba(99, 102, 241, 0.3)', 'rgba(79, 70, 229, 0.3)', 'rgba(129, 140, 248, 0.25)'], icon: BatteryCharging, label: 'Power Nap' },
+  story: { gradient: ['rgba(217, 119, 6, 0.3)', 'rgba(180, 83, 9, 0.25)', 'rgba(146, 64, 14, 0.25)'], icon: BookOpen, label: 'Story' },
+  music: { gradient: ['rgba(236, 72, 153, 0.3)', 'rgba(147, 51, 234, 0.3)', 'rgba(79, 70, 229, 0.25)'], icon: Music2, label: 'Soundscape' },
+};
+
 const buildSessionSteps = (session: any, categoryHint?: string): SessionStep[] => {
   const sessionKind = getSessionKind(session, categoryHint);
   const templates = SESSION_TEMPLATES[sessionKind] ?? SESSION_TEMPLATES.meditation;
@@ -240,6 +262,13 @@ export default function SessionPlayerScreen() {
     () => buildSessionSteps(session, mindfulnessCompletionTracking?.category),
     [session?.id, session?.title, session?.duration, session?.description, mindfulnessCompletionTracking?.category],
   );
+
+  const sessionKind = useMemo(
+    () => getSessionKind(session, mindfulnessCompletionTracking?.category),
+    [session, mindfulnessCompletionTracking?.category],
+  );
+  const kindTheme = SESSION_KIND_THEME[sessionKind] || SESSION_KIND_THEME.meditation;
+  const KindIcon = kindTheme.icon;
 
   useEffect(() => {
     // Calculate total duration from steps
@@ -471,7 +500,7 @@ export default function SessionPlayerScreen() {
           <View style={styles(theme).visualizationContainer}>
             <BlurView intensity={60} tint="dark" style={styles(theme).visualizationBlur}>
               <LinearGradient
-                colors={['rgba(157, 78, 221, 0.3)', 'rgba(0, 255, 209, 0.3)', 'rgba(51, 198, 255, 0.3)']}
+                colors={kindTheme.gradient}
                 style={styles(theme).visualizationGradient}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
@@ -496,7 +525,7 @@ export default function SessionPlayerScreen() {
                       style={styles(theme).circleGradient}
                     >
                       <View style={styles(theme).circleInner}>
-                        <Activity size={40} color={theme.colors.textPrimary} />
+                        <KindIcon size={40} color={theme.colors.textPrimary} />
                       </View>
                     </LinearGradient>
                   </View>
@@ -508,6 +537,10 @@ export default function SessionPlayerScreen() {
           {/* Session Info */}
           <View style={styles(theme).sessionInfo}>
             <View style={styles(theme).infoRow}>
+              <View style={styles(theme).infoBadge}>
+                <KindIcon size={16} color={theme.colors.accent} style={{ marginRight: 6 }} />
+                <Text style={styles(theme).infoBadgeText}>{kindTheme.label}</Text>
+              </View>
               <View style={styles(theme).infoBadge}>
                 <Clock size={16} color={theme.colors.accent} style={{ marginRight: 6 }} />
                 <Text style={styles(theme).infoBadgeText}>{session?.duration}</Text>
@@ -794,6 +827,8 @@ const styles = (theme: any) => StyleSheet.create({
   },
   infoRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    rowGap: 8,
     marginBottom: 12,
   },
   infoBadge: {

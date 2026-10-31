@@ -8,18 +8,15 @@ import {
   ScrollView,
   TouchableOpacity,
   Linking,
-  Platform,
   Modal,
 } from 'react-native';
-import { ChevronLeft, ChevronRight, Mail, Github, X } from 'lucide-react-native';
+import { ChevronLeft, ChevronRight, X } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import * as Application from 'expo-application';
-import * as Device from 'expo-device';
-import Constants from 'expo-constants';
-import SleepPrintMark from '../components/SleepPrintMark';
+import NightprintLogo from '../components/brand/NightprintLogo';
 
 export default function AboutScreen() {
-  const { theme } = useAppTheme();
+  const { theme, isDark } = useAppTheme();
   const s = styles(theme);
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
@@ -41,7 +38,7 @@ export default function AboutScreen() {
   const privacyPolicy = `
 # Privacy Policy
 
-Welcome to Sleep Architect. Your privacy is important to us.
+Welcome to Nightprint. Your privacy is important to us.
 
 ## 1. Data Collection
 We collect sleep data locally on your device. If you use cloud sync, this data is encrypted and stored securely in our database.
@@ -62,7 +59,7 @@ We use device identifiers for:
 These identifiers help us provide core app features like syncing your data across devices and sending you sleep reminders.
 
 ## 3. Audio Data
-Sleep Architect does NOT record or store any audio data from your room. All analysis is performed on-device if applicable.
+Nightprint does NOT record or store any audio data from your room. All analysis is performed on-device if applicable.
 
 ## 4. Usage Data
 We may collect anonymous usage statistics to improve the application.
@@ -89,22 +86,22 @@ This will permanently remove:
 - Device identifiers
 - All personal information
 
-This action cannot be undone. If you need help, contact us at asadalibscs20@gmail.com
+This action cannot be undone. If you need help, contact us at support@naulx.com
   `;
 
   const termsOfService = `
 # Terms of Service
 
-By using Sleep Architect, you agree to these terms.
+By using Nightprint, you agree to these terms.
 
 ## 1. Health Disclaimer
-Sleep Architect is NOT a medical device. Always consult with a doctor for serious sleep disorders.
+Nightprint is NOT a medical device. Always consult with a doctor for serious sleep disorders.
 
 ## 2. Subscriptions
 Premium features require an active subscription. Payments are managed through your app store account.
 
 ## 3. Intellectual Property
-All content and designs within Sleep Architect are owned by NaulX Agency.
+All content and designs within Nightprint are owned by NaulX Agency.
 
 ## 4. Modifications
 We reserve the right to modify these terms at any time.
@@ -113,7 +110,7 @@ We reserve the right to modify these terms at any time.
   const openSourceLicenses = `
 # Open-Source Licenses
 
-Sleep Architect is built with the help of these open-source projects:
+Nightprint is built with the help of these open-source projects:
 
 - React Native & Expo (MIT)
 - react-navigation (MIT)
@@ -131,30 +128,6 @@ Full license texts are available from each project's public repository.
     setLegalTitle(title);
     setLegalContent(content);
     setLegalModalVisible(true);
-  };
-
-  const handleContactSupport = async () => {
-    const deviceInfo = `
----------- Device Information ----------
-App Version: ${appVersion}
-Build Number: ${buildNumber}
-Platform: ${Platform.OS} ${Platform.Version}
-Device: ${Device.modelName || 'Unknown'}
-Brand: ${Device.brand || 'Unknown'}
-OS Version: ${Device.osVersion || 'Unknown'}
-Expo SDK: ${Constants.expoConfig?.sdkVersion || 'Unknown'}
-----------------------------------------
-
-Please describe your issue below:
-
-
-`;
-
-    const emailUrl = `mailto:asadalibscs20@gmail.com?subject=Sleep Architect Support Request&body=${encodeURIComponent(deviceInfo)}`;
-    const supported = await Linking.canOpenURL(emailUrl);
-    if (supported) {
-      await Linking.openURL(emailUrl);
-    }
   };
 
   return (
@@ -179,9 +152,9 @@ Please describe your issue below:
         <View style={s.appInfoContainer}>
           <View style={s.markGlow} />
           <View style={s.markWrapper}>
-            <SleepPrintMark size={120} colors={theme.sleepPrintMark} />
+            <NightprintLogo size={120} variant={isDark ? 'dark' : 'light'} />
           </View>
-          <Text style={s.appName}>Sleep Architect</Text>
+          <Text style={s.appName}>Nightprint</Text>
           <Text style={s.versionText}>Version {appVersion} ({buildNumber})</Text>
         </View>
 
@@ -189,7 +162,7 @@ Please describe your issue below:
         <View style={s.groupCard}>
           <TouchableOpacity
             style={s.row}
-            onPress={() => showLegal("What's New", "You're on the latest version of Sleep Architect. Check back here after every update for a summary of what's changed.")}
+            onPress={() => showLegal("What's New", "You're on the latest version of Nightprint. Check back here after every update for a summary of what's changed.")}
             activeOpacity={0.7}
           >
             <Text style={s.rowLabel}>What's new</Text>
@@ -238,66 +211,23 @@ Please describe your issue below:
         </View>
 
         <Text style={s.disclaimerText}>
-          Sleep Architect is a wellness app, not a medical device.
+          Nightprint is a wellness app, not a medical device.
         </Text>
 
-        {/* Support & resources — self-designed, same system, no canvas equivalent */}
-        <View style={s.sectionBlock}>
-          <Text style={s.sectionLabel}>Support & Resources</Text>
-          <View style={s.groupCard}>
-            <TouchableOpacity style={s.row} onPress={handleContactSupport} activeOpacity={0.7}>
-              <View style={s.rowIconLabel}>
-                <Mail size={18} color={theme.colors.accent} />
-                <Text style={s.rowLabel}>Contact Support</Text>
-              </View>
-              <ChevronRight size={18} color={theme.colors.textTertiary} />
-            </TouchableOpacity>
-            <View style={s.rowDivider} />
-            <TouchableOpacity
-              style={[s.row, s.rowLast]}
-              onPress={() => handleOpenLink('https://github.com/AsadNoul/sleep-tracker-sounds')}
-              activeOpacity={0.7}
-            >
-              <View style={s.rowIconLabel}>
-                <Github size={18} color={theme.colors.textPrimary} />
-                <Text style={s.rowLabel}>GitHub Repository</Text>
-              </View>
-              <ChevronRight size={18} color={theme.colors.textTertiary} />
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* System information — self-designed, same system */}
+        {/* System information — App Version only, per canvas */}
         <View style={s.sectionBlock}>
           <Text style={s.sectionLabel}>System Information</Text>
           <View style={s.groupCard}>
-            <View style={s.infoRow}>
+            <View style={[s.infoRow, s.rowLast]}>
               <Text style={s.infoLabel}>App Version</Text>
               <Text style={s.infoValue}>{appVersion}</Text>
-            </View>
-            <View style={s.rowDivider} />
-            <View style={s.infoRow}>
-              <Text style={s.infoLabel}>Build Identity</Text>
-              <Text style={s.infoValue}>#{buildNumber}</Text>
-            </View>
-            <View style={s.rowDivider} />
-            <View style={s.infoRow}>
-              <Text style={s.infoLabel}>Platform</Text>
-              <Text style={s.infoValue}>{Platform.OS} {Platform.Version}</Text>
-            </View>
-            <View style={s.rowDivider} />
-            <View style={[s.infoRow, s.rowLast]}>
-              <Text style={s.infoLabel}>Release Cycle</Text>
-              <Text style={s.infoValue}>Stable (v3.0)</Text>
             </View>
           </View>
         </View>
 
-        {/* Credits — self-designed, same system */}
+        {/* Credits */}
         <View style={s.creditsSection}>
           <View style={s.divider} />
-          <Text style={s.creditText}>Developed with React Native & Expo</Text>
-          <Text style={s.creditText}>Icons by Lucide · Acoustic analysis by NaulX Engine</Text>
           <View style={s.agencyContainer}>
             <Text style={s.agencyLabel}>Proudly Crafted By</Text>
             <Text style={s.agencyName}>NaulX Agency</Text>
@@ -332,10 +262,8 @@ Please describe your issue below:
   );
 
   async function handleShareOrRate() {
-    const url = Platform.OS === 'ios'
-      ? 'https://apps.apple.com/app/sleep-architect'
-      : 'https://play.google.com/store/apps/details?id=com.asadNoul.sleeptracker';
-    await handleOpenLink(url);
+    // No App Store listing yet — Play Store is the only live store link.
+    await handleOpenLink('https://play.google.com/store/apps/details?id=com.sleeptracker.app');
   }
 }
 
@@ -416,12 +344,6 @@ const styles = (theme: any) =>
       fontSize: 16,
       color: theme.colors.textPrimary,
     },
-    rowIconLabel: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      columnGap: 12,
-    },
-
     disclaimerText: {
       fontFamily: theme.typography.fontFamily.body,
       fontSize: 14,
@@ -469,12 +391,6 @@ const styles = (theme: any) =>
       borderRadius: 2,
       backgroundColor: theme.colors.cardBorder,
       marginBottom: 12,
-    },
-    creditText: {
-      fontFamily: theme.typography.fontFamily.body,
-      fontSize: 13,
-      color: theme.colors.textTertiary,
-      textAlign: 'center',
     },
     agencyContainer: {
       marginTop: 12,
@@ -541,6 +457,7 @@ const styles = (theme: any) =>
       alignItems: 'center',
     },
     modalBody: {
+      flex: 1,
       paddingBottom: 12,
     },
     legalText: {

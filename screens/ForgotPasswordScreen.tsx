@@ -177,7 +177,7 @@ const styles = (theme: any) => StyleSheet.create({
     height: 44,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(27, 29, 42, 0.6)',
+    backgroundColor: theme.colors.backgroundTertiary,
     borderRadius: 12,
   },
   content: {
@@ -215,12 +215,12 @@ const styles = (theme: any) => StyleSheet.create({
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(27, 29, 42, 0.7)',
+    backgroundColor: theme.colors.backgroundTertiary,
     borderRadius: 16,
     paddingHorizontal: 16,
     marginBottom: 24,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
+    borderColor: theme.colors.cardBorder,
     overflow: 'hidden',
   },
   inputIcon: {

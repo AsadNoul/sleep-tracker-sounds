@@ -368,7 +368,7 @@ const PremiumOverlay = ({ theme, isDark, onUnlock }: any) => {
           <Lock size={22} color="#FFF" />
         </View>
         <Text style={styles(theme, isDark).premiumOverlayTitle}>Unlock Pro Analysis</Text>
-        <Text style={styles(theme, isDark).premiumOverlayText}>Get deeper insights and advanced metrics with Sleep Architect Pro.</Text>
+        <Text style={styles(theme, isDark).premiumOverlayText}>Get deeper insights and advanced metrics with Nightprint Premium.</Text>
         <TouchableOpacity
           style={styles(theme, isDark).premiumUnlockBtn}
           onPress={onUnlock}
@@ -448,6 +448,7 @@ export default function SleepAnalysisScreen({ hideHeader = false, isSubcomponent
   const [fullRecordingPlaying, setFullRecordingPlaying] = useState(false);
   const [fullRecordingStatus, setFullRecordingStatus] = useState<{ position: number, duration: number } | null>(null);
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
+  const [isGeneratingCSV, setIsGeneratingCSV] = useState(false);
   const progressAnim = useRef(new Animated.Value(0)).current;
 
   const isPremium = useMemo(() => isPremiumActive(user?.subscription_status, user?.subscription_end_date, user?.role, user?.email), [user]);
@@ -912,7 +913,7 @@ export default function SleepAnalysisScreen({ hideHeader = false, isSubcomponent
     <div class="app-brand" style="position:relative;z-index:1;">
       <div class="app-icon">🌙</div>
       <div>
-        <div class="app-name">Sleep App Pro</div>
+        <div class="app-name">Nightprint</div>
         <div class="app-tagline">Your personal sleep coach</div>
       </div>
       <div class="premium-chip" style="margin-left:auto;">★ PREMIUM REPORT</div>
@@ -1016,7 +1017,7 @@ export default function SleepAnalysisScreen({ hideHeader = false, isSubcomponent
   <div class="store-card">
     <div class="store-icon">📱</div>
     <div class="store-text">
-      <div class="title">Sleep App Pro</div>
+      <div class="title">Nightprint</div>
       <div class="sub">AI sleep coaching, smart alarms, snore detection &amp; more</div>
     </div>
     <a class="store-link" href="https://play.google.com/store/apps/details?id=com.naulx.sleepapp">
@@ -1026,10 +1027,10 @@ export default function SleepAnalysisScreen({ hideHeader = false, isSubcomponent
 
   <!-- FOOTER -->
   <div class="footer">
-    <strong>Sleep App Pro</strong> • Premium Sleep Report<br/>
+    <strong>Nightprint</strong> • Premium Sleep Report<br/>
     Generated for <strong>${userName}</strong> on ${generatedAt}<br/>
     All data is private and stored securely on your device.<br/>
-    <span style="color:#cbd5e1;">© Sleep App Pro — Your personal sleep coach</span>
+    <span style="color:#cbd5e1;">© Nightprint — Your personal sleep coach</span>
   </div>
 
 </div>
@@ -1052,6 +1053,65 @@ export default function SleepAnalysisScreen({ hideHeader = false, isSubcomponent
       showToast('Failed to generate report. Please try again.', 'error');
     } finally {
       setIsGeneratingReport(false);
+    }
+  };
+
+  const handleExportCSV = async () => {
+    if (!isPremium) {
+      analyticsService.trackFeatureGateHit('sleep_csv_export').catch(() => { });
+      navigation.navigate('Subscription', { source: 'sleep_csv_export' });
+      return;
+    }
+    if (sleepHistory.length === 0) {
+      showToast('No sleep history to export', 'error');
+      return;
+    }
+    setIsGeneratingCSV(true);
+    try {
+      const headers = [
+        'Date', 'Start Time', 'End Time', 'Duration (min)', 'Sleep Score',
+        'Quality (1-10)', 'Wake Ups', 'Efficiency (%)', 'Deep Sleep Quality (%)',
+        'Snoring Intensity', 'Disruption Score', 'Movement Events', 'Is Nap',
+      ];
+
+      const escapeCsv = (val: any) => {
+        const s = val === null || val === undefined ? '' : String(val);
+        return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+      };
+
+      const rows = sleepHistory.map((s) => [
+        new Date(s.startTime).toLocaleDateString('en-US'),
+        new Date(s.startTime).toLocaleTimeString('en-US'),
+        s.endTime ? new Date(s.endTime).toLocaleTimeString('en-US') : '',
+        s.duration ?? '',
+        s.sleepScore ?? '',
+        s.quality ?? '',
+        s.wakeUps ?? '',
+        s.efficiency ?? '',
+        s.deepSleepQuality ?? '',
+        s.snoringIntensity ?? '',
+        s.disruptionScore ?? '',
+        s.movementEvents ?? '',
+        s.isNap ? 'Yes' : 'No',
+      ].map(escapeCsv).join(','));
+
+      const csv = [headers.join(','), ...rows].join('\n');
+
+      const now = new Date();
+      const fileDateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+      const outputPath = `${FileSystem.documentDirectory}Sleep-History-${fileDateStr}.csv`;
+
+      await FileSystem.writeAsStringAsync(outputPath, csv, { encoding: FileSystem.EncodingType.UTF8 });
+      await Sharing.shareAsync(outputPath, {
+        mimeType: 'text/csv',
+        dialogTitle: 'Export Sleep History',
+        UTI: 'public.comma-separated-values-text',
+      });
+    } catch (e) {
+      console.error('CSV export error:', e);
+      showToast('Failed to export CSV. Please try again.', 'error');
+    } finally {
+      setIsGeneratingCSV(false);
     }
   };
 
@@ -1712,6 +1772,13 @@ export default function SleepAnalysisScreen({ hideHeader = false, isSubcomponent
                     <Text style={[styles(theme, isDark).insightTagText, { color: '#8B5CF6' }]}>+ PRO Analysis</Text>
                   </View>
                 )}
+
+                <TouchableOpacity
+                  style={styles(theme, isDark).viewDetailsBtn}
+                  onPress={() => navigation.navigate('SleepCoach')}
+                >
+                  <Text style={styles(theme, isDark).viewDetailsText}>Get your Sleep Coach plan ›</Text>
+                </TouchableOpacity>
               </View>
             </GlassModule>
 
@@ -1905,6 +1972,24 @@ export default function SleepAnalysisScreen({ hideHeader = false, isSubcomponent
               )}
               <Text style={styles(theme, isDark).mainCTAText}>
                 {isGeneratingReport ? 'Generating Report...' : isPremium ? 'Generate Full Sleep Report' : 'Unlock Report (Pro)'}
+              </Text>
+            </TouchableOpacity>
+
+            {/* CSV Export CTA */}
+            <TouchableOpacity
+              style={[styles(theme, isDark).secondaryCTA, isGeneratingCSV && { opacity: 0.7 }]}
+              onPress={handleExportCSV}
+              disabled={isGeneratingCSV}
+            >
+              {isGeneratingCSV ? (
+                <ActivityIndicator size="small" color={theme.colors.textPrimary} />
+              ) : isPremium ? (
+                <FileText size={18} color={theme.colors.textPrimary} />
+              ) : (
+                <Lock size={18} color={theme.colors.textPrimary} />
+              )}
+              <Text style={styles(theme, isDark).secondaryCTAText}>
+                {isGeneratingCSV ? 'Exporting CSV...' : isPremium ? 'Export Sleep History (CSV)' : 'Unlock CSV Export (Pro)'}
               </Text>
             </TouchableOpacity>
           </>
@@ -2772,12 +2857,30 @@ function styles(theme: any, isDark: boolean) {
       rowGap: 12, columnGap: 12,
       overflow: 'hidden',
       marginTop: 10,
-      marginBottom: 40,
+      marginBottom: 12,
     },
     mainCTAText: {
       color: '#FFF',
       fontSize: 16,
       fontWeight: '800',
+      fontFamily: theme.typography.fontFamily.bold,
+    },
+    secondaryCTA: {
+      height: 52,
+      borderRadius: 26,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      columnGap: 10,
+      borderWidth: 1,
+      borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)',
+      backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.02)',
+      marginBottom: 40,
+    },
+    secondaryCTAText: {
+      color: theme.colors.textPrimary,
+      fontSize: 14,
+      fontWeight: '700',
       fontFamily: theme.typography.fontFamily.bold,
     },
     heatmapContainer: {

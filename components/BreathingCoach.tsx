@@ -164,6 +164,26 @@ export default function BreathingCoach({ pattern, onComplete }: BreathingCoachPr
       </View>
 
       <View style={styles.breathingArea}>
+        {/* Visual breathing guide rings — centered behind the circle, sized
+            so the circle at full scale (width*0.5) always sits inside the
+            smallest ring with a margin */}
+        <View style={styles.guideRings} pointerEvents="none">
+          {[0, 1, 2].map((i) => (
+            <View
+              key={i}
+              style={[
+                styles.guideRing,
+                {
+                  width: width * 0.56 + i * 40,
+                  height: width * 0.56 + i * 40,
+                  borderColor: getPhaseColor(),
+                  opacity: 0.1 - i * 0.03,
+                },
+              ]}
+            />
+          ))}
+        </View>
+
         {/* Animated breathing circle */}
         <Animated.View
           style={[
@@ -193,24 +213,6 @@ export default function BreathingCoach({ pattern, onComplete }: BreathingCoachPr
             {getPhaseText()}
           </Text>
         </View>
-      </View>
-
-      {/* Visual breathing guide rings */}
-      <View style={styles.guideRings}>
-        {[0, 1, 2].map((i) => (
-          <View
-            key={i}
-            style={[
-              styles.guideRing,
-              {
-                width: width * 0.5 + i * 40,
-                height: width * 0.5 + i * 40,
-                borderColor: getPhaseColor(),
-                opacity: 0.1 - i * 0.03,
-              },
-            ]}
-          />
-        ))}
       </View>
     </View>
   );
@@ -276,10 +278,9 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   guideRings: {
-    position: 'absolute',
+    ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
     justifyContent: 'center',
-    pointerEvents: 'none',
   },
   guideRing: {
     position: 'absolute',

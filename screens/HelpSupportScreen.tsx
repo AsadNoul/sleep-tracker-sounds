@@ -131,8 +131,8 @@ export default function HelpSupportScreen() {
 
     try {
       // Use mailto so users can send via their email client without backend dependency
-      const mailto = `mailto:asadalibscs20@gmail.com?subject=${encodeURIComponent(subject.trim())}&body=${encodeURIComponent(
-        `From: ${name.trim()} <${email.trim()}>\n\n${message.trim()}\n\nSent from Sleep Architect`
+      const mailto = `mailto:support@naulx.com?subject=${encodeURIComponent(subject.trim())}&body=${encodeURIComponent(
+        `From: ${name.trim()} <${email.trim()}>\n\n${message.trim()}\n\nSent from Nightprint`
       )}`;
 
       const supported = await Linking.canOpenURL(mailto);
@@ -159,7 +159,7 @@ export default function HelpSupportScreen() {
       console.error('Contact form error:', error);
       Alert.alert(
         'Error',
-        'Failed to send message. Please email us directly at asadalibscs20@gmail.com'
+        'Failed to send message. Please email us directly at support@naulx.com'
       );
     } finally {
       setIsSending(false);
@@ -285,7 +285,7 @@ export default function HelpSupportScreen() {
               </TouchableOpacity>
               <TouchableOpacity
                 style={s.stuckTile}
-                onPress={() => Linking.openURL('mailto:asadalibscs20@gmail.com?subject=Feature%20idea')}
+                onPress={() => Linking.openURL('mailto:support@naulx.com?subject=Feature%20idea')}
                 activeOpacity={0.8}
               >
                 <Lightbulb size={20} color={theme.colors.accent} />
@@ -373,7 +373,7 @@ export default function HelpSupportScreen() {
                 </View>
                 <View style={s.methodTextBlock}>
                   <Text style={s.methodTitle}>Email</Text>
-                  <Text style={s.methodValue}>support@sleepapp.com</Text>
+                  <Text style={s.methodValue}>support@naulx.com</Text>
                 </View>
               </View>
 
@@ -397,7 +397,7 @@ export default function HelpSupportScreen() {
                 </View>
                 <View style={s.methodTextBlock}>
                   <Text style={s.methodTitle}>X (Twitter)</Text>
-                  <Text style={s.methodValue}>@Sleeptracker</Text>
+                  <Text style={s.methodValue}>@mxsports5</Text>
                 </View>
               </TouchableOpacity>
 
@@ -435,7 +435,7 @@ export default function HelpSupportScreen() {
                 <Text style={s.vipCardDesc}>Send us your issue and we'll reply within 2 hours (Mon-Fri).</Text>
                 <TouchableOpacity
                   style={s.vipActionBtn}
-                  onPress={() => Linking.openURL('mailto:vip@sleeparchitect.app?subject=VIP Support Request&body=Premium Member - Priority Support')}
+                  onPress={() => Linking.openURL('mailto:support@naulx.com?subject=VIP Support Request&body=Premium Member - Priority Support')}
                   activeOpacity={0.85}
                 >
                   <Text style={s.vipActionText}>Email VIP Support</Text>

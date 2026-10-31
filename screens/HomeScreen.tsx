@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,14 +7,14 @@ import {
   TouchableOpacity,
   useWindowDimensions,
   Platform,
-  Image,
   StatusBar,
   RefreshControl,
   Modal,
   TextInput,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import notificationHistoryService from '../services/notificationHistoryService';
 import { a11y } from '../utils/accessibility';
 import {
   Moon,
@@ -27,7 +27,6 @@ import {
   Star,
   Zap,
   Activity,
-  Layout,
   X,
   ChevronRight,
   Thermometer,
@@ -39,6 +38,9 @@ import {
   Headphones,
   Lightbulb,
   HelpCircle,
+  HeartPulse,
+  Users,
+  MoreVertical,
 } from 'lucide-react-native';
 
 import SleepPrintMark from '../components/SleepPrintMark';
@@ -53,7 +55,7 @@ import { isPremiumActive } from '../utils/subscriptionHelpers';
 import PushNotificationPrompt from '../components/PushNotificationPrompt';
 
 // ============================================================================
-// Sleep Architect — Home (redesign/ui-ux-v3)
+// Nightprint — Home (redesign/ui-ux-v3)
 // ============================================================================
 // Rebuilt to match the design canvas's `Night-Home.dc.html` / `Day-Home.dc.html`
 // (the "app" / "dayapp" pages — the approved final structure, not the
@@ -87,6 +89,13 @@ export default function HomeScreen() {
   const [nextAlarm, setNextAlarm] = useState<any>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [isSidebarVisible, setIsSidebarVisible] = useState(false);
+  const [hasUnreadNotifications, setHasUnreadNotifications] = useState(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      notificationHistoryService.getUnreadCount().then(count => setHasUnreadNotifications(count > 0));
+    }, [])
+  );
   const [searchQuery, setSearchQuery] = useState('');
 
   const sleepStats = useMemo(() => getSleepStats(), [sleepHistory]);
@@ -194,6 +203,8 @@ export default function HomeScreen() {
       { label: 'Dream Journal', screen: 'DreamJournal', keywords: ['dream', 'journal', 'diary', 'log', 'note'] },
       { label: 'Caffeine Calculator', screen: 'CaffeineCalculator', keywords: ['caffeine', 'coffee', 'tea', 'energy'] },
       { label: 'Achievements', screen: 'Achievements', keywords: ['achievement', 'badge', 'trophy', 'streak', 'goal'] },
+      { label: 'Health Tracking', screen: 'HealthTracking', keywords: ['health', 'medication', 'meal', 'exercise', 'log'] },
+      { label: 'Partner Mode', screen: 'PartnerMode', keywords: ['partner', 'couple', 'compare', 'share sleep'] },
       { label: 'Settings', screen: 'Settings', keywords: ['setting', 'preference', 'theme', 'notification', 'reminder', 'account'] },
       { label: 'Start Sleep', screen: 'SleepSession', keywords: ['sleep', 'start', 'track', 'record', 'session', 'log sleep'] },
     ];
@@ -354,16 +365,13 @@ export default function HomeScreen() {
             </View>
           </View>
           <TouchableOpacity
-            style={s.avatarButton}
-            onPress={() => navigation.navigate('Settings')}
-            {...a11y.navigation('Settings', 'Opens app settings and preferences')}
+            onPress={() => navigation.navigate('Notifications')}
+            style={s.bellButton}
+            {...a11y.navigation('Notifications', 'Opens your notification history')}
             activeOpacity={0.8}
           >
-            <Image
-              source={require('../assets/app_logo.png')}
-              style={s.avatarImage}
-              resizeMode="cover"
-            />
+            <Bell size={20} color={theme.colors.textPrimary} />
+            {hasUnreadNotifications && <View style={[s.notifDot, { backgroundColor: theme.colors.error }]} />}
           </TouchableOpacity>
           <TouchableOpacity
             onPress={() => setIsSidebarVisible(true)}
@@ -371,7 +379,7 @@ export default function HomeScreen() {
             {...a11y.button('Menu', 'Opens sidebar menu with tools and support options')}
             activeOpacity={0.8}
           >
-            <Bell size={20} color={theme.colors.textPrimary} />
+            <MoreVertical size={20} color={theme.colors.textPrimary} />
           </TouchableOpacity>
         </View>
 
@@ -555,36 +563,6 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        {/* Control Center — Caffeine / Settings (Sounds + Alarms already covered above) */}
-        <View style={s.sectionHeaderRow}>
-          <Text style={s.sectionTitle}>Control Center</Text>
-        </View>
-        <View style={s.controlRow}>
-          <TouchableOpacity
-            style={[s.controlCard, { marginRight: 12 }]}
-            onPress={() => navigation.navigate('CaffeineCalculator')}
-            activeOpacity={0.85}
-          >
-            <View style={s.controlIcon}>
-              <Coffee size={20} color={theme.colors.accent} strokeWidth={2.2} />
-            </View>
-            <Text style={s.tileTitle}>Caffeine</Text>
-            <Text style={s.tileSubtext}>Track intake</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={s.controlCard}
-            onPress={() => navigation.navigate('Settings')}
-            activeOpacity={0.85}
-          >
-            <View style={s.controlIcon}>
-              <Layout size={20} color={theme.colors.accent} strokeWidth={2.2} />
-            </View>
-            <Text style={s.tileTitle}>Settings</Text>
-            <Text style={s.tileSubtext}>Preferences</Text>
-          </TouchableOpacity>
-        </View>
-
         {/* Sleep Improvement — weekly performance dashboard */}
         <View style={s.sectionHeaderRow}>
           <Text style={s.sectionTitle}>Sleep Improvement</Text>
@@ -644,7 +622,7 @@ export default function HomeScreen() {
               const now = new Date();
               const dayIndex = (now.getDay() + 7 - (6 - i)) % 7;
               const labels = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
-              const barHeight = Math.max(4, (h / 100) * 40);
+              const barHeight = Math.max(3, (h / 100) * 26);
               return (
                 <View key={i} style={s.miniChartColumn}>
                   <View style={[s.miniChartBar, { height: barHeight, backgroundColor: i === 6 ? theme.colors.accent : h > 0 ? theme.colors.accentLight : theme.colors.disabled }]} />
@@ -670,44 +648,6 @@ export default function HomeScreen() {
             <Text style={s.tipText}>{tipOfTheDay}</Text>
             <Text style={s.tipActionText}>Tap to build your routine →</Text>
           </View>
-        </TouchableOpacity>
-
-        {/* Achievements */}
-        <View style={s.sectionHeaderRow}>
-          <Text style={s.sectionTitle}>Achievements</Text>
-          <TouchableOpacity onPress={() => navigation.navigate('Achievements')}>
-            <Text style={s.seeAllText}>All</Text>
-          </TouchableOpacity>
-        </View>
-
-        <TouchableOpacity
-          style={s.achievementsCard}
-          onPress={() => navigation.navigate('Achievements')}
-          activeOpacity={0.85}
-        >
-          <View style={s.achievementsTrophyCircle}>
-            <Trophy size={26} color={theme.colors.warning} strokeWidth={2} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={s.achievementsTitle}>Your Journey</Text>
-            <View style={s.achievementsStats}>
-              <View style={s.achievementStat}>
-                <Text style={s.achievementStatValue}>{currentStreak}</Text>
-                <Text style={s.achievementStatLabel}>Streak</Text>
-              </View>
-              <View style={s.achievementStatDivider} />
-              <View style={s.achievementStat}>
-                <Text style={s.achievementStatValue}>{goodNightStreak}</Text>
-                <Text style={s.achievementStatLabel}>Good Nights</Text>
-              </View>
-              <View style={s.achievementStatDivider} />
-              <View style={s.achievementStat}>
-                <Text style={s.achievementStatValue}>{sleepHistory.length}</Text>
-                <Text style={s.achievementStatLabel}>Sessions</Text>
-              </View>
-            </View>
-          </View>
-          <ChevronRight size={18} color={theme.colors.textTertiary} />
         </TouchableOpacity>
       </ScrollView>
 
@@ -787,6 +727,8 @@ export default function HomeScreen() {
                 { label: 'Sleep Interruptions', icon: <Clock size={20} color={theme.colors.accent} />, screen: 'SleepInterruptions' },
                 { label: 'Relaxation Library', icon: <Headphones size={20} color={theme.colors.accent} />, screen: 'RelaxationLibrary' },
                 { label: 'Caffeine Calculator', icon: <Coffee size={20} color={theme.colors.accent} />, screen: 'CaffeineCalculator' },
+                { label: 'Health Tracking', icon: <HeartPulse size={20} color={theme.colors.accent} />, screen: 'HealthTracking' },
+                { label: 'Partner Mode', icon: <Users size={20} color={theme.colors.accent} />, screen: 'PartnerMode' },
               ].map((item, index) => (
                 <TouchableOpacity
                   key={index}
@@ -897,20 +839,6 @@ const styles = (theme: any) => StyleSheet.create({
     color: theme.colors.premiumBadgeText,
     marginLeft: 3,
   },
-  avatarButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    borderWidth: 1,
-    borderColor: theme.colors.cardBorder,
-    backgroundColor: theme.colors.card,
-    overflow: 'hidden',
-    marginLeft: 10,
-  },
-  avatarImage: {
-    width: '100%',
-    height: '100%',
-  },
   bellButton: {
     width: 44,
     height: 44,
@@ -921,6 +849,14 @@ const styles = (theme: any) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginLeft: 10,
+  },
+  notifDot: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
   },
 
   // Mode pill
@@ -1173,48 +1109,24 @@ const styles = (theme: any) => StyleSheet.create({
     borderRadius: 2,
   },
 
-  // Control Center
-  controlRow: {
-    flexDirection: 'row',
-    marginBottom: 24,
-  },
-  controlCard: {
-    flex: 1,
-    backgroundColor: theme.colors.card,
-    borderWidth: 1,
-    borderColor: theme.colors.cardBorder,
-    borderRadius: theme.borderRadius.lg,
-    padding: 14,
-    alignItems: 'flex-start',
-  },
-  controlIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 14,
-    backgroundColor: theme.colors.accentLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 10,
-  },
-
   // Sleep Improvement
   improvementCard: {
     backgroundColor: theme.colors.card,
     borderWidth: 1,
     borderColor: theme.colors.cardBorder,
     borderRadius: theme.borderRadius.card,
-    padding: 18,
-    marginBottom: 24,
+    padding: 14,
+    marginBottom: 20,
   },
   improvementHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 18,
+    marginBottom: 12,
   },
   improvementIconCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: theme.colors.accentLight,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1247,8 +1159,8 @@ const styles = (theme: any) => StyleSheet.create({
     flexDirection: 'row',
     backgroundColor: theme.colors.backgroundTertiary,
     borderRadius: theme.borderRadius.lg,
-    padding: 15,
-    marginBottom: 20,
+    padding: 10,
+    marginBottom: 12,
   },
   improvementStatItem: {
     flex: 1,
@@ -1256,13 +1168,13 @@ const styles = (theme: any) => StyleSheet.create({
   },
   improvementStatValue: {
     fontFamily: theme.typography.fontFamily.bodyBold,
-    fontSize: 16,
+    fontSize: 14,
     color: theme.colors.textPrimary,
-    marginBottom: 4,
+    marginBottom: 2,
   },
   improvementStatLabel: {
     fontFamily: theme.typography.fontFamily.bodySemibold,
-    fontSize: 10,
+    fontSize: 9,
     color: theme.colors.textTertiary,
     textTransform: 'uppercase',
   },
@@ -1274,16 +1186,16 @@ const styles = (theme: any) => StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-end',
-    height: 72,
+    height: 44,
   },
   miniChartColumn: {
     flex: 1,
     alignItems: 'center',
   },
   miniChartBar: {
-    width: 8,
-    borderRadius: 4,
-    marginBottom: 8,
+    width: 6,
+    borderRadius: 3,
+    marginBottom: 6,
   },
   miniChartLabel: {
     fontFamily: theme.typography.fontFamily.bodySemibold,

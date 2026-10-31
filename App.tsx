@@ -6,8 +6,8 @@ import { StyleSheet, View, ActivityIndicator, Platform, Dimensions, Text } from 
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   Home,
-  BarChart2,
-  Music,
+  FileChartColumn,
+  AudioWaveform,
   Leaf,
   Settings as SettingsIcon
 } from 'lucide-react-native';
@@ -26,6 +26,8 @@ import ErrorBoundary, { withScreenErrorBoundary } from './components/ErrorBounda
 import revenueCatService from './services/revenueCatService';
 import { crashLogger, setupGlobalErrorHandlers } from './services/crashLogger';
 import alarmService from './services/alarmService';
+import notificationService from './services/notificationService';
+import notificationHistoryService from './services/notificationHistoryService';
 import { useFonts } from 'expo-font';
 import UpdateChecker from './components/UpdateChecker';
 
@@ -57,6 +59,11 @@ import SleepInterruptionsScreen from './screens/SleepInterruptionsScreen';
 import CaffeineCalculatorScreen from './screens/CaffeineCalculatorScreen';
 import AchievementsScreen from './screens/AchievementsScreen';
 import AdminScreen from './screens/AdminScreen';
+import SleepCoachScreen from './screens/SleepCoachScreen';
+import NotificationsScreen from './screens/NotificationsScreen';
+import NotificationSettingsScreen from './screens/NotificationSettingsScreen';
+import TrackingSettingsScreen from './screens/TrackingSettingsScreen';
+import SavedMixesScreen from './screens/SavedMixesScreen';
 
 // Auth & Onboarding screens
 import WelcomeScreen from './screens/WelcomeScreen';
@@ -163,9 +170,9 @@ function MainNavigator() {
           if (route.name === 'Home') {
             return <Home size={size} color={color} strokeWidth={focused ? 2.5 : 2} />;
           } else if (route.name === 'Journal') {
-            return <BarChart2 size={size} color={color} strokeWidth={focused ? 2.5 : 2} />;
+            return <FileChartColumn size={size} color={color} strokeWidth={focused ? 2.5 : 2} />;
           } else if (route.name === 'Sounds') {
-            return <Music size={size} color={color} strokeWidth={focused ? 2.5 : 2} />;
+            return <AudioWaveform size={size} color={color} strokeWidth={focused ? 2.5 : 2} />;
           } else if (route.name === 'Mindfulness') {
             return <Leaf size={size} color={color} strokeWidth={focused ? 2.5 : 2} />;
           } else if (route.name === 'Settings') {
@@ -256,6 +263,11 @@ function AppNavigator() {
             <Stack.Screen name="SleepInterruptions" component={SleepInterruptionsScreen} />
             <Stack.Screen name="CaffeineCalculator" component={CaffeineCalculatorScreen} />
             <Stack.Screen name="Achievements" component={AchievementsScreen} />
+            <Stack.Screen name="SleepCoach" component={SleepCoachScreen} />
+            <Stack.Screen name="Notifications" component={NotificationsScreen} />
+            <Stack.Screen name="NotificationSettings" component={NotificationSettingsScreen} />
+            <Stack.Screen name="TrackingSettings" component={TrackingSettingsScreen} />
+            <Stack.Screen name="SavedMixes" component={SavedMixesScreen} />
             <Stack.Screen name="Admin" component={AdminScreen} />
           </>
         ) : (
@@ -290,6 +302,11 @@ function AppNavigator() {
             <Stack.Screen name="SleepInterruptions" component={SleepInterruptionsScreen} />
             <Stack.Screen name="CaffeineCalculator" component={CaffeineCalculatorScreen} />
             <Stack.Screen name="Achievements" component={AchievementsScreen} />
+            <Stack.Screen name="SleepCoach" component={SleepCoachScreen} />
+            <Stack.Screen name="Notifications" component={NotificationsScreen} />
+            <Stack.Screen name="NotificationSettings" component={NotificationSettingsScreen} />
+            <Stack.Screen name="TrackingSettings" component={TrackingSettingsScreen} />
+            <Stack.Screen name="SavedMixes" component={SavedMixesScreen} />
             <Stack.Screen name="Admin" component={AdminScreen} />
           </>
         )}
@@ -372,6 +389,19 @@ export default function App() {
     };
 
     initializeApp();
+  }, []);
+
+  // Log every notification actually delivered (not just scheduled) into the
+  // in-app notification history, so the Notifications screen reflects what
+  // really happened rather than what's merely queued.
+  useEffect(() => {
+    const subscription = notificationService.addNotificationReceivedListener((notification) => {
+      const { title, body, data } = notification.request.content;
+      notificationHistoryService
+        .logNotification(title || 'Notification', body || '', (data as any)?.type || 'general', data as any)
+        .catch(() => {});
+    });
+    return () => subscription.remove();
   }, []);
 
   // Wait for fonts to load

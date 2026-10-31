@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, FlatList, Alert, Modal } from 'react-native';
 import { useAppTheme } from '../hooks/useAppTheme';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Slider from '@react-native-community/slider';
 import { useAudio } from '../contexts/AudioContext';
 import { useNavigation } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -162,7 +163,11 @@ const MEDITATIONS: MeditationSession[] = [
 export default function RelaxationLibraryScreen() {
   const { theme } = useAppTheme();
   const navigation = useNavigation();
-  const { playSound, currentSound, isPlaying, pauseSound, stopSound } = useAudio();
+  const {
+    playSound, currentSound, isPlaying, pauseSound, stopSound,
+    isMixing, activeMix, startMixing, stopMixing, pauseMixing, resumeMixing,
+    addSoundToMix, removeSoundFromMix, setMixSoundVolume,
+  } = useAudio();
   const [selectedTab, setSelectedTab] = useState<'stories' | 'sounds' | 'meditation'>('stories');
   const [activeSounds, setActiveSounds] = useState<string[]>([]);
   const [soundVolumes, setSoundVolumes] = useState<{ [key: string]: number }>({});
@@ -216,9 +221,18 @@ export default function RelaxationLibraryScreen() {
     await AsyncStorage.setItem('custom_sound_mixes', JSON.stringify(newMixes));
   };
 
-  const loadMix = (sounds: string[]) => {
-    setActiveSounds(sounds);
-    setMixPlaying(false);
+  const loadMix = async (soundIds: string[]) => {
+    await stopMixing();
+    startMixing();
+    setActiveSounds([]);
+    for (const id of soundIds) {
+      const sound = SOUNDS.find(s => s.id === id);
+      if (sound) {
+        await addSoundToMix(sound.id, sound.uri, sound.name);
+        setActiveSounds(prev => [...prev, sound.id]);
+      }
+    }
+    setMixPlaying(true);
   };
 
   const startTimer = (mins: number) => {
@@ -238,13 +252,16 @@ export default function RelaxationLibraryScreen() {
       return;
     }
 
-    if (activeSounds.includes(sound.id)) {
-      setActiveSounds(activeSounds.filter(id => id !== sound.id));
-      stopSound();
+    if (!isMixing) startMixing();
+
+    if (activeMix[sound.id]) {
+      await removeSoundFromMix(sound.id);
+      setActiveSounds(prev => prev.filter(id => id !== sound.id));
     } else {
-      setActiveSounds([...activeSounds, sound.id]);
-      setSoundVolumes({ ...soundVolumes, [sound.id]: 0.5 });
-      await playSound(sound);
+      await addSoundToMix(sound.id, sound.uri, sound.name);
+      setActiveSounds(prev => [...prev, sound.id]);
+      setSoundVolumes(prev => ({ ...prev, [sound.id]: 0.5 }));
+      setMixPlaying(true); // addSoundToMix starts playback immediately
     }
   };
 
@@ -256,17 +273,14 @@ export default function RelaxationLibraryScreen() {
     setSelectedStory(story);
   };
 
-  const playMix = async () => {
+  const playMix = () => {
     if (activeSounds.length === 0) return;
-    const firstSound = SOUNDS.find(s => s.id === activeSounds[0]);
-    if (firstSound) {
-      await playSound(firstSound);
-      setMixPlaying(true);
-    }
+    resumeMixing();
+    setMixPlaying(true);
   };
 
   const pauseMix = () => {
-    pauseSound();
+    pauseMixing();
     setMixPlaying(false);
   };
 
@@ -275,7 +289,7 @@ export default function RelaxationLibraryScreen() {
       Alert.alert('Coming Soon', 'This meditation will be available in a future update.');
       return;
     }
-    await playSound(meditation);
+    await playSound(meditation.id, meditation.uri, meditation.title);
   };
 
   const s = styles(theme);
@@ -496,17 +510,28 @@ export default function RelaxationLibraryScreen() {
                   <Volume2 size={18} color={theme.colors.textSecondary} />
                 </View>
 
-                <View style={s.soundsList}>
+                <View style={s.remixList}>
                   {activeSounds.map((soundId) => {
                     const sound = SOUNDS.find(sd => sd.id === soundId);
+                    const mixedVolume = activeMix[soundId]?.volume ?? 0.5;
                     return (
-                      <View
-                        key={soundId}
-                        style={[s.activeSoundChip, { backgroundColor: theme.colors.accentLight, borderColor: theme.colors.accentBorder }]}
-                      >
+                      <View key={soundId} style={[s.remixRow, { borderColor: theme.colors.cardBorder }]}>
                         <Text style={[s.activeSoundText, { color: theme.colors.accent }]}>
                           {sound?.icon} {sound?.name}
                         </Text>
+                        <Slider
+                          style={s.remixSlider}
+                          value={mixedVolume}
+                          onValueChange={(v) => setMixSoundVolume(soundId, v)}
+                          minimumValue={0}
+                          maximumValue={1}
+                          minimumTrackTintColor={theme.colors.accent}
+                          maximumTrackTintColor={theme.colors.cardBorder}
+                          thumbTintColor={theme.colors.accent}
+                        />
+                        <TouchableOpacity onPress={() => toggleSound(sound!)}>
+                          <Trash2 size={16} color={theme.colors.error} />
+                        </TouchableOpacity>
                       </View>
                     );
                   })}
@@ -558,7 +583,7 @@ export default function RelaxationLibraryScreen() {
                     )}
                   </TouchableOpacity>
 
-                  <TouchableOpacity style={s.controlButton} onPress={() => setActiveSounds([])}>
+                  <TouchableOpacity style={s.controlButton} onPress={async () => { await stopMixing(); setActiveSounds([]); setMixPlaying(false); }}>
                     <Trash2 size={22} color={theme.colors.error} />
                   </TouchableOpacity>
                 </View>
@@ -839,21 +864,25 @@ const styles = (theme: any) => StyleSheet.create({
     flex: 1,
     marginLeft: 4,
   },
-  soundsList: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    rowGap: 8, columnGap: 8,
+  remixList: {
+    rowGap: 10,
     marginBottom: 20,
   },
-  activeSoundChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1,
+  remixRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    columnGap: 10,
+    borderBottomWidth: 1,
+    paddingBottom: 10,
+  },
+  remixSlider: {
+    flex: 1,
+    height: 32,
   },
   activeSoundText: {
     fontFamily: theme.typography.fontFamily.bodySemibold,
     fontSize: 13,
+    minWidth: 90,
   },
   playerControls: {
     flexDirection: 'row',

@@ -56,7 +56,7 @@ import sleepRecorderService from '../services/sleepRecorderService';
 import RatingPrompt from '../components/RatingPrompt';
 
 // ============================================================================
-// Sleep Architect — Sleep Session (redesign/ui-ux-v3)
+// Nightprint — Sleep Session (redesign/ui-ux-v3)
 // ============================================================================
 // Rebuilt to match the design canvas's `Trk-Session.dc.html` ("Sleeping ·
 // active session") and `Trk-Wake.dc.html` ("Good morning · rate night"), plus

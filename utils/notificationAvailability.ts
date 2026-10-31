@@ -61,13 +61,25 @@ export function isExpoNotificationsAvailable(): boolean {
   try {
     // ExpoNotificationsHandlerModule is required on every platform (it's what
     // `setNotificationHandler` / scheduling / permissions all route through).
-    // ExpoTopicSubscriptionModule is Android-only (never registered on iOS,
-    // even in a real build) and was the module named in the original crash
-    // report, so we check it too but only to confirm the Android-specific
-    // failure mode — never require it to exist on iOS.
     const handlerModule = requireOptionalNativeModule('ExpoNotificationsHandlerModule');
 
-    cachedAvailability = !!handlerModule;
+    // ExpoTopicSubscriptionModule is Android-only (never registered on iOS,
+    // even in a real build) and was the module named in the original crash
+    // report. It can be missing even when the handler module is present.
+    // requireOptionalNativeModule is documented as non-throwing, but in
+    // practice this specific module can still throw synchronously on some
+    // Android/Expo Go combinations — so it gets its OWN try/catch, isolated
+    // from the handler-module check above. No Platform.OS gate: on iOS/web
+    // this module genuinely doesn't exist either, so it correctly resolves
+    // to null/undefined there without needing a platform check.
+    let topicModule: unknown = null;
+    try {
+      topicModule = requireOptionalNativeModule('ExpoTopicSubscriptionModule');
+    } catch (topicError) {
+      topicModule = null;
+    }
+
+    cachedAvailability = !!handlerModule && !!topicModule;
   } catch (error) {
     console.warn('[notifications] Error checking native module availability:', error);
     cachedAvailability = false;
