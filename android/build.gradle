@@ -21,5 +21,23 @@ allprojects {
   }
 }
 
+// Stripe's optional Issuing push-provisioning dependency references Google's
+// private Tap & Pay SDK. AGP 9 resolves that transitive dependency for release
+// lint even when push provisioning is unused, so remove it from Stripe's
+// component metadata. Apps that use push provisioning must provide the SDK.
+subprojects { subproject ->
+  if (subproject.name == 'stripe_stripe-react-native') {
+    subproject.dependencies.components.withModule('com.stripe:stripe-android-issuing-push-provisioning') { details ->
+      details.allVariants {
+        withDependencies { dependencies ->
+          dependencies.removeAll {
+            it.group == 'com.google.android.gms' && it.name == 'play-services-tapandpay'
+          }
+        }
+      }
+    }
+  }
+}
+
 apply plugin: "expo-root-project"
 apply plugin: "com.facebook.react.rootproject"
